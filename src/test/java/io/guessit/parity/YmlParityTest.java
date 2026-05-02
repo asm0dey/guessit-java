@@ -37,12 +37,19 @@ class YmlParityTest {
         return o == null ? "null" : o.toString();
     }
 
-    /** Properties shipped through Phase 1. Only cases whose expected output is entirely
+    /** Properties shipped through Phases 1 + 2. Only cases whose expected output is entirely
      *  within this set are tested. */
-    private static final Set<String> PHASE_1_PROPS = Set.of(
+    private static final Set<String> PHASE_PROPS = Set.of(
+        // Phase 1
         "year", "container", "screen_size", "aspect_ratio", "frame_rate",
         "video_codec", "video_profile", "color_depth", "video_api",
-        "audio_codec", "audio_profile", "audio_channels"
+        "audio_codec", "audio_profile", "audio_channels",
+        // Phase 2
+        "source", "other",
+        "language", "subtitle_language",
+        "country",
+        "release_group",
+        "website", "streaming_service"
     );
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -67,6 +74,6 @@ class YmlParityTest {
     static Stream<YmlCase> allYmlCases() {
         return YmlTestLoader.discoverAll("yml/")
             .filter(c -> !c.expected().isEmpty())
-            .filter(c -> c.expected().keySet().stream().allMatch(PHASE_1_PROPS::contains));
+            .filter(c -> c.expected().keySet().stream().allMatch(PHASE_PROPS::contains));
     }
 }
