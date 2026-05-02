@@ -120,6 +120,12 @@ public final class SourceExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
+        validatePrefixSuffix(ctx);
+        validateWeakSource(ctx);
+        upgradeUltraHdBluray(ctx);
+    }
+
+    private void validatePrefixSuffix(ParseContext ctx) {
         var input = ctx.input;
         var sources = ctx.matches.named("source").toList();
         var toRemove = new ArrayList<Match>();
@@ -127,14 +133,51 @@ public final class SourceExtractor implements Extractor {
         var sepsAfter = Validators.sepsAfter(input);
         for (var s : sources) {
             if (!sepsBefore.test(s)) {
-                if (!hasNeighborTag(ctx, s.start() - 1, "source-prefix")) toRemove.add(s);
-                continue;
+                if (!hasNeighborTag(ctx, s.start() - 1, "source-prefix")) { toRemove.add(s); continue; }
             }
             if (!sepsAfter.test(s)) {
                 if (!hasNeighborTag(ctx, s.end(), "source-suffix")) toRemove.add(s);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private void validateWeakSource(ParseContext ctx) {
+        var weaks = ctx.matches.named("source")
+            .filter(m -> m.tags().contains("weak.source"))
+            .toList();
+        if (weaks.isEmpty()) return;
+        var toRemove = new ArrayList<Match>();
+        for (var filepart : ctx.markers) {
+            if (!"path".equals(filepart.name())) continue;
+            for (var weak : weaks) {
+                if (!filepart.covers(weak.start(), weak.end())) continue;
+                boolean later = ctx.matches.named("source")
+                    .anyMatch(m -> m != weak && m.start() >= weak.end() && m.end() <= filepart.end());
+                if (!later) continue;
+                var pre = ctx.input.substring(filepart.start(), weak.start());
+                if (!pre.isBlank()) toRemove.add(weak);
+            }
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private void upgradeUltraHdBluray(ParseContext ctx) {
+        var bds = ctx.matches.named("source")
+            .filter(m -> "Blu-ray".equals(m.value()))
+            .toList();
+        if (bds.isEmpty()) return;
+        for (var filepart : ctx.markers) {
+            if (!"path".equals(filepart.name())) continue;
+            for (var bd : bds) {
+                if (!filepart.covers(bd.start(), bd.end())) continue;
+                boolean has2160p = ctx.matches.named("screen_size")
+                    .anyMatch(m -> "2160p".equals(m.value()) && filepart.covers(m.start(), m.end()));
+                if (!has2160p) continue;
+                ctx.matches.replace(bd, new Match("source", "Ultra HD Blu-ray",
+                    bd.start(), bd.end(), bd.raw(), bd.priority(), bd.tags(), bd.isPrivate()));
+            }
+        }
     }
 
     private static boolean hasNeighborTag(ParseContext ctx, int pos, String tag) {

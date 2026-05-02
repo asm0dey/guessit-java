@@ -9,9 +9,13 @@ import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.TitleMarkerSelector;
 import io.guessit.rules.property.AudioCodecExtractor;
 import io.guessit.rules.property.ContainerExtractor;
+import io.guessit.rules.property.CountryExtractor;
+import io.guessit.rules.property.LanguageExtractor;
 import io.guessit.rules.property.OtherExtractor;
+import io.guessit.rules.property.ReleaseGroupExtractor;
 import io.guessit.rules.property.ScreenSizeExtractor;
 import io.guessit.rules.property.SourceExtractor;
+import io.guessit.rules.property.StreamingServiceExtractor;
 import io.guessit.rules.property.VideoCodecExtractor;
 import io.guessit.rules.property.WebsiteExtractor;
 import io.guessit.rules.property.YearExtractor;
@@ -45,8 +49,12 @@ public final class Rules {
             new AudioCodecExtractor(),
             new ContainerExtractor(),
             new OtherExtractor(),
+            new LanguageExtractor(),
+            new CountryExtractor(),
+            new StreamingServiceExtractor(),
             new SourceExtractor(),
-            new WebsiteExtractor()
+            new WebsiteExtractor(),
+            new ReleaseGroupExtractor()
         );
     }
 }

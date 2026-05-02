@@ -46,4 +46,20 @@ class SourceExtractorTest {
         var r = Guessit.parse("Movie.2015.HDCAM.mkv").toMap();
         assertEquals("HD Camera", r.get("source"));
     }
+
+    @Test void weakWebRemovedWhenStrongSourceFollows() {
+        var r = Guessit.parse("Some.WEB.Title.2015.BluRay.mkv").toMap();
+        assertEquals("Blu-ray", r.get("source"));
+    }
+
+    @Test void weakWebKeptWhenAlone() {
+        var r = Guessit.parse("Movie.2015.WEB.mkv").toMap();
+        assertEquals("Web", r.get("source"));
+    }
+
+    @Test void ultraHdBluray2160p() {
+        var r = Guessit.parse("Movie.2015.2160p.BluRay.mkv").toMap();
+        assertEquals("Ultra HD Blu-ray", r.get("source"));
+        assertEquals("2160p", r.get("screen_size"));
+    }
 }
