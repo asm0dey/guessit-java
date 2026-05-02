@@ -1,0 +1,37 @@
+alias,alpha3,note
+vo,und,original-version-marker
+mul,mul,multiple-languages
+und,und,undetermined
+zxx,zxx,no-linguistic-content
+gr,ell,guessit-synonym
+greek,ell,guessit-synonym
+esp,spa,guessit-synonym
+español,spa,guessit-synonym
+espanol,spa,guessit-synonym
+français,fra,guessit-synonym
+vf,fra,guessit-synonym-french-video
+vff,fra,guessit-synonym-french-video
+vfi,fra,guessit-synonym-french-video
+vfq,fra,guessit-synonym-french-video
+se,swe,guessit-synonym
+po,por,guessit-synonym-pt-BR
+pb,por,guessit-synonym-pt-BR
+pob,por,guessit-synonym-pt-BR
+ptbr,por,guessit-synonym-pt-BR
+br,por,guessit-synonym-pt-BR
+brazilian,por,guessit-synonym-pt-BR
+swissgerman,deu,guessit-synonym-de-CH
+swiss german,deu,guessit-synonym-de-CH
+flemish,nld,guessit-synonym-nl-BE
+català,cat,guessit-synonym
+castellano,cat,guessit-synonym
+espanol castellano,cat,guessit-synonym
+español castellano,cat,guessit-synonym
+cz,ces,guessit-synonym
+ua,ukr,guessit-synonym
+cn,zho,guessit-synonym
+jp,jpn,guessit-synonym
+scr,hrv,guessit-synonym
+multi,mul,guessit-synonym
+multiple,mul,guessit-synonym
+dl,mul,guessit-synonym
