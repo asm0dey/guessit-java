@@ -1,0 +1,162 @@
+package io.guessit.rules.property;
+
+import io.guessit.engine.*;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+public final class WebsiteExtractor implements Extractor {
+    @Override public String name() { return "website"; }
+    @Override public int priority() { return 100; }
+
+    private static final String TLD_PATH = "/io/guessit/data/tlds-alpha-by-domain.txt";
+
+    private final Pattern pattern1;  // safe subdomain + TLD
+    private final Pattern pattern2;  // safe TLD
+    private final Pattern pattern3;  // safe prefix + TLD
+    private final List<String> safeSubdomains;
+    private final List<String> safePrefixes;
+    private final List<String> websitePrefixes;
+
+    @SuppressWarnings("unchecked")
+    public WebsiteExtractor() {
+        var cfg = ConfigHolder.websiteConfig();
+        this.safeSubdomains = (List<String>) cfg.getOrDefault("safe_subdomains", List.of("www"));
+        var safeTlds = (List<String>) cfg.getOrDefault("safe_tlds", List.of("com", "net", "org"));
+        this.safePrefixes = (List<String>) cfg.getOrDefault("safe_prefixes", List.of("co", "com", "net", "org"));
+        this.websitePrefixes = (List<String>) cfg.getOrDefault("prefixes", List.of("from"));
+
+        var tlds = loadTlds();
+
+        var tldOr = buildOrPattern(tlds);
+        var safeTldOr = buildOrPattern(safeTlds);
+        var safeSubOr = buildOrPattern(safeSubdomains);
+        var safePrefixOr = buildOrPattern(safePrefixes);
+
+        // Pattern 1: safe subdomain + any TLD
+        this.pattern1 = safeCompile(
+            "(?:[^a-z0-9]|^)((?:www\\.)+(?:[a-z0-9-]+\\.)+" + tldOr + ")(?:[^a-z0-9]|$)");
+
+        // Pattern 2: safe TLD with optional subdomains
+        this.pattern2 = safeCompile(
+            "(?:[^a-z0-9]|^)((?:www\\.)*[a-z0-9-]+\\.(?:" + safeTldOr + "))(?:[^a-z0-9]|$)");
+
+        // Pattern 3: safe prefix + any TLD
+        this.pattern3 = safeCompile(
+            "(?:[^a-z0-9]|^)((?:www\\.)*[a-z0-9-]+\\.(?:" + safePrefixOr + "\\.)+(?:" + tldOr + "))(?:[^a-z0-9]|$)");
+    }
+
+    @Override
+    public void extract(ParseContext ctx) {
+        var input = ctx.input;
+        var validator = Validators.sepsSurround(input);
+
+        // Match website prefixes (e.g., "from") as private website.prefix tags
+        for (var prefix : websitePrefixes) {
+            var idxFrom = 0;
+            var hay = input.toLowerCase(java.util.Locale.ROOT);
+            var needle = prefix.toLowerCase(java.util.Locale.ROOT);
+            while (true) {
+                int i = hay.indexOf(needle, idxFrom);
+                if (i < 0) break;
+                int end = i + needle.length();
+                var m = new Match("website", prefix, i, end, input.substring(i, end), 0, Set.of("website.prefix"), true);
+                if (validator.test(m)) ctx.matches.add(m);
+                idxFrom = i + 1;
+            }
+        }
+
+        // Match website URL patterns
+        matchPattern(ctx, input, pattern1, validator);
+        matchPattern(ctx, input, pattern2, validator);
+        matchPattern(ctx, input, pattern3, validator);
+    }
+
+    private static void matchPattern(ParseContext ctx, String input, Pattern p, java.util.function.Predicate<Match> validator) {
+        var matcher = p.matcher(input);
+        while (matcher.find()) {
+            int s = matcher.start(1);
+            int e = matcher.end(1);
+            if (s < 0) continue;
+            var raw = input.substring(s, e);
+            // check the full match (group 0) for surrounding separators
+            var fullMatch = new Match("website", raw, matcher.start(0), matcher.end(0), input.substring(matcher.start(0), matcher.end(0)), 100, Set.of(), false);
+            if (!validator.test(fullMatch)) continue;
+            // check inner match has valid chars
+            if (!isValidDomainChars(raw)) continue;
+            var m = new Match("website", raw, s, e, raw, 100, Set.of(), false);
+            ctx.matches.add(m);
+        }
+    }
+
+    private static boolean isValidDomainChars(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!Character.isLetterOrDigit(c) && c != '-' && c != '.') return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void postProcess(ParseContext ctx) {
+        // ValidateWebsitePrefix: remove website.prefix matches that don't have
+        // a website match following them without holes
+        var toRemove = new ArrayList<Match>();
+        for (var m : ctx.matches.all().filter(m -> m.tags().contains("website.prefix")).toList()) {
+            var websiteMatch = ctx.matches.named("website")
+                .filter(w -> w.start() > m.end())
+                .findFirst().orElse(null);
+            if (websiteMatch == null) {
+                toRemove.add(m);
+            } else {
+                // Check if there's a hole (non-empty content) between prefix and website
+                var holeContent = ctx.input.substring(m.end(), websiteMatch.start()).trim();
+                if (!holeContent.isEmpty()) {
+                    toRemove.add(m);
+                }
+            }
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static String buildOrPattern(List<String> items) {
+        if (items.isEmpty()) return "(?!)";
+        return "(?:" + items.stream().map(Pattern::quote).collect(Collectors.joining("|")) + ")";
+    }
+
+    private static Pattern safeCompile(String src) {
+        try { return Pattern.compile(src, Pattern.CASE_INSENSITIVE); }
+        catch (Exception e) { throw new RuntimeException("Bad pattern: " + src, e); }
+    }
+
+    private static List<String> loadTlds() {
+        var tlds = new ArrayList<String>();
+        try (var is = WebsiteExtractor.class.getResourceAsStream(TLD_PATH);
+             var reader = new BufferedReader(new InputStreamReader(is))) {
+            String line;
+            boolean first = true;
+            while ((line = reader.readLine()) != null) {
+                line = line.strip();
+                if (first) { first = false; continue; } // skip header
+                if (line.isEmpty() || line.contains("--")) continue;
+                tlds.add(line.toLowerCase(java.util.Locale.ROOT));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load TLD list from " + TLD_PATH, e);
+        }
+        return tlds;
+    }
+
+    /** Lazily loads config so the static initializer works in tests. */
+    private static class ConfigHolder {
+        private static java.util.Map<String, Object> websiteConfig() {
+            var config = io.guessit.config.ConfigLoader.load(io.guessit.Options.defaults());
+            return config.section("website");
+        }
+    }
+}

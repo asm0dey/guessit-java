@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//tmp/guessit/guessit/rules/properties/**)",
+      "Read(//tmp/guessit/guessit/rules/common/**)",
+      "Read(//tmp/guessit/guessit/rules/markers/**)",
+      "Read(//tmp/guessit/guessit/config/**)",
+      "Read(//tmp/guessit/guessit/data/**)",
+      "Read(//tmp/guessit/guessit/test/rules/**)",
+      "Read(//tmp/guessit/**)",
+      "mcp__context7__resolve-library-id",
+      "Bash(java -version)",
+      "Bash(mvn -version)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:central.sonatype.com)",
+      "WebFetch(domain:www.endoflineblog.com)",
+      "Bash(mvn *)"
+    ]
+  }
+}

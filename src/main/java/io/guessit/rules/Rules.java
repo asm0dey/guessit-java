@@ -12,6 +12,7 @@ import io.guessit.rules.property.OtherExtractor;
 import io.guessit.rules.property.ScreenSizeExtractor;
 import io.guessit.rules.property.SourceExtractor;
 import io.guessit.rules.property.VideoCodecExtractor;
+import io.guessit.rules.property.WebsiteExtractor;
 import io.guessit.rules.property.YearExtractor;
 
 import java.util.List;
@@ -42,7 +43,8 @@ public final class Rules {
             new AudioCodecExtractor(),
             new ContainerExtractor(),
             new OtherExtractor(),
-            new SourceExtractor()
+            new SourceExtractor(),
+            new WebsiteExtractor()
         );
     }
 }
