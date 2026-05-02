@@ -6,6 +6,11 @@ import io.guessit.rules.markers.PathMarker;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.TitleMarkerSelector;
+import io.guessit.rules.property.AudioCodecExtractor;
+import io.guessit.rules.property.ContainerExtractor;
+import io.guessit.rules.property.ScreenSizeExtractor;
+import io.guessit.rules.property.VideoCodecExtractor;
+import io.guessit.rules.property.YearExtractor;
 
 import java.util.List;
 
@@ -26,6 +31,12 @@ public final class Rules {
     }
 
     public static List<Extractor> allInOrder() {
-        return List.of(); // Plan 1+ append here
+        return List.of(
+            new YearExtractor(),
+            new ContainerExtractor(),
+            new ScreenSizeExtractor(),
+            new VideoCodecExtractor(),
+            new AudioCodecExtractor()
+        );
     }
 }
