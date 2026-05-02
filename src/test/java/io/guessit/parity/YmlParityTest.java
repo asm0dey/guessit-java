@@ -23,10 +23,14 @@ class YmlParityTest {
     @MethodSource("allYmlCases")
     void ymlParity(YmlCase c) {
         var result = Guessit.parse(c.input(), c.options()).toMap();
+        // Python guessit YML semantics: expected entries must each be present in result
+        // (subset match), and result may contain additional inferred fields.
+        boolean matches = c.expected().entrySet().stream()
+            .allMatch(e -> java.util.Objects.equals(e.getValue(), result.get(e.getKey())));
         if (c.negative()) {
-            assertNotEquals(c.expected(), result, "negative case unexpectedly matched");
+            assertFalse(matches, "negative case unexpectedly matched: expected " + c.expected() + " in " + result);
         } else {
-            assertEquals(c.expected(), result);
+            assertTrue(matches, "expected " + c.expected() + " ⊆ result " + result);
         }
     }
 
