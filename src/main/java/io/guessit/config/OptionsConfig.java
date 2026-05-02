@@ -1,5 +1,7 @@
 package io.guessit.config;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public record OptionsConfig(Map<String, Object> raw) {
@@ -18,5 +20,14 @@ public record OptionsConfig(Map<String, Object> raw) {
         var ac = advancedConfig();
         var v = ac.get(name);
         return v instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> topLevelList(String name) {
+        var v = raw.get(name);
+        if (v instanceof List<?> list) {
+            return (List<String>) list;
+        }
+        return Collections.emptyList();
     }
 }
