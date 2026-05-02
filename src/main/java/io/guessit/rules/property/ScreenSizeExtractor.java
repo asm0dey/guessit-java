@@ -26,6 +26,13 @@ public final class ScreenSizeExtractor implements Extractor {
         var validator = Validators.sepsSurround(input);
         var opts = RegexOpts.defaults().withValidator(validator);
 
+        // width-x-height fallback for non-standard sizes — extract before height+scan
+        // so WxH matches are last in MatchSet (ScreenSizeOnlyOne sorts by start DESC).
+        var whP = Pattern.compile("(?<width>\\d{3,4})-?\\s*(?:x|\\*)\\s*-?(?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
+        for (var m : PatternMatcher.regex(input, whP, "screen_size", opts)) {
+            ctx.matches.add(m);
+        }
+
         addRegex(ctx, resPrefix + heightI + "(?<scan>i)" + "(?:" + fr + ")?", opts);
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)" + "(?:" + fr + ")?", opts);
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)?(?:hd)", opts);
@@ -36,13 +43,6 @@ public final class ScreenSizeExtractor implements Extractor {
         for (var m : PatternMatcher.string(input, Set.of("4k"), "screen_size", fourK)) {
             ctx.matches.add(new Match("screen_size", "2160p", m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("normalized"), false));
-        }
-
-        // width-x-height fallback for non-standard sizes
-        var whP = Pattern.compile("(?<width>\\d{3,4})-?(?:x|\\*)-?(?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
-        for (var m : PatternMatcher.regex(input, whP, "screen_size", opts)) {
-            // Replace the value with raw "WxH" — PostProcess will normalize again.
-            ctx.matches.add(m);
         }
 
         // frame_rate standalone, with mandatory `p` or `fps` suffix.
@@ -76,21 +76,22 @@ public final class ScreenSizeExtractor implements Extractor {
         double maxAr = ((Number) section.getOrDefault("max_ar", 1.898)).doubleValue();
 
         // PostProcessScreenSize: parse raw with named groups via regex re-match on raw text.
-        var widthHeight = Pattern.compile("(?<width>\\d{3,4})[x*-](?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
+        var widthHeight = Pattern.compile("(?<width>\\d{3,4})\\s*[x*-]\\s*(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
         var heightScan  = Pattern.compile("(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
-        var toReplace = new ArrayList<Match[]>();
+
         for (var m : ctx.matches.named("screen_size").toList()) {
             if (m.tags().contains("normalized")) continue;
             var wh = widthHeight.matcher(m.raw());
             if (wh.find()) {
                 int w = Integer.parseInt(wh.group("width"));
                 int h = Integer.parseInt(wh.group("height"));
+                String scan = wh.group("scan") == null ? "p" : wh.group("scan").toLowerCase(Locale.ROOT);
                 double ar = (double) w / h;
                 ctx.matches.add(new Match("aspect_ratio", Math.round(ar * 1000.0) / 1000.0,
                     m.start(), m.end(), m.raw(), m.priority(), Set.of(), false));
                 String value = (standardHeights.contains(String.valueOf(h)) && minAr < ar && ar < maxAr)
-                    ? h + "p" : w + "x" + h;
-                toReplace.add(new Match[]{ m, m.withTags(Set.of("normalized")) });
+                    ? h + scan : w + "x" + h;
+
                 ctx.matches.replace(m, new Match("screen_size", value, m.start(), m.end(), m.raw(),
                     m.priority(), Set.of("normalized"), false));
                 continue;
@@ -123,15 +124,20 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // ScreenSizeOnlyOne: per filepart, keep last screen_size only when distinct values present.
         for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
+            if (!"path".equals(filepart.name()) && !"whole".equals(filepart.name())) continue;
             var inPart = ctx.matches.named("screen_size")
                 .filter(m -> filepart.covers(m.start(), m.end()))
-                .sorted(Comparator.comparingInt(Match::start).reversed())
+                .sorted((a, b) -> {
+                    if (a.start() != b.start()) return Integer.compare(b.start(), a.start());
+                    return Integer.compare(b.end(), a.end());
+                })
                 .toList();
             if (inPart.size() <= 1) continue;
             var distinct = inPart.stream().map(m -> String.valueOf(m.value())).distinct().count();
             if (distinct > 1) {
-                for (int i = 1; i < inPart.size(); i++) ctx.matches.remove(inPart.get(i));
+                for (int i = 1; i < inPart.size(); i++) {
+                    ctx.matches.remove(inPart.get(i));
+                }
             }
         }
     }

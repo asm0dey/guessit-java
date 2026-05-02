@@ -1,5 +1,6 @@
 package io.guessit.rules.property;
 
+import io.guessit.Guessit;
 import io.guessit.Options;
 import io.guessit.config.ConfigLoader;
 import io.guessit.engine.ConflictSolver;
@@ -49,5 +50,12 @@ class ScreenSizeExtractorTest {
     @Test void rejectsLooseDigits() {
         var ctx = run("File.no.resolution.here.mkv");
         assertEquals(0L, ctx.matches.named("screen_size").count());
+    }
+
+    @Test void widthHeightWithSpaces() {
+        var r1 = Guessit.parse("500 x 480", Options.defaults()).toMap();
+        assertEquals("500x480", r1.get("screen_size"));
+        var r2 = Guessit.parse("500 * 480", Options.defaults()).toMap();
+        assertEquals("500x480", r2.get("screen_size"));
     }
 }

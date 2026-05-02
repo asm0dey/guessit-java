@@ -39,12 +39,12 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "country" -> b.country(asCountryList(e.getValue()));
                 case "source" -> b.source(asString(e.getValue().get(0)));
                 case "other" -> b.other(asStringList(e.getValue()));
-                case "video_codec" -> b.videoCodec(asStringList(e.getValue()));
-                case "audio_codec" -> b.audioCodec(asStringList(e.getValue()));
-                case "audio_channels" -> b.audioChannels(asStringList(e.getValue()));
-                case "audio_profile" -> b.audioProfile(asStringList(e.getValue()));
-                case "video_profile" -> b.videoProfile(asStringList(e.getValue()));
-                case "video_api" -> b.videoApi(asStringList(e.getValue()));
+                case "video_codec" -> b.videoCodec(dedupedStringList(e.getValue()));
+                case "audio_codec" -> b.audioCodec(dedupedStringList(e.getValue()));
+                case "audio_channels" -> b.audioChannels(dedupedStringList(e.getValue()));
+                case "audio_profile" -> b.audioProfile(dedupedStringList(e.getValue()));
+                case "video_profile" -> b.videoProfile(dedupedStringList(e.getValue()));
+                case "video_api" -> b.videoApi(dedupedStringList(e.getValue()));
                 case "screen_size" -> b.screenSize(asString(e.getValue().get(0)));
                 case "aspect_ratio" -> b.aspectRatio(asDouble(e.getValue().get(0)));
                 case "frame_rate" -> b.frameRate(asFrameRate(e.getValue().get(0)));
@@ -83,6 +83,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         return null;
     }
     private static List<String> asStringList(List<Match> ms) { return ms.stream().map(OutputBuilder::asString).toList(); }
+    private static List<String> dedupedStringList(List<Match> ms) { return ms.stream().map(OutputBuilder::asString).distinct().toList(); }
     private static String asFrameRate(Match m) {
         var v = m.value();
         if (v == null) return null;

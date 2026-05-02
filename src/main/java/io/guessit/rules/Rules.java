@@ -4,6 +4,7 @@ import io.guessit.engine.*;
 import io.guessit.rules.markers.GroupMarker;
 import io.guessit.rules.markers.PathMarker;
 import io.guessit.rules.post.OutputBuilder;
+import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.TitleMarkerSelector;
 import io.guessit.rules.property.AudioCodecExtractor;
@@ -28,6 +29,7 @@ public final class Rules {
             new ConflictPhase(),
             new ExtractorPostPhase(extractors),
             new PostPhase(List.of(
+                new PreferLastPath(),
                 new PrivateRemover(),
                 new TitleMarkerSelector()
             )),

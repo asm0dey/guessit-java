@@ -34,6 +34,17 @@ public final class AudioCodecExtractor implements Extractor {
             if (!before || !after) toRemove.add(a);
         }
         for (var m : toRemove) ctx.matches.remove(m);
+
+        // RemoveWeakAudioChannels: drop weak-audio_channels matches unless adjacent
+        // to an audio_codec match on the left side.
+        var weakChannels = ctx.matches.all()
+            .filter(m -> m.name().equals("audio_channels") && m.tags().contains("weak-audio_channels"))
+            .toList();
+        for (var wc : weakChannels) {
+            boolean hasCodecBefore = audio.stream().anyMatch(o ->
+                o.name().equals("audio_codec") && o.end() == wc.start());
+            if (!hasCodecBefore) ctx.matches.remove(wc);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -51,9 +62,12 @@ public final class AudioCodecExtractor implements Extractor {
             // win over generic audio_codec matches (e.g. "DTS") covering the same span.
             int priority = entryHasConflictSolver(entry.getValue()) ? 1100 : 1000;
             for (var pattern : flattenPatterns(entry.getValue())) {
+                Set<String> tags = pattern.tags() != null
+                    ? new HashSet<>(pattern.tags()) : new HashSet<>();
                 if (pattern.regex()) {
                     var p = Pattern.compile(Abbreviations.dash(pattern.source()), Pattern.CASE_INSENSITIVE);
                     var opts = RegexOpts.defaults().withValue(s -> value).withPriority(priority);
+                    if (!tags.isEmpty()) opts = opts.withTags(tags);
                     for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
                 } else {
                     // Disable whole-word boundary; AudioValidatorRule checks edges later
@@ -61,11 +75,18 @@ public final class AudioCodecExtractor implements Extractor {
                     var opts = StringOpts.defaults().wholeWord(false).withPriority(priority);
                     for (var m : PatternMatcher.string(ctx.input, Set.of(pattern.source()), propName, opts)) {
                         ctx.matches.add(new Match(propName, value, m.start(), m.end(), m.raw(),
-                            m.priority(), m.tags(), m.isPrivate()));
+                            m.priority(), mergeTags(m.tags(), tags), m.isPrivate()));
                     }
                 }
             }
         }
+    }
+
+    private static Set<String> mergeTags(Set<String> existing, Set<String> additional) {
+        if (additional.isEmpty()) return existing;
+        var merged = new HashSet<>(existing);
+        merged.addAll(additional);
+        return merged;
     }
 
     @SuppressWarnings("unchecked")
@@ -76,21 +97,28 @@ public final class AudioCodecExtractor implements Extractor {
     }
 
     /** Pattern config can be: String → string match, list of {String|Map}, Map with "string"/"regex" keys. */
-    private record PatternEntry(String source, boolean regex) {}
+    private record PatternEntry(String source, boolean regex, List<String> tags) {
+        PatternEntry(String source, boolean regex) { this(source, regex, null); }
+    }
 
     @SuppressWarnings("unchecked")
     private static List<PatternEntry> flattenPatterns(Object def) {
         var out = new ArrayList<PatternEntry>();
         if (def instanceof String s) {
-            out.add(new PatternEntry(s, false));
+            if (s.startsWith("re:")) out.add(new PatternEntry(s.substring(3), true));
+            else out.add(new PatternEntry(s, false));
         } else if (def instanceof List<?> list) {
             for (var item : list) out.addAll(flattenPatterns(item));
         } else if (def instanceof Map<?, ?> map) {
             var m = (Map<String, Object>) map;
-            if (m.get("string") instanceof String ss) out.add(new PatternEntry(ss, false));
-            if (m.get("string") instanceof List<?> sl) for (var s : sl) out.add(new PatternEntry((String) s, false));
-            if (m.get("regex") instanceof String rs) out.add(new PatternEntry(rs, true));
-            if (m.get("regex") instanceof List<?> rl) for (var s : rl) out.add(new PatternEntry((String) s, true));
+            // Extract tags from the map (can be String or List<String>)
+            List<String> tags = null;
+            if (m.get("tags") instanceof String ts) tags = List.of(ts);
+            else if (m.get("tags") instanceof List<?> tl) tags = (List<String>) tl;
+            if (m.get("string") instanceof String ss) out.add(new PatternEntry(ss, false, tags));
+            if (m.get("string") instanceof List<?> sl) for (var s : sl) out.add(new PatternEntry((String) s, false, tags));
+            if (m.get("regex") instanceof String rs) out.add(new PatternEntry(rs, true, tags));
+            if (m.get("regex") instanceof List<?> rl) for (var s : rl) out.add(new PatternEntry((String) s, true, tags));
         }
         return out;
     }

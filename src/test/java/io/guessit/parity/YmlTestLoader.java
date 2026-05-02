@@ -90,7 +90,7 @@ public final class YmlTestLoader {
                 for (var input : pending) {
                     var raw = input.toString();
                     boolean negative = raw.startsWith("-");
-                    var cleaned = negative ? raw.substring(1) : raw;
+                    var cleaned = (negative ? raw.substring(1) : raw).replaceAll("^\\++", "");
                     var line = lineByKey.getOrDefault(input, 0);
                     out.add(new YmlCase(fileLabel, line, cleaned, expected, options, negative));
                 }
@@ -101,7 +101,7 @@ public final class YmlTestLoader {
             for (var input : pending) {
                 var raw = input.toString();
                 boolean negative = raw.startsWith("-");
-                var cleaned = negative ? raw.substring(1) : raw;
+                var cleaned = (negative ? raw.substring(1) : raw).replaceAll("^\\++", "");
                 var line = lineByKey.getOrDefault(input, 0);
                 out.add(new YmlCase(fileLabel, line, cleaned, Map.of(), Options.defaults(), negative));
             }
@@ -206,9 +206,9 @@ public final class YmlTestLoader {
         for (int i = 0; i < lines.length; i++) {
             var trimmed = lines[i].trim();
             if (!trimmed.startsWith("?")) continue;
-            var literal = trimmed.substring(1).trim();
+            var literal = trimmed.substring(1).trim().replaceAll("^\\++", "");
             for (var k : new ArrayList<>(remaining)) {
-                if (k.toString().equals(literal)) {
+                if (stripPlus(k.toString()).equals(literal)) {
                     map.put(k, i + 1);
                     remaining.remove(k);
                     break;
@@ -216,5 +216,9 @@ public final class YmlTestLoader {
             }
         }
         return map;
+    }
+
+    private static String stripPlus(String s) {
+        return s.replaceAll("^\\++", "");
     }
 }
