@@ -583,8 +583,8 @@
       ]
     },
     "source": {
-      "rip_prefix": "(?P<other>Rip)-?",
-      "rip_suffix": "-?(?P<other>Rip)"
+      "rip_prefix": "(?<other>Rip)-?",
+      "rip_suffix": "-?(?<other>Rip)"
     },
     "website": {
       "safe_tlds": [
