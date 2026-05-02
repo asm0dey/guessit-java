@@ -40,7 +40,13 @@ public final class ContainerExtractor implements Extractor {
             boolean overlapsExt = ctx.matches.named("container")
                 .anyMatch(other -> other.tags().contains("extension")
                                 && other.start() < m.end() && m.start() < other.end());
-            if (!overlapsExt) ctx.matches.add(m);
+            // Skip body matches that overlap a video_codec/audio_codec/screen_size — codec wins.
+            boolean overlapsCodec = ctx.matches.all()
+                .anyMatch(other -> (other.name().equals("video_codec")
+                                 || other.name().equals("audio_codec")
+                                 || other.name().equals("screen_size"))
+                                && other.start() < m.end() && m.start() < other.end());
+            if (!overlapsExt && !overlapsCodec) ctx.matches.add(m);
         }
     }
 

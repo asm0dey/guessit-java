@@ -42,16 +42,23 @@ public final class AudioCodecExtractor implements Extractor {
     }
 
     private void loadGroup(ParseContext ctx, String propName, Map<String, Object> group) {
-        var v = Validators.sepsSurround(ctx.input);
+        // No edge validator at extract time: AudioValidatorRule re-checks both sides in
+        // postProcess and allows audio matches to touch other audio matches
+        // (e.g. "True-HD51", "AAC2.0").
         for (var entry : group.entrySet()) {
             String value = entry.getKey();
+            // Entries that declare a `conflict_solver` in config (e.g. "DTS-HD") should
+            // win over generic audio_codec matches (e.g. "DTS") covering the same span.
+            int priority = entryHasConflictSolver(entry.getValue()) ? 1100 : 1000;
             for (var pattern : flattenPatterns(entry.getValue())) {
                 if (pattern.regex()) {
                     var p = Pattern.compile(Abbreviations.dash(pattern.source()), Pattern.CASE_INSENSITIVE);
-                    var opts = RegexOpts.defaults().withValidator(v).withValue(s -> value);
+                    var opts = RegexOpts.defaults().withValue(s -> value).withPriority(priority);
                     for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
                 } else {
-                    var opts = StringOpts.defaults().withValidator(v);
+                    // Disable whole-word boundary; AudioValidatorRule checks edges later
+                    // (allowing audio matches to touch other audio matches).
+                    var opts = StringOpts.defaults().wholeWord(false).withPriority(priority);
                     for (var m : PatternMatcher.string(ctx.input, Set.of(pattern.source()), propName, opts)) {
                         ctx.matches.add(new Match(propName, value, m.start(), m.end(), m.raw(),
                             m.priority(), m.tags(), m.isPrivate()));
@@ -59,6 +66,13 @@ public final class AudioCodecExtractor implements Extractor {
                 }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean entryHasConflictSolver(Object def) {
+        if (def instanceof Map<?, ?> m) return ((Map<String, Object>) m).containsKey("conflict_solver");
+        if (def instanceof List<?> l) return l.stream().anyMatch(AudioCodecExtractor::entryHasConflictSolver);
+        return false;
     }
 
     /** Pattern config can be: String → string match, list of {String|Map}, Map with "string"/"regex" keys. */

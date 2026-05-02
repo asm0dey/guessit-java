@@ -23,7 +23,7 @@ public final class VideoCodecExtractor implements Extractor {
         addCodec(ctx, "XviD",                                        "Xvid",      v);
         addCodec(ctx, "VC-?1",                                       "VC-1",      v);
         addCodec(ctx, "VP7",                                         "VP7",       v);
-        addCodec(ctx, "VP8|VP80",                                    "VP8",       v);
+        addCodec(ctx, "VP80|VP8",                                    "VP8",       v);
         addCodec(ctx, "VP9",                                         "VP9",       v);
         addCodec(ctx, "[hx]-?263",                                   "H.263",     v);
         addCodec(ctx, "[hx]-?264|(?:MPEG-?4)?AVC(?:HD)?",            "H.264",     v);

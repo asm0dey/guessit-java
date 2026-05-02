@@ -29,7 +29,7 @@ public final class ScreenSizeExtractor implements Extractor {
         addRegex(ctx, resPrefix + heightI + "(?<scan>i)" + "(?:" + fr + ")?", opts);
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)" + "(?:" + fr + ")?", opts);
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)?(?:hd)", opts);
-        addRegex(ctx, resPrefix + heightP + "(?<scan>p)?x?", opts);
+        addRegex(ctx, resPrefix + heightP + "(?<scan>p)?x", opts);
 
         // 4k literal → 2160p
         var fourK = StringOpts.defaults().withValidator(validator);
@@ -56,8 +56,9 @@ public final class ScreenSizeExtractor implements Extractor {
         }
     }
 
+    /** Frame rate digits trailing a height+scan, e.g. "1080p24" → "24". */
     private static final Pattern FRAME_RATE_PATTERN =
-        Pattern.compile("(?<fr>\\d{2}(?:\\.\\d{1,3})?)(?=p|i)", Pattern.CASE_INSENSITIVE);
+        Pattern.compile("\\d{3,4}[ip](?<fr>\\d{2}(?:\\.\\d{1,3})?)$", Pattern.CASE_INSENSITIVE);
 
     private static void addRegex(ParseContext ctx, String src, RegexOpts opts) {
         var p = Pattern.compile(src, Pattern.CASE_INSENSITIVE);
