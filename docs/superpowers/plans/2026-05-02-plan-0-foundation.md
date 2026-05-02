@@ -6,7 +6,7 @@
 
 **Architecture:** Single Maven module `io.guessit:guessit-java`. Engine is a deterministic pipeline of phases over a shared `ParseContext` containing a mutable `MatchSet`. Rules are pluggable `Extractor`s registered in fixed order; conflict resolution is centralized. Bundled JSON config + CSV lang/country tables loaded once from classpath. CLI is a separate `cli` package using picocli, packaged as a shaded jar via the shade plugin.
 
-**Tech Stack:** Java 25, Maven 3.9+, picocli 4.7.x, Jackson databind 2.18.x, SnakeYAML 2.x, Apache Commons CSV 1.12.x, JUnit Jupiter 5.11.x. No JPMS.
+**Tech Stack:** Java 25, Maven 3.9+, picocli 4.7.x, Jackson databind 2.19.x, SnakeYAML 2.4, Apache Commons CSV 1.14.x, Jilt 1.9.x (annotation-processor builder generator for records), JUnit Jupiter 5.12.x. No JPMS.
 
 **Reference source:** Python guessit at `/tmp/guessit`. Spec at `docs/superpowers/specs/2026-05-02-guessit-java-design.md`.
 
@@ -209,6 +209,7 @@ In active development. See `docs/superpowers/specs/` for design,
         <snakeyaml.version>2.4</snakeyaml.version>
         <commons-csv.version>1.14.1</commons-csv.version>
         <junit.version>5.12.2</junit.version>
+        <jilt.version>1.9.1</jilt.version>
     </properties>
 
     <dependencies>
@@ -243,6 +244,12 @@ In active development. See `docs/superpowers/specs/` for design,
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>cc.jilt</groupId>
+            <artifactId>jilt</artifactId>
+            <version>${jilt.version}</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -251,6 +258,15 @@ In active development. See `docs/superpowers/specs/` for design,
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>cc.jilt</groupId>
+                            <artifactId>jilt</artifactId>
+                            <version>${jilt.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -894,101 +910,64 @@ git commit -m "lang: csv-backed language/country registry with alias overrides"
 
 ---
 
-## Task 8: `Options` record + builder
+## Task 8: `Options` record (Jilt-generated builder)
 
 **Files:**
 - Create: `src/main/java/io/guessit/Options.java`
+
+The builder is generated at compile time by Jilt (annotation processor declared in `pom.xml` Task 1). The generated class is `OptionsBuilder` with `CLASSIC` style — every record component gets a setter; `@Opt` components are optional, others required (defaulted via the compact constructor's null-coalescing logic). Static factory: `OptionsBuilder.options()`.
 
 - [ ] **Step 1: Write `Options`**
 
 ```java
 package io.guessit;
 
+import org.jilt.Builder;
+import org.jilt.BuilderStyle;
+import org.jilt.Opt;
+
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Builder(style = BuilderStyle.CLASSIC, factoryMethod = "options")
 public record Options(
-    String type,                       // "movie"|"episode"|null
-    String name,                       // override input
+    @Opt String type,                        // "movie"|"episode"|null
+    @Opt String name,                        // override input
     List<String> expectedTitle,
     List<String> expectedGroup,
     List<String> excludes,
     List<String> includes,
     List<String> allowedLanguages,
     List<String> allowedCountries,
-    Boolean dateYearFirst,
-    Boolean dateDayFirst,
-    Boolean episodePreferNumber,
-    Boolean enforceListWhenSingle,
+    @Opt Boolean dateYearFirst,
+    @Opt Boolean dateDayFirst,
+    @Opt Boolean episodePreferNumber,
+    @Opt Boolean enforceListWhenSingle,
     List<Path> configPaths,
     boolean noUserConfig,
     boolean noDefaultConfig,
     Map<String, Object> raw
 ) {
     public Options {
-        expectedTitle = expectedTitle == null ? List.of() : List.copyOf(expectedTitle);
-        expectedGroup = expectedGroup == null ? List.of() : List.copyOf(expectedGroup);
-        excludes      = excludes      == null ? List.of() : List.copyOf(excludes);
-        includes      = includes      == null ? List.of() : List.copyOf(includes);
+        expectedTitle    = expectedTitle    == null ? List.of() : List.copyOf(expectedTitle);
+        expectedGroup    = expectedGroup    == null ? List.of() : List.copyOf(expectedGroup);
+        excludes         = excludes         == null ? List.of() : List.copyOf(excludes);
+        includes         = includes         == null ? List.of() : List.copyOf(includes);
         allowedLanguages = allowedLanguages == null ? List.of() : List.copyOf(allowedLanguages);
         allowedCountries = allowedCountries == null ? List.of() : List.copyOf(allowedCountries);
-        configPaths   = configPaths   == null ? List.of() : List.copyOf(configPaths);
-        raw           = raw           == null ? Map.of()  : Map.copyOf(raw);
+        configPaths      = configPaths      == null ? List.of() : List.copyOf(configPaths);
+        raw              = raw              == null ? Map.of()  : Map.copyOf(raw);
     }
 
-    public static Options defaults() { return builder().build(); }
-    public static Builder builder() { return new Builder(); }
+    public static Options defaults() { return OptionsBuilder.options().build(); }
 
-    public static final class Builder {
-        private String type;
-        private String name;
-        private List<String> expectedTitle = new ArrayList<>();
-        private List<String> expectedGroup = new ArrayList<>();
-        private List<String> excludes = new ArrayList<>();
-        private List<String> includes = new ArrayList<>();
-        private List<String> allowedLanguages = new ArrayList<>();
-        private List<String> allowedCountries = new ArrayList<>();
-        private Boolean dateYearFirst;
-        private Boolean dateDayFirst;
-        private Boolean episodePreferNumber;
-        private Boolean enforceListWhenSingle;
-        private List<Path> configPaths = new ArrayList<>();
-        private boolean noUserConfig;
-        private boolean noDefaultConfig;
-        private Map<String, Object> raw = new HashMap<>();
-
-        public Builder type(String v) { this.type = v; return this; }
-        public Builder name(String v) { this.name = v; return this; }
-        public Builder addExpectedTitle(String v) { this.expectedTitle.add(v); return this; }
-        public Builder addExpectedGroup(String v) { this.expectedGroup.add(v); return this; }
-        public Builder addExclude(String v) { this.excludes.add(v); return this; }
-        public Builder addInclude(String v) { this.includes.add(v); return this; }
-        public Builder addAllowedLanguage(String v) { this.allowedLanguages.add(v); return this; }
-        public Builder addAllowedCountry(String v) { this.allowedCountries.add(v); return this; }
-        public Builder dateYearFirst(Boolean v) { this.dateYearFirst = v; return this; }
-        public Builder dateDayFirst(Boolean v) { this.dateDayFirst = v; return this; }
-        public Builder episodePreferNumber(Boolean v) { this.episodePreferNumber = v; return this; }
-        public Builder enforceListWhenSingle(Boolean v) { this.enforceListWhenSingle = v; return this; }
-        public Builder addConfigPath(Path p) { this.configPaths.add(p); return this; }
-        public Builder noUserConfig(boolean v) { this.noUserConfig = v; return this; }
-        public Builder noDefaultConfig(boolean v) { this.noDefaultConfig = v; return this; }
-        public Builder rawEntry(String k, Object v) { this.raw.put(k, v); return this; }
-
-        public Options build() {
-            return new Options(
-                type, name, expectedTitle, expectedGroup, excludes, includes,
-                allowedLanguages, allowedCountries, dateYearFirst, dateDayFirst,
-                episodePreferNumber, enforceListWhenSingle,
-                configPaths, noUserConfig, noDefaultConfig, raw
-            );
-        }
-    }
+    /** Convenience alias so callers can write `Options.builder().type(...)...build()`. */
+    public static OptionsBuilder builder() { return OptionsBuilder.options(); }
 }
 ```
+
+Downstream callers (CLI, YML test loader) use `Options.builder()` (or `OptionsBuilder.options()`) and pass full-list values via the generated setters: `expectedTitle(List)`, `allowedLanguages(List)`, etc. There are no per-element `addExpectedTitle(String)` helpers — accumulate locally then pass the list.
 
 - [ ] **Step 2: Compile**
 
@@ -1023,6 +1002,9 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.guessit.lang.Country;
 import io.guessit.lang.Language;
 import io.guessit.util.Quantity;
+import org.jilt.Builder;
+import org.jilt.BuilderStyle;
+import org.jilt.Opt;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -1031,36 +1013,37 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Builder(style = BuilderStyle.CLASSIC, factoryMethod = "result")
 public record GuessResult(
-    String title,
-    String alternativeTitle,
-    Integer year,
-    LocalDate date,
-    Integer season, List<Integer> seasonList,
-    Integer episode, List<Integer> episodeList,
-    Integer episodeCount, Integer seasonCount,
-    String episodeTitle,
-    String episodeFormat,
-    String type,
-    List<Language> language, List<Language> subtitleLanguage,
-    List<Country> country,
-    String source, List<String> other,
-    List<String> videoCodec, List<String> audioCodec,
-    List<String> audioChannels, List<String> audioProfile,
-    List<String> videoProfile, List<String> videoApi,
-    String screenSize, String aspectRatio, Integer frameRate,
-    Quantity bitRate, Quantity size,
-    String container, String mimetype,
-    String releaseGroup, String streamingService, String website,
-    String edition, Integer cd, Integer cdCount,
-    Integer part, Integer version, Integer film, String filmTitle,
-    Integer bonus, String bonusTitle, String crc32,
-    Map<String, Object> extras
+    @Opt String title,
+    @Opt String alternativeTitle,
+    @Opt Integer year,
+    @Opt LocalDate date,
+    @Opt Integer season, @Opt List<Integer> seasonList,
+    @Opt Integer episode, @Opt List<Integer> episodeList,
+    @Opt Integer episodeCount, @Opt Integer seasonCount,
+    @Opt String episodeTitle,
+    @Opt String episodeFormat,
+    @Opt String type,
+    @Opt List<Language> language, @Opt List<Language> subtitleLanguage,
+    @Opt List<Country> country,
+    @Opt String source, @Opt List<String> other,
+    @Opt List<String> videoCodec, @Opt List<String> audioCodec,
+    @Opt List<String> audioChannels, @Opt List<String> audioProfile,
+    @Opt List<String> videoProfile, @Opt List<String> videoApi,
+    @Opt String screenSize, @Opt String aspectRatio, @Opt Integer frameRate,
+    @Opt Quantity bitRate, @Opt Quantity size,
+    @Opt String container, @Opt String mimetype,
+    @Opt String releaseGroup, @Opt String streamingService, @Opt String website,
+    @Opt String edition, @Opt Integer cd, @Opt Integer cdCount,
+    @Opt Integer part, @Opt Integer version, @Opt Integer film, @Opt String filmTitle,
+    @Opt Integer bonus, @Opt String bonusTitle, @Opt String crc32,
+    @Opt Map<String, Object> extras
 ) {
     private static final ObjectMapper JSON = new ObjectMapper()
         .registerModule(new JavaTimeModule())
         .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-        .enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS == null ? SerializationFeature.INDENT_OUTPUT : SerializationFeature.INDENT_OUTPUT)
+        .enable(SerializationFeature.INDENT_OUTPUT)
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     public Map<String, Object> toMap() {
@@ -1136,86 +1119,8 @@ public record GuessResult(
         return new Yaml(opts).dump(toMap());
     }
 
-    public static Builder builder() { return new Builder(); }
-
-    public static final class Builder {
-        // setters mirroring record components; one with-method per field
-        private String title, alternativeTitle, episodeTitle, episodeFormat, type,
-                       source, screenSize, aspectRatio, container, mimetype,
-                       releaseGroup, streamingService, website, edition,
-                       filmTitle, bonusTitle, crc32;
-        private Integer year, season, episode, episodeCount, seasonCount,
-                        frameRate, cd, cdCount, part, version, film, bonus;
-        private LocalDate date;
-        private List<Integer> seasonList, episodeList;
-        private List<Language> language, subtitleLanguage;
-        private List<Country> country;
-        private List<String> other, videoCodec, audioCodec, audioChannels,
-                              audioProfile, videoProfile, videoApi;
-        private Quantity bitRate, size;
-        private Map<String, Object> extras = new LinkedHashMap<>();
-
-        public Builder title(String v) { this.title = v; return this; }
-        public Builder alternativeTitle(String v) { this.alternativeTitle = v; return this; }
-        public Builder year(Integer v) { this.year = v; return this; }
-        public Builder date(LocalDate v) { this.date = v; return this; }
-        public Builder season(Integer v) { this.season = v; return this; }
-        public Builder seasonList(List<Integer> v) { this.seasonList = v; return this; }
-        public Builder episode(Integer v) { this.episode = v; return this; }
-        public Builder episodeList(List<Integer> v) { this.episodeList = v; return this; }
-        public Builder episodeCount(Integer v) { this.episodeCount = v; return this; }
-        public Builder seasonCount(Integer v) { this.seasonCount = v; return this; }
-        public Builder episodeTitle(String v) { this.episodeTitle = v; return this; }
-        public Builder episodeFormat(String v) { this.episodeFormat = v; return this; }
-        public Builder type(String v) { this.type = v; return this; }
-        public Builder language(List<Language> v) { this.language = v; return this; }
-        public Builder subtitleLanguage(List<Language> v) { this.subtitleLanguage = v; return this; }
-        public Builder country(List<Country> v) { this.country = v; return this; }
-        public Builder source(String v) { this.source = v; return this; }
-        public Builder other(List<String> v) { this.other = v; return this; }
-        public Builder videoCodec(List<String> v) { this.videoCodec = v; return this; }
-        public Builder audioCodec(List<String> v) { this.audioCodec = v; return this; }
-        public Builder audioChannels(List<String> v) { this.audioChannels = v; return this; }
-        public Builder audioProfile(List<String> v) { this.audioProfile = v; return this; }
-        public Builder videoProfile(List<String> v) { this.videoProfile = v; return this; }
-        public Builder videoApi(List<String> v) { this.videoApi = v; return this; }
-        public Builder screenSize(String v) { this.screenSize = v; return this; }
-        public Builder aspectRatio(String v) { this.aspectRatio = v; return this; }
-        public Builder frameRate(Integer v) { this.frameRate = v; return this; }
-        public Builder bitRate(Quantity v) { this.bitRate = v; return this; }
-        public Builder size(Quantity v) { this.size = v; return this; }
-        public Builder container(String v) { this.container = v; return this; }
-        public Builder mimetype(String v) { this.mimetype = v; return this; }
-        public Builder releaseGroup(String v) { this.releaseGroup = v; return this; }
-        public Builder streamingService(String v) { this.streamingService = v; return this; }
-        public Builder website(String v) { this.website = v; return this; }
-        public Builder edition(String v) { this.edition = v; return this; }
-        public Builder cd(Integer v) { this.cd = v; return this; }
-        public Builder cdCount(Integer v) { this.cdCount = v; return this; }
-        public Builder part(Integer v) { this.part = v; return this; }
-        public Builder version(Integer v) { this.version = v; return this; }
-        public Builder film(Integer v) { this.film = v; return this; }
-        public Builder filmTitle(String v) { this.filmTitle = v; return this; }
-        public Builder bonus(Integer v) { this.bonus = v; return this; }
-        public Builder bonusTitle(String v) { this.bonusTitle = v; return this; }
-        public Builder crc32(String v) { this.crc32 = v; return this; }
-        public Builder extra(String k, Object v) { this.extras.put(k, v); return this; }
-
-        public GuessResult build() {
-            return new GuessResult(
-                title, alternativeTitle, year, date,
-                season, seasonList, episode, episodeList,
-                episodeCount, seasonCount, episodeTitle, episodeFormat,
-                type, language, subtitleLanguage, country,
-                source, other, videoCodec, audioCodec,
-                audioChannels, audioProfile, videoProfile, videoApi,
-                screenSize, aspectRatio, frameRate, bitRate, size,
-                container, mimetype, releaseGroup, streamingService, website,
-                edition, cd, cdCount, part, version, film, filmTitle,
-                bonus, bonusTitle, crc32, extras
-            );
-        }
-    }
+    /** Convenience alias so callers can write `GuessResult.builder().title(...)...build()`. */
+    public static GuessResultBuilder builder() { return GuessResultBuilder.result(); }
 }
 ```
 
@@ -1847,7 +1752,7 @@ public final class ParseContext {
     public final MatchSet matches = new MatchSet();
     public final List<Marker> markers = new ArrayList<>();
     public Marker titleMarker;          // chosen by TitleMarkerSelector
-    public GuessResult.Builder resultBuilder = GuessResult.builder();
+    public io.guessit.GuessResultBuilder resultBuilder = GuessResult.builder();
     public GuessResult result;
 
     public ParseContext(String input, Options options, OptionsConfig config) {
@@ -2105,7 +2010,7 @@ class ConfigLoaderTest {
         var opts = Options.builder()
             .noDefaultConfig(true)
             .noUserConfig(true)
-            .addConfigPath(f)
+            .configPaths(java.util.List.of(f))
             .build();
         var cfg = ConfigLoader.load(opts);
         assertEquals("override", cfg.raw().get("some_key"));
@@ -2120,8 +2025,7 @@ class ConfigLoaderTest {
         var opts = Options.builder()
             .noDefaultConfig(true)
             .noUserConfig(true)
-            .addConfigPath(a)
-            .addConfigPath(b)
+            .configPaths(java.util.List.of(a, b))
             .build();
         var cfg = ConfigLoader.load(opts);
         assertEquals(java.util.List.of(1, 2, 3), cfg.raw().get("items"));
@@ -2135,7 +2039,7 @@ class ConfigLoaderTest {
         Files.writeString(b, "{\"nested\": {\"y\": 3, \"z\": 4}}");
         var opts = Options.builder()
             .noDefaultConfig(true).noUserConfig(true)
-            .addConfigPath(a).addConfigPath(b).build();
+            .configPaths(java.util.List.of(a, b)).build();
         var cfg = ConfigLoader.load(opts);
         @SuppressWarnings("unchecked")
         var nested = (java.util.Map<String, Object>) cfg.raw().get("nested");
@@ -2465,6 +2369,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         ctx.matches.all().sorted(java.util.Comparator.comparingInt(Match::start)).forEach(m ->
             grouped.computeIfAbsent(m.name(), k -> new ArrayList<>()).add(m));
 
+        var extras = new LinkedHashMap<String, Object>();
         for (var e : grouped.entrySet()) {
             switch (e.getKey()) {
                 case "title" -> b.title(asString(e.getValue().get(0)));
@@ -2509,10 +2414,11 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "bonus" -> b.bonus(asInt(e.getValue().get(0)));
                 case "bonus_title" -> b.bonusTitle(asString(e.getValue().get(0)));
                 case "crc32" -> b.crc32(asString(e.getValue().get(0)));
-                default -> b.extra(e.getKey(), e.getValue().size() == 1 ? e.getValue().get(0).value()
+                default -> extras.put(e.getKey(), e.getValue().size() == 1 ? e.getValue().get(0).value()
                     : e.getValue().stream().map(Match::value).toList());
             }
         }
+        if (!extras.isEmpty()) b.extras(extras);
 
         ctx.result = b.build();
     }
@@ -2932,56 +2838,89 @@ public final class YmlTestLoader {
         return out;
     }
 
+    /**
+     * Mutable accumulator for building Options across multiple option-string / option-map fragments.
+     * The Jilt-generated OptionsBuilder only accepts whole lists in setters, so we buffer here
+     * then materialize the Options once at the end.
+     */
+    private static final class OptionsAccum {
+        String type, name;
+        Boolean dateYearFirst, dateDayFirst, episodePreferNumber, enforceListWhenSingle;
+        boolean noUserConfig, noDefaultConfig;
+        final java.util.List<String> expectedTitle = new java.util.ArrayList<>();
+        final java.util.List<String> expectedGroup = new java.util.ArrayList<>();
+        final java.util.List<String> excludes = new java.util.ArrayList<>();
+        final java.util.List<String> includes = new java.util.ArrayList<>();
+        final java.util.List<String> allowedLanguages = new java.util.ArrayList<>();
+        final java.util.List<String> allowedCountries = new java.util.ArrayList<>();
+        final java.util.List<java.nio.file.Path> configPaths = new java.util.ArrayList<>();
+        final java.util.Map<String, Object> raw = new java.util.LinkedHashMap<>();
+
+        Options build() {
+            return Options.builder()
+                .type(type).name(name)
+                .expectedTitle(expectedTitle).expectedGroup(expectedGroup)
+                .excludes(excludes).includes(includes)
+                .allowedLanguages(allowedLanguages).allowedCountries(allowedCountries)
+                .dateYearFirst(dateYearFirst).dateDayFirst(dateDayFirst)
+                .episodePreferNumber(episodePreferNumber).enforceListWhenSingle(enforceListWhenSingle)
+                .configPaths(configPaths)
+                .noUserConfig(noUserConfig).noDefaultConfig(noDefaultConfig)
+                .raw(raw)
+                .build();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Options extractOptions(Map<String, Object> expected) {
         var o = expected.get("options");
         if (o == null) return Options.defaults();
-        var b = Options.builder();
+        var acc = new OptionsAccum();
         if (o instanceof String s) {
-            applyArgString(b, s);
+            applyArgString(acc, s);
         } else if (o instanceof Map<?, ?> m) {
-            m.forEach((k, v) -> applyKv(b, k.toString(), v));
+            m.forEach((k, v) -> applyKv(acc, k.toString(), v));
         } else if (o instanceof List<?> l) {
-            for (var item : l) applyArgString(b, item.toString());
+            for (var item : l) applyArgString(acc, item.toString());
         }
-        return b.build();
+        return acc.build();
     }
 
-    private static void applyArgString(Options.Builder b, String s) {
+    private static void applyArgString(OptionsAccum a, String s) {
         // Supports flags like "--episode-prefer-number", "-T Title", "--type movie"
         var tokens = s.trim().split("\\s+");
         for (int i = 0; i < tokens.length; i++) {
             switch (tokens[i]) {
-                case "--episode-prefer-number" -> b.episodePreferNumber(true);
-                case "--date-year-first", "-Y" -> b.dateYearFirst(true);
-                case "--date-day-first", "-D" -> b.dateDayFirst(true);
-                case "--no-default-config" -> b.noDefaultConfig(true);
-                case "--no-user-config" -> b.noUserConfig(true);
-                case "--type", "-t" -> { if (i + 1 < tokens.length) b.type(tokens[++i]); }
-                case "--name", "-n" -> { if (i + 1 < tokens.length) b.name(tokens[++i]); }
-                case "--expected-title", "-T" -> { if (i + 1 < tokens.length) b.addExpectedTitle(tokens[++i]); }
-                case "--expected-group", "-G" -> { if (i + 1 < tokens.length) b.addExpectedGroup(tokens[++i]); }
-                case "--allowed-language", "-L" -> { if (i + 1 < tokens.length) b.addAllowedLanguage(tokens[++i]); }
-                case "--allowed-country", "-C" -> { if (i + 1 < tokens.length) b.addAllowedCountry(tokens[++i]); }
-                case "--excludes" -> { if (i + 1 < tokens.length) b.addExclude(tokens[++i]); }
-                case "--includes" -> { if (i + 1 < tokens.length) b.addInclude(tokens[++i]); }
+                case "--episode-prefer-number" -> a.episodePreferNumber = true;
+                case "--date-year-first", "-Y" -> a.dateYearFirst = true;
+                case "--date-day-first", "-D" -> a.dateDayFirst = true;
+                case "--no-default-config" -> a.noDefaultConfig = true;
+                case "--no-user-config" -> a.noUserConfig = true;
+                case "--type", "-t" -> { if (i + 1 < tokens.length) a.type = tokens[++i]; }
+                case "--name", "-n" -> { if (i + 1 < tokens.length) a.name = tokens[++i]; }
+                case "--expected-title", "-T" -> { if (i + 1 < tokens.length) a.expectedTitle.add(tokens[++i]); }
+                case "--expected-group", "-G" -> { if (i + 1 < tokens.length) a.expectedGroup.add(tokens[++i]); }
+                case "--allowed-language", "-L" -> { if (i + 1 < tokens.length) a.allowedLanguages.add(tokens[++i]); }
+                case "--allowed-country", "-C" -> { if (i + 1 < tokens.length) a.allowedCountries.add(tokens[++i]); }
+                case "--excludes" -> { if (i + 1 < tokens.length) a.excludes.add(tokens[++i]); }
+                case "--includes" -> { if (i + 1 < tokens.length) a.includes.add(tokens[++i]); }
                 default -> { /* ignore unknown for now */ }
             }
         }
     }
 
-    private static void applyKv(Options.Builder b, String k, Object v) {
+    private static void applyKv(OptionsAccum a, String k, Object v) {
         switch (k) {
-            case "type" -> b.type(v.toString());
-            case "name" -> b.name(v.toString());
-            case "expected_title" -> { if (v instanceof List<?> l) l.forEach(x -> b.addExpectedTitle(x.toString())); else b.addExpectedTitle(v.toString()); }
-            case "expected_group" -> { if (v instanceof List<?> l) l.forEach(x -> b.addExpectedGroup(x.toString())); else b.addExpectedGroup(v.toString()); }
-            case "allowed_languages" -> { if (v instanceof List<?> l) l.forEach(x -> b.addAllowedLanguage(x.toString())); }
-            case "allowed_countries" -> { if (v instanceof List<?> l) l.forEach(x -> b.addAllowedCountry(x.toString())); }
-            case "date_year_first" -> b.dateYearFirst(toBool(v));
-            case "date_day_first" -> b.dateDayFirst(toBool(v));
-            case "episode_prefer_number" -> b.episodePreferNumber(toBool(v));
-            default -> b.rawEntry(k, v);
+            case "type" -> a.type = v.toString();
+            case "name" -> a.name = v.toString();
+            case "expected_title" -> { if (v instanceof List<?> l) l.forEach(x -> a.expectedTitle.add(x.toString())); else a.expectedTitle.add(v.toString()); }
+            case "expected_group" -> { if (v instanceof List<?> l) l.forEach(x -> a.expectedGroup.add(x.toString())); else a.expectedGroup.add(v.toString()); }
+            case "allowed_languages" -> { if (v instanceof List<?> l) l.forEach(x -> a.allowedLanguages.add(x.toString())); }
+            case "allowed_countries" -> { if (v instanceof List<?> l) l.forEach(x -> a.allowedCountries.add(x.toString())); }
+            case "date_year_first" -> a.dateYearFirst = toBool(v);
+            case "date_day_first" -> a.dateDayFirst = toBool(v);
+            case "episode_prefer_number" -> a.episodePreferNumber = toBool(v);
+            default -> a.raw.put(k, v);
         }
     }
 
@@ -3306,23 +3245,22 @@ public final class GuessitCli implements Callable<Integer> {
             System.err.println("No input filename provided. See --help.");
             return 2;
         }
-        var optsBuilder = Options.builder()
+        var opts = Options.builder()
             .type(type)
             .name(name)
+            .expectedTitle(expectedTitles)
+            .expectedGroup(expectedGroups)
+            .excludes(excludes)
+            .includes(includes)
+            .allowedLanguages(allowedLanguages)
+            .allowedCountries(allowedCountries)
             .dateYearFirst(dateYearFirst ? Boolean.TRUE : null)
             .dateDayFirst(dateDayFirst ? Boolean.TRUE : null)
             .episodePreferNumber(episodePreferNumber ? Boolean.TRUE : null)
+            .configPaths(configs)
             .noUserConfig(noUserConfig)
-            .noDefaultConfig(noDefaultConfig);
-        for (var t : expectedTitles) optsBuilder.addExpectedTitle(t);
-        for (var g : expectedGroups) optsBuilder.addExpectedGroup(g);
-        for (var e : excludes) optsBuilder.addExclude(e);
-        for (var i : includes) optsBuilder.addInclude(i);
-        for (var l : allowedLanguages) optsBuilder.addAllowedLanguage(l);
-        for (var c : allowedCountries) optsBuilder.addAllowedCountry(c);
-        for (var p : configs) optsBuilder.addConfigPath(p);
-
-        var opts = optsBuilder.build();
+            .noDefaultConfig(noDefaultConfig)
+            .build();
         var guessit = Guessit.withOptions(opts);
 
         for (var fn : filenames) {

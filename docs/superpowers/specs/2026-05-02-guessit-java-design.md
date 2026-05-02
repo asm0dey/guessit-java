@@ -419,3 +419,11 @@ None at design time. Ambiguities to be resolved during implementation:
   `priority(N)` constant in Java).
 - `Quantity.format()` rounding rules will be confirmed against YML fixtures
   during Phase 1 (likely 1 decimal place, unit suffix preserved).
+
+## Post-Plan-5 polish (deferred)
+
+- **Refactor regex patterns to [Sift](https://github.com/Mirkoddd/Sift)** —
+  fluent type-safe DSL on top of `java.util.regex.Pattern` (also supports RE2J
+  for ReDoS safety). Defer until 100% YML parity is hit so debugging diff vs
+  Python regex strings stays straightforward. Once stable, translate ~50-75
+  patterns across rules to Sift DSL for readability + compile-time validation.
