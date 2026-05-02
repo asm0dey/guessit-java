@@ -46,7 +46,7 @@ public final class ScreenSizeExtractor implements Extractor {
         }
 
         // frame_rate standalone, with mandatory `p` or `fps` suffix.
-        var frP = Pattern.compile("(" + fr + ")-?(?:p|fps)", Pattern.CASE_INSENSITIVE);
+        var frP = Pattern.compile("(?<value>" + fr + ")-?(?:p|fps)", Pattern.CASE_INSENSITIVE);
         var frOpts = RegexOpts.defaults()
             .withValue(s -> Integer.valueOf(s.replaceAll("\\..*$", "")))
             .withTags(Set.of("coexist"))
