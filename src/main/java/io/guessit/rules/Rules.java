@@ -11,6 +11,7 @@ import io.guessit.rules.property.AudioCodecExtractor;
 import io.guessit.rules.property.ContainerExtractor;
 import io.guessit.rules.property.CountryExtractor;
 import io.guessit.rules.property.EpisodeDetailsExtractor;
+import io.guessit.rules.property.EpisodeFormatExtractor;
 import io.guessit.rules.property.LanguageExtractor;
 import io.guessit.rules.property.OtherExtractor;
 import io.guessit.rules.property.ReleaseGroupExtractor;
@@ -56,6 +57,7 @@ public final class Rules {
             new SourceExtractor(),
             new WebsiteExtractor(),
             new EpisodeDetailsExtractor(),
+            new EpisodeFormatExtractor(),
             new ReleaseGroupExtractor()
         );
     }
