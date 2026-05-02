@@ -12,6 +12,7 @@ import io.guessit.rules.property.ContainerExtractor;
 import io.guessit.rules.property.CountryExtractor;
 import io.guessit.rules.property.EpisodeDetailsExtractor;
 import io.guessit.rules.property.EpisodeFormatExtractor;
+import io.guessit.rules.property.VersionExtractor;
 import io.guessit.rules.property.LanguageExtractor;
 import io.guessit.rules.property.OtherExtractor;
 import io.guessit.rules.property.ReleaseGroupExtractor;
@@ -58,6 +59,7 @@ public final class Rules {
             new WebsiteExtractor(),
             new EpisodeDetailsExtractor(),
             new EpisodeFormatExtractor(),
+            new VersionExtractor(),
             new ReleaseGroupExtractor()
         );
     }
