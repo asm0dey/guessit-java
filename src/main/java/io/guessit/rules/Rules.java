@@ -8,6 +8,7 @@ import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.TitleMarkerSelector;
 import io.guessit.rules.property.AudioCodecExtractor;
 import io.guessit.rules.property.ContainerExtractor;
+import io.guessit.rules.property.OtherExtractor;
 import io.guessit.rules.property.ScreenSizeExtractor;
 import io.guessit.rules.property.VideoCodecExtractor;
 import io.guessit.rules.property.YearExtractor;
@@ -38,7 +39,8 @@ public final class Rules {
             new ScreenSizeExtractor(),
             new VideoCodecExtractor(),
             new AudioCodecExtractor(),
-            new ContainerExtractor()
+            new ContainerExtractor(),
+            new OtherExtractor()
         );
     }
 }
