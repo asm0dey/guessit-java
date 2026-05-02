@@ -251,9 +251,6 @@ In active development. See `docs/superpowers/specs/` for design,
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
-                <configuration>
-                    <release>25</release>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
