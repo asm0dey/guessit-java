@@ -46,8 +46,8 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "video_profile" -> b.videoProfile(asStringList(e.getValue()));
                 case "video_api" -> b.videoApi(asStringList(e.getValue()));
                 case "screen_size" -> b.screenSize(asString(e.getValue().get(0)));
-                case "aspect_ratio" -> b.aspectRatio(asString(e.getValue().get(0)));
-                case "frame_rate" -> b.frameRate(asInt(e.getValue().get(0)));
+                case "aspect_ratio" -> b.aspectRatio(asDouble(e.getValue().get(0)));
+                case "frame_rate" -> b.frameRate(asFrameRate(e.getValue().get(0)));
                 case "bit_rate" -> b.bitRate((Quantity) e.getValue().get(0).value());
                 case "size" -> b.size((Quantity) e.getValue().get(0).value());
                 case "container" -> b.container(asString(e.getValue().get(0)));
@@ -83,6 +83,19 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         return null;
     }
     private static List<String> asStringList(List<Match> ms) { return ms.stream().map(OutputBuilder::asString).toList(); }
+    private static String asFrameRate(Match m) {
+        var v = m.value();
+        if (v == null) return null;
+        if (v instanceof String s && s.endsWith("fps")) return s;
+        return v + "fps";
+    }
+    private static Double asDouble(Match m) {
+        var v = m.value();
+        if (v instanceof Double d) return d;
+        if (v instanceof Number n) return n.doubleValue();
+        if (v instanceof String s) return Double.parseDouble(s);
+        return null;
+    }
     private static List<Language> asLangList(List<Match> ms) { return ms.stream().map(m -> (Language) m.value()).toList(); }
     private static List<Country> asCountryList(List<Match> ms) { return ms.stream().map(m -> (Country) m.value()).toList(); }
     private static void applyIntList(List<Match> ms, java.util.function.Consumer<Integer> single,

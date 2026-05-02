@@ -36,7 +36,7 @@ public record GuessResult(
     @Opt List<String> videoCodec, @Opt List<String> audioCodec,
     @Opt List<String> audioChannels, @Opt List<String> audioProfile,
     @Opt List<String> videoProfile, @Opt List<String> videoApi,
-    @Opt String screenSize, @Opt String aspectRatio, @Opt Integer frameRate,
+    @Opt String screenSize, @Opt Double aspectRatio, @Opt String frameRate,
     @Opt Quantity bitRate, @Opt Quantity size,
     @Opt String container, @Opt String mimetype,
     @Opt String releaseGroup, @Opt String streamingService, @Opt String website,
