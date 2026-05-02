@@ -1,0 +1,30 @@
+package io.guessit.engine;
+
+public final class Seps {
+    private Seps() {}
+
+    /** Verbatim copy of Python guessit's seps constant (rules/common/__init__.py). */
+    public static final String CHARS = " [](){}+*|=-_~#/\\.,;:";
+
+    private static final boolean[] LOOKUP = new boolean[128];
+    static {
+        for (char c : CHARS.toCharArray()) {
+            LOOKUP[c] = true;
+        }
+    }
+
+    public static boolean isSep(char c) {
+        return c < 128 && LOOKUP[c];
+    }
+
+    /** Returns the separator chars escaped for use inside a `[...]` regex character class. */
+    public static String regexCharClass() {
+        var sb = new StringBuilder(CHARS.length() * 2);
+        for (char c : CHARS.toCharArray()) {
+            // Inside [...]: ] \ ^ - require escaping. Other regex metas are literal in classes.
+            if (c == ']' || c == '\\' || c == '^' || c == '-' || c == '[') sb.append('\\');
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+}
