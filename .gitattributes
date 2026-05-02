@@ -1,0 +1,5 @@
+* text=auto
+*.yml -text
+*.yaml -text
+src/test/resources/yml/** -text
+src/main/resources/io/guessit/data/** -text
