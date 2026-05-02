@@ -19,7 +19,8 @@ public final class PatternMatcher {
             String valueText = hasGroup(m, "value") ? m.group("value") : raw;
             Object extracted = opts.valueExtractor().apply(valueText);
             Object formatted = opts.valueFormatter().apply(extracted);
-            out.add(new Match(name, formatted, start, end, raw, opts.priority(), opts.tags(), opts.isPrivate()));
+            var match = new Match(name, formatted, start, end, raw, opts.priority(), opts.tags(), opts.isPrivate());
+            if (opts.validator().test(match)) out.add(match);
         }
         return out;
     }
@@ -35,8 +36,9 @@ public final class PatternMatcher {
                 if (idx < 0) break;
                 int end = idx + n.length();
                 if (!opts.wholeWord() || isWordBoundary(hay, idx, end)) {
-                    out.add(new Match(name, raw, idx, end, input.substring(idx, end),
-                        opts.priority(), opts.tags(), opts.isPrivate()));
+                    var match = new Match(name, raw, idx, end, input.substring(idx, end),
+                        opts.priority(), opts.tags(), opts.isPrivate());
+                    if (opts.validator().test(match)) out.add(match);
                 }
                 from = idx + 1;
             }

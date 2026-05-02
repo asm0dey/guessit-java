@@ -59,4 +59,28 @@ class PatternMatcherTest {
         assertEquals(1, matches.size());
         assertEquals(8, matches.get(0).start());
     }
+
+    @Test void regex_validatorRejectsMatch() {
+        var input = "abc1080xyz";
+        var p = java.util.regex.Pattern.compile("\\d{3,4}");
+        var opts = RegexOpts.defaults().withValidator(Validators.sepsSurround(input));
+        var matches = PatternMatcher.regex(input, p, "screen_size", opts);
+        assertTrue(matches.isEmpty(), "should reject — no separators surround");
+    }
+
+    @Test void regex_validatorAcceptsMatch() {
+        var input = "abc.1080.xyz";
+        var p = java.util.regex.Pattern.compile("\\d{3,4}");
+        var opts = RegexOpts.defaults().withValidator(Validators.sepsSurround(input));
+        var matches = PatternMatcher.regex(input, p, "screen_size", opts);
+        assertEquals(1, matches.size());
+        assertEquals("1080", matches.get(0).raw());
+    }
+
+    @Test void string_validatorRejectsMatch() {
+        var input = "abcMP3xyz";
+        var opts = StringOpts.defaults().withValidator(Validators.sepsSurround(input));
+        var matches = PatternMatcher.string(input, java.util.Set.of("MP3"), "audio_codec", opts);
+        assertTrue(matches.isEmpty());
+    }
 }
