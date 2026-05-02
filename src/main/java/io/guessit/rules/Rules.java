@@ -18,10 +18,12 @@ public final class Rules {
     private Rules() {}
 
     public static List<Phase> defaultPipeline() {
+        var extractors = allInOrder();
         return List.of(
             new MarkerPhase(List.of(new PathMarker(), new GroupMarker())),
-            new ExtractorPhase(allInOrder()),
+            new ExtractorPhase(extractors),
             new ConflictPhase(),
+            new ExtractorPostPhase(extractors),
             new PostPhase(List.of(
                 new PrivateRemover(),
                 new TitleMarkerSelector()
@@ -33,10 +35,10 @@ public final class Rules {
     public static List<Extractor> allInOrder() {
         return List.of(
             new YearExtractor(),
-            new ContainerExtractor(),
             new ScreenSizeExtractor(),
             new VideoCodecExtractor(),
-            new AudioCodecExtractor()
+            new AudioCodecExtractor(),
+            new ContainerExtractor()
         );
     }
 }
