@@ -61,6 +61,19 @@ public final class WeakDuplicateExtractor implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
+        // Anime-context: input begins with a [Group] / (Group) marker and the
+        // standalone 3-4 digit number is the absolute episode, not a compact
+        // SSEE pair. Drop weak-duplicate so the wider weak-episode survives
+        // (e.g. "[Fansub] One Piece 603" → episode=603).
+        boolean animeContext = !ctx.input.isEmpty()
+                && (ctx.input.charAt(0) == '[' || ctx.input.charAt(0) == '(')
+                && ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name()) && mk.start() <= 1);
+        if (animeContext) {
+            var dropDup = ctx.matches.all()
+                    .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                    .toList();
+            for (var m : dropDup) ctx.matches.remove(m);
+        }
         // Drop weak-episode matches that overlap with weak-duplicate matches
         var weakDuplicates = ctx.matches.all().filter(m -> m.tags().contains(WEAK_DUPLICATE)).toList();
         if (!weakDuplicates.isEmpty()) {
