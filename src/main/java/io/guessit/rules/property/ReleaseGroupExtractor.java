@@ -80,8 +80,8 @@ public final class ReleaseGroupExtractor implements Extractor {
     @Override
     public void postProcess(ParseContext ctx) {
         if (ctx.matches.named(RELEASE_GROUP).findAny().isPresent()) return;
-        if (detectDashSeparated(ctx)) return;
         if (detectScene(ctx)) return;
+        if (detectDashSeparated(ctx)) return;
         detectAnimeBrackets(ctx);
     }
 
@@ -117,8 +117,11 @@ public final class ReleaseGroupExtractor implements Extractor {
             }
 
             // Leading dash group: "abc-the.title..."
+            // Skip when filepart starts with bracket/paren — leading-bracket group
+            // belongs to detectAnimeBrackets, not dash-leading.
             int firstDash = part.indexOf('-');
-            if (firstDash > 0 && firstDash < part.length() - 1) {
+            if (firstDash > 0 && firstDash < part.length() - 1
+                    && part.charAt(0) != '[' && part.charAt(0) != '(') {
                 var rawCandidate = part.substring(0, firstDash);
                 var candidate = cleanGroupName(rawCandidate);
                 var rest = part.substring(firstDash + 1);

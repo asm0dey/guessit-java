@@ -5,18 +5,13 @@ import io.guessit.util.Canonical;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class YmlParityTest {
-
-    // Comparison delegates to io.guessit.util.Canonical so the library owns the
-    // YAML-scalar / typed-value equivalence rules (Python babelfish parity).
-    private static void assertSame(Object value, Object expected) {
-        assertThat(Canonical.keySet(value)).isEqualTo(Canonical.keySet(expected));
-    }
 
     /**
      * Properties shipped through Phases 1 + 2 + 3 + 4. Only cases whose expected output is entirely
@@ -44,27 +39,35 @@ class YmlParityTest {
     @ParameterizedTest(name = "[{index}] {0}")
     @MethodSource("allYmlCases")
     void ymlParity(YmlCase c) {
-        var result = Guessit.parse(c.input(), c.options()).toMap();
-        // Python guessit YML semantics: expected entries must each be present in result
-        // (subset match), and result may contain additional inferred fields.
-        // Skip null expected values (Python's check_expected skips when expected_value is None).
-        // Uses isSame for set-based comparison (ordering-insensitive for lists), matching
-        // Python's test_yml.is_same which converts to set().
-        var expectedEntries = c.expected().entrySet().stream()
+        // Functional parity: build the expected GuessResult (partial, typed: "fr" → Language,
+        // "1995" → Integer, list scalars → List), then check each expected key against the
+        // matching field on the actual GuessResult. Subset semantics: extra inferred fields
+        // on actual are allowed; only declared expected keys must match.
+        var actual = Guessit.parse(c.input(), c.options());
+        var expected = YmlExpected.build(c.expected());
+        var expectedKeys = c.expected().entrySet().stream()
                 .filter(e -> e.getValue() != null)
+                .map(Map.Entry::getKey)
                 .toList();
         if (c.negative()) {
-            // Python YML semantics: negative case passes if the *full* expected mapping
-            // doesn't appear in the result. At least one entry must mismatch.
-            boolean allMatch = expectedEntries.stream()
-                .allMatch(e -> Canonical.equivalent(result.get(e.getKey()), e.getValue()));
+            boolean allMatch = true;
+            for (String k : expectedKeys) {
+                if (!Canonical.equivalent(actual.field(k), expected.field(k))) {
+                    allMatch = false;
+                    break;
+                }
+            }
             assertThat(allMatch)
-                    .as(c + " negative case unexpectedly matched: expected " + c.expected() + " in " + result)
+                    .as(c + " negative case unexpectedly matched: expected " + expected + " in " + actual)
                     .isFalse();
         } else {
-            assertThat(expectedEntries)
-                    .as(c + " expected " + c.expected() + " ⊆ result " + result)
-                    .allSatisfy(e -> assertSame(result.get(e.getKey()), e.getValue()));
+            for (String k : expectedKeys) {
+                Object actualValue = actual.field(k);
+                Object expectedValue = expected.field(k);
+                assertThat(Canonical.keySet(actualValue))
+                        .as(c + " field=" + k + " expected " + expectedValue + " in result " + actualValue)
+                        .isEqualTo(Canonical.keySet(expectedValue));
+            }
         }
     }
 

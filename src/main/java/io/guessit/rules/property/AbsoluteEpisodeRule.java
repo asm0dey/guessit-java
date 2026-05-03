@@ -41,28 +41,9 @@ public final class AbsoluteEpisodeRule implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
-        var sxxExxEpisodes = ctx.matches.named("episode")
-            .filter(m -> m.tags().contains("SxxExx"))
-            .toList();
-        if (sxxExxEpisodes.isEmpty()) return;
-
-        var toRename = new ArrayList<Match>();
-        for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
-            // Find episode matches starting at the very beginning of this filepart
-            // that are NOT SxxExx-tagged (i.e., came from WeakEpisodeExtractor)
-            var leading = ctx.matches.named("episode")
-                .filter(m -> !m.tags().contains("SxxExx"))
-                .filter(m -> m.start() == filepart.start())
-                .filter(_ -> sxxExxEpisodes.stream().anyMatch(s -> filepart.covers(s.start(), s.end())))
-                .toList();
-            toRename.addAll(leading);
-        }
-
-        for (var m : toRename) {
-            ctx.matches.add(new Match("absolute_episode", m.value(), m.start(), m.end(),
-                m.raw(), m.priority(), Set.of("absolute_episode"), false));
-            ctx.matches.remove(m);
-        }
+        // Disabled: leading-weak-episode rename was too aggressive (broke title=<number> cases
+        // like "12.Monkeys" / "24" / "4400"). Python's absolute_episode rule fires on TRAILING
+        // numbers (e.g. "Bleach s16e03-04 313-314" → absolute_episode=[313,314]); leading-rename
+        // is not part of upstream behavior.
     }
 }
