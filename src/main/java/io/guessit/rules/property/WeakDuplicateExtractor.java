@@ -120,6 +120,79 @@ public final class WeakDuplicateExtractor implements Extractor {
                 ctx.matches.remove(matchingEpisode);
             }
         }
+        // Adjacent dash-separated weak-episode pairs (e.g. "Bleach - 313-314"):
+        // both numbers are absolute episodes, not a compact-SSEE split of the
+        // second. Drop weak-duplicate matches that overlap either side. Run
+        // before the overlap-drop below so weak-episode 314 (and its sibling)
+        // both survive as episode list members.
+        if (!hasSxxExx) {
+            var weakEpisodes = ctx.matches.named(EPISODE)
+                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.value() instanceof Integer i && i >= 100)
+                    .sorted(java.util.Comparator.comparingInt(Match::start))
+                    .toList();
+            var dropDup = new ArrayList<Match>();
+            for (int i = 0; i + 1 < weakEpisodes.size(); i++) {
+                var a = weakEpisodes.get(i);
+                var b = weakEpisodes.get(i + 1);
+                String gap = ctx.input.substring(a.end(), b.start());
+                if (gap.length() < 1 || gap.length() > 5) continue;
+                boolean isRangeSep = gap.matches("[ ._]*[-~][ ._]*");
+                if (!isRangeSep) continue;
+                // Drop weak-duplicate season/episode matches inside [a.start, b.end].
+                var inside = ctx.matches.all()
+                        .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                        .filter(m -> m.start() >= a.start() && m.end() <= b.end())
+                        .toList();
+                dropDup.addAll(inside);
+            }
+            for (var m : dropDup) ctx.matches.remove(m);
+        }
+
+        // Also detect "weak-episode (≥100) - weak-duplicate-pair" form: when
+        // weak-duplicate already consumed the second number ("314" → 3+14)
+        // but a leading weak-episode ≥100 sits dash-separated before, drop
+        // the duplicate split so a wider weak-episode regenerates is
+        // unnecessary — we just keep the leading weak-episode and re-add the
+        // second number as a plain weak-episode match.
+        if (!hasSxxExx) {
+            var leadingWeak = ctx.matches.named(EPISODE)
+                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.value() instanceof Integer i && i >= 100)
+                    .sorted(java.util.Comparator.comparingInt(Match::start))
+                    .toList();
+            var dupSeasons = ctx.matches.named(SEASON)
+                    .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                    .sorted(java.util.Comparator.comparingInt(Match::start))
+                    .toList();
+            var toRemove = new ArrayList<Match>();
+            var toAdd = new ArrayList<Match>();
+            for (var lead : leadingWeak) {
+                for (var dupS : dupSeasons) {
+                    if (dupS.start() < lead.end()) continue;
+                    String gap = ctx.input.substring(lead.end(), dupS.start());
+                    if (gap.length() < 1 || gap.length() > 5) continue;
+                    if (!gap.matches("[ ._]*[-~][ ._]*")) continue;
+                    // Pair end = matching weak-duplicate episode.
+                    var dupE = ctx.matches.named(EPISODE)
+                            .filter(em -> em.tags().contains(WEAK_DUPLICATE) && em.start() == dupS.end())
+                            .findFirst().orElse(null);
+                    if (dupE == null) continue;
+                    int spanStart = dupS.start();
+                    int spanEnd = dupE.end();
+                    int combined = Integer.parseInt(ctx.input.substring(spanStart, spanEnd));
+                    toRemove.add(dupS);
+                    toRemove.add(dupE);
+                    toAdd.add(new Match(EPISODE, combined, spanStart, spanEnd,
+                            ctx.input.substring(spanStart, spanEnd), 800,
+                            Set.of("weak-episode"), false));
+                    break;
+                }
+            }
+            for (var m : toRemove) ctx.matches.remove(m);
+            for (var m : toAdd) ctx.matches.add(m);
+        }
+
         // Drop weak-episode matches that overlap with weak-duplicate matches —
         // skip when a SxxExx episode/season is present, since weak-duplicate
         // will be dropped below and we want the wider weak-episode to survive
