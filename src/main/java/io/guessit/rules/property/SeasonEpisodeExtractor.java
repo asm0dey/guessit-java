@@ -53,7 +53,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         runChain(ctx, new Chain(HEAD_S_E).tail(TAIL_E, Chain.Repeater.STAR), input, true, false);
-        runChain(ctx, new Chain(HEAD_NUM_X).tail(TAIL_NUM_X, Chain.Repeater.STAR), input, true, true);
+        runChain(ctx, new Chain(HEAD_NUM_X).tail(TAIL_E, Chain.Repeater.STAR), input, true, true);
         runChain(ctx, new Chain(HEAD_S).tail(TAIL_S, Chain.Repeater.STAR), input, false, false);
         runCap(ctx, input);
     }
