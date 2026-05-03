@@ -31,25 +31,36 @@ public final class DatePatterns {
 
     public static Optional<Result> search(String input, Boolean yearFirst, Boolean dayFirst) {
         for (var p : REGEXPS) {
-            var m = p.matcher(input);
-            if (!m.find()) continue;
-            int s = m.start(1);
-            int e = m.end(1);
+            var matcher = p.matcher(input);
+            int from = 0;
+            while (matcher.find(from)) {
+                int s = matcher.start(1);
+                int e = matcher.end(1);
+                from = s + 1;
 
-            int gc = m.groupCount();
-            String[] parts = new String[gc - 1];
-            for (int i = 0; i < parts.length; i++) parts[i] = m.group(2 + i);
+                if (!sepsSurround(input, s, e)) continue;
 
-            Boolean df = dayFirst;
-            if (Boolean.TRUE.equals(yearFirst) && df == null) df = false;
-            if (df == null) df = guessDayFirst(parts);
+                int gc = matcher.groupCount();
+                String[] parts = new String[gc - 1];
+                for (int i = 0; i < parts.length; i++) parts[i] = matcher.group(2 + i);
 
-            var date = parse(m.group(1), yearFirst, df);
-            if (date.isPresent() && validYear(date.get().getYear())) {
-                return Optional.of(new Result(s, e, date.get()));
+                Boolean df = dayFirst;
+                if (Boolean.TRUE.equals(yearFirst) && df == null) df = false;
+                if (df == null) df = guessDayFirst(parts);
+
+                var date = parseAllValid(matcher.group(1), yearFirst, df);
+                if (date.isPresent()) {
+                    return Optional.of(new Result(s, e, date.get()));
+                }
             }
         }
         return Optional.empty();
+    }
+
+    private static boolean sepsSurround(String input, int start, int end) {
+        boolean before = start == 0 || Seps.isSep(input.charAt(start - 1));
+        boolean after = end == input.length() || Seps.isSep(input.charAt(end));
+        return before && after;
     }
 
     private static Boolean guessDayFirst(String[] parts) {
@@ -69,11 +80,11 @@ public final class DatePatterns {
         return true;
     }
 
-    private static Optional<LocalDate> parse(String raw, Boolean yearFirst, Boolean dayFirst) {
+    private static Optional<LocalDate> parseAllValid(String raw, Boolean yearFirst, Boolean dayFirst) {
         var seps = new String[]{"-", "/", " ", ".", "x"};
         for (var sep : seps) {
             var attempt = tryParse(raw.replace(sep, "-"), yearFirst, dayFirst);
-            if (attempt.isPresent()) return attempt;
+            if (attempt.isPresent() && validYear(attempt.get().getYear())) return attempt;
         }
         return Optional.empty();
     }
@@ -105,22 +116,37 @@ public final class DatePatterns {
         int b = Integer.parseInt(nm.group(2));
         int c = Integer.parseInt(nm.group(3));
 
-        boolean yF = Boolean.TRUE.equals(yearFirst);
-        boolean dF = Boolean.TRUE.equals(dayFirst);
-        if (yF || (yearFirst == null && a >= 100)) {
+        // Python dateutil: try combinations matching (dayfirst_opts x yearfirst_opts)
+        var dOpts = dayFirst != null ? new Boolean[]{dayFirst} : new Boolean[]{true, false};
+        var yOpts = yearFirst != null ? new Boolean[]{yearFirst} : new Boolean[]{false, true};
+        Optional<LocalDate> first = Optional.empty();
+        for (var df : dOpts) {
+            for (var yf : yOpts) {
+                var result = tryParseNumeric(a, b, c, yf, df);
+                if (result.isPresent()) {
+                    if (validYear(result.get().getYear())) return result;
+                    if (first.isEmpty()) first = result;
+                }
+            }
+        }
+        return first;
+    }
+
+    private static Optional<LocalDate> tryParseNumeric(int a, int b, int c, Boolean yearFirst, Boolean dayFirst) {
+        if (Boolean.TRUE.equals(yearFirst)) {
             int y = a >= 100 ? a : 2000 + a;
             try { return Optional.of(LocalDate.of(y, b, c)); } catch (Exception ignore) {}
         }
         if (c >= 100) {
             int y = c;
-            if (dF) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
+            if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
             try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception ignore) {}
-            try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
+            if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
         } else {
             int y = 2000 + c;
-            if (dF) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
+            if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
             try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception ignore) {}
-            try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
+            if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
         }
         return Optional.empty();
     }
