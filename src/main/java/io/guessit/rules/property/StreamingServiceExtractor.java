@@ -60,15 +60,15 @@ public final class StreamingServiceExtractor implements Extractor {
     private static void emitString(ParseContext ctx, String input, String value, String needle) {
         var hay = input.toLowerCase(Locale.ROOT);
         var n = needle.toLowerCase(Locale.ROOT);
-        var validator = Validators.sepsSurround(input);
         int from = 0;
         while (true) {
             int i = hay.indexOf(n, from);
             if (i < 0) break;
             int e = i + n.length();
-            var m = new Match(STREAMING_SERVICE, value, i, e, input.substring(i, e),
-                1000, Set.of("source-prefix"), false);
-            if (validator.test(m)) ctx.matches.add(m);
+            if (boundsOk(ctx, input, i, e)) {
+                ctx.matches.add(new Match(STREAMING_SERVICE, value, i, e,
+                    input.substring(i, e), 1000, Set.of("source-prefix"), false));
+            }
             from = i + 1;
         }
     }
@@ -77,18 +77,41 @@ public final class StreamingServiceExtractor implements Extractor {
         Pattern p;
         try { p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE); }
         catch (Exception _) { return; }
-        var validator = Validators.sepsSurround(input);
         var matcher = p.matcher(input);
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var m = new Match(STREAMING_SERVICE, value, s, e, input.substring(s, e),
-                1000, Set.of("source-prefix"), false);
-            if (validator.test(m)) ctx.matches.add(m);
+            if (boundsOk(ctx, input, s, e)) {
+                ctx.matches.add(new Match(STREAMING_SERVICE, value, s, e,
+                    input.substring(s, e), 1000, Set.of("source-prefix"), false));
+            }
         }
     }
 
-    /** Replicates Python ValidateStreamingService — service must abut a source-tagged neighbor. */
+    /** Accept the candidate when each side is either a sep/boundary or
+     *  abuts an {@code other} match tagged {@code streaming_service.prefix}
+     *  / {@code streaming_service.suffix} (e.g. {@code NetflixUHD},
+     *  {@code AmazonHD}). Mirrors Python's StreamingServicePrefix /
+     *  StreamingServiceSuffix proximity rules. */
+    private static boolean boundsOk(ParseContext ctx, String input, int s, int e) {
+        boolean leftOk = s == 0 || Seps.isSep(input.charAt(s - 1))
+            || abutsStreamingTagged(ctx, s, true);
+        boolean rightOk = e >= input.length() || Seps.isSep(input.charAt(e))
+            || abutsStreamingTagged(ctx, e, false);
+        return leftOk && rightOk;
+    }
+
+    private static boolean abutsStreamingTagged(ParseContext ctx, int pos, boolean prefixSide) {
+        var tag = prefixSide ? "streaming_service.prefix" : "streaming_service.suffix";
+        return ctx.matches.named("other")
+            .filter(m -> m.tags().contains(tag))
+            .anyMatch(m -> prefixSide ? m.end() == pos : m.start() == pos);
+    }
+
+    /** Replicates Python ValidateStreamingService — service must abut a
+     *  source-tagged neighbor, or an {@code other} match with the
+     *  streaming_service.prefix/suffix tag (covers {@code NetflixUHD},
+     *  {@code AmazonHD}, {@code iTunesHD}). */
     @Override
     public void postProcess(ParseContext ctx) {
         var services = ctx.matches.named(STREAMING_SERVICE).toList();
@@ -97,7 +120,11 @@ public final class StreamingServiceExtractor implements Extractor {
         for (var s : services) {
             boolean hasSource = ctx.matches.named("source")
                 .anyMatch(m -> Math.abs(m.start() - s.end()) <= 1 || Math.abs(s.start() - m.end()) <= 1);
-            if (!hasSource) toRemove.add(s);
+            if (hasSource) continue;
+            boolean abutsTagged =
+                abutsStreamingTagged(ctx, s.start(), true)
+                || abutsStreamingTagged(ctx, s.end(), false);
+            if (!abutsTagged) toRemove.add(s);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
