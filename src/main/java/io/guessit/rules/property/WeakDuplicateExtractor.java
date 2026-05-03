@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
+import io.guessit.engine.Seps;
 import io.guessit.engine.Validators;
 
 import java.util.ArrayList;
@@ -26,6 +27,8 @@ import java.util.regex.Pattern;
 public final class WeakDuplicateExtractor implements Extractor {
     private static final Pattern PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})(\\d{2})(?!\\d)");
     public static final String WEAK_DUPLICATE = "weak-duplicate";
+    public static final String SEASON = "season";
+    public static final String EPISODE = "episode";
 
     @Override
     public String name() {
@@ -35,6 +38,26 @@ public final class WeakDuplicateExtractor implements Extractor {
     @Override
     public int priority() {
         return 700;
+    }
+
+    /** True if any non-separator character follows {@code pos} in {@code input}. */
+    private static boolean hasContentAfterPos(String input, int pos) {
+        for (int i = pos; i < input.length(); i++) {
+            if (!Seps.isSep(input.charAt(i))) return true;
+        }
+        return false;
+    }
+
+    /** Check if position {@code pos} is preceded by "...non-sep [sep] - [sep]" — a
+     *  dash-then-digits anime-style separator. */
+    private static boolean isDashSeparatedBefore(String input, int pos) {
+        int i = pos - 1;
+        if (i < 0 || !Seps.isSep(input.charAt(i))) return false;
+        i--;
+        if (i < 0 || input.charAt(i) != '-') return false;
+        i--;
+        if (i >= 0 && Seps.isSep(input.charAt(i))) i--;
+        return i >= 0 && !Seps.isSep(input.charAt(i)) && input.charAt(i) != '-';
     }
 
     @Override
@@ -49,9 +72,9 @@ public final class WeakDuplicateExtractor implements Extractor {
             if (!seps.test(span)) continue;
             int s = Integer.parseInt(m.group(1));
             int e = Integer.parseInt(m.group(2));
-            ctx.matches.add(new Match("season", s, m.start(1), m.end(1),
+            ctx.matches.add(new Match(SEASON, s, m.start(1), m.end(1),
                     m.group(1), 700, Set.of("weak-episode", WEAK_DUPLICATE, "coexist"), false));
-            ctx.matches.add(new Match("episode", e, m.start(2), m.end(2),
+            ctx.matches.add(new Match(EPISODE, e, m.start(2), m.end(2),
                     m.group(2), 700, Set.of("weak-episode", WEAK_DUPLICATE, "coexist"), false));
         }
     }
@@ -74,6 +97,29 @@ public final class WeakDuplicateExtractor implements Extractor {
                     .toList();
             for (var m : dropDup) ctx.matches.remove(m);
         }
+
+        // Anime non-bracket: NNN preceded by "[sep]-[sep]" with anime decoration
+        // following ([HD], [720p], (year), etc.) and no SxxExx anywhere means
+        // the digits are an absolute episode, not a compact SSEE pair. Bare
+        // "Title - NNN" (NNN at end of input) is treated as compact SSEE.
+        boolean hasSxxExx = ctx.matches.all().anyMatch(m -> m.tags().contains("SxxExx"));
+        if (!hasSxxExx) {
+            var seasonRuns = ctx.matches.named(SEASON)
+                    .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> isDashSeparatedBefore(ctx.input, m.start()))
+                    .toList();
+            for (var seasonMatch : seasonRuns) {
+                // Episode of same weak-duplicate run starts at seasonMatch.end().
+                var matchingEpisode = ctx.matches.named(EPISODE)
+                        .filter(em -> em.tags().contains(WEAK_DUPLICATE) && em.start() == seasonMatch.end())
+                        .findFirst().orElse(null);
+                if (matchingEpisode == null) continue;
+                int runEnd = matchingEpisode.end();
+                if (!hasContentAfterPos(ctx.input, runEnd)) continue;
+                ctx.matches.remove(seasonMatch);
+                ctx.matches.remove(matchingEpisode);
+            }
+        }
         // Drop weak-episode matches that overlap with weak-duplicate matches
         var weakDuplicates = ctx.matches.all().filter(m -> m.tags().contains(WEAK_DUPLICATE)).toList();
         if (!weakDuplicates.isEmpty()) {
@@ -92,21 +138,21 @@ public final class WeakDuplicateExtractor implements Extractor {
                 .toList();
         if (!expectedTitles.isEmpty()) {
             var insideExpected = ctx.matches.all()
-                    .filter(m -> "season".equals(m.name()) || "episode".equals(m.name()))
+                    .filter(m -> SEASON.equals(m.name()) || EPISODE.equals(m.name()))
                     .filter(m -> m.tags().contains("weak-episode") || m.tags().contains(WEAK_DUPLICATE))
                     .filter(m -> expectedTitles.stream().anyMatch(t -> t.start() <= m.start() && m.end() <= t.end()))
                     .toList();
             for (var m : insideExpected) ctx.matches.remove(m);
         }
 
-        boolean strongPresent = ctx.matches.named("episode").anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
-                || ctx.matches.named("season").anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
+        boolean strongPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
+                || ctx.matches.named(SEASON).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
         var years = ctx.matches.named("year").toList();
         var codecs = ctx.matches.all()
                 .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
                 .toList();
         var toRemove = new ArrayList<Match>();
-        for (var name : new String[]{"season", "episode"}) {
+        for (var name : new String[]{SEASON, EPISODE}) {
             for (var m : ctx.matches.named(name).toList()) {
                 if (!m.tags().contains(WEAK_DUPLICATE)) continue;
                 if (strongPresent) {

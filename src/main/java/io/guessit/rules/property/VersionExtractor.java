@@ -27,7 +27,12 @@ public final class VersionExtractor implements Extractor {
         var input = ctx.input;
         var opts = RegexOpts.defaults()
                 .withValue(s -> Integer.valueOf(s.substring(1)))
-                .withValidator(m -> Validators.sepsBefore(input).test(m));
+                .withValidator(m -> {
+                    int s = m.start();
+                    if (s == 0) return true;
+                    char prev = input.charAt(s - 1);
+                    return Seps.isSep(prev) || Character.isDigit(prev);
+                });
         for (var m : PatternMatcher.regex(input, PATTERN, "version", opts)) {
             ctx.matches.add(m);
         }

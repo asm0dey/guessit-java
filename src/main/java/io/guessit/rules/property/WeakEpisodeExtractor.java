@@ -30,14 +30,14 @@ import java.util.regex.Pattern;
  *       within a few separator characters — releasers don't put episode
  *       numbers there; the digits are part of a codec or resolution token.</li>
  *   <li>If a strong {@code SxxExx} episode survived, drop every weak episode
- *       that isn't at position 0 of its filepart (those leading weaks become
- *       absolute episodes via {@link AbsoluteEpisodeRule}).</li>
+ *       that isn't at position 0 of its filepart (those trailing weaks are
+ *       renamed to {@code absolute_episode} before removal).</li>
  * </ul>
  */
 public final class WeakEpisodeExtractor implements Extractor {
-    private static final Pattern TWO_DIGIT = Pattern.compile("(?<!\\d)(\\d{2})(?!\\d)");
-    private static final Pattern THREE_OR_FOUR = Pattern.compile("(?<!\\d)(\\d{3,4})(?!\\d)");
-    private static final Pattern SINGLE = Pattern.compile("(?<!\\d)(\\d)(?!\\d)");
+    private static final Pattern TWO_DIGIT = Pattern.compile("(?<!\\d)(\\d{2})(?:v\\d+)?(?!\\d)");
+    private static final Pattern THREE_OR_FOUR = Pattern.compile("(?<!\\d)(\\d{3,4})(?:v\\d+)?(?!\\d)");
+    private static final Pattern SINGLE = Pattern.compile("(?<!\\d)(\\d)(?:v\\d+)?(?!\\d)");
     public static final String EPISODE = "episode";
 
     @Override public String name() { return "weak_episode"; }
@@ -67,11 +67,10 @@ public final class WeakEpisodeExtractor implements Extractor {
         while (m.find()) {
             int ms = m.start(1);
             int me = m.end(1);
-            // Skip weak matches that overlap any SxxExx episode — they would steal
-            // the shorter SxxExx span's priority in conflict resolution.
+            int validateEnd = m.end();
             if (overlapsAnyProtected(ms, me, protectedEpisodes)) continue;
 
-            var head = new Match(EPISODE, null, ms, me, m.group(1), 800, Set.of("weak-episode"), false);
+            var head = new Match(EPISODE, null, ms, validateEnd, m.group(1), 800, Set.of("weak-episode"), false);
             if (!seps.test(head)) continue;
             int v = Integer.parseInt(m.group(1));
             ctx.matches.add(new Match(EPISODE, v, ms, me,
@@ -118,17 +117,25 @@ public final class WeakEpisodeExtractor implements Extractor {
             }
         }
         // Drop weaks if a SxxExx-tagged episode exists in the same filepart (RemoveWeakIfSxxExx).
+        // Trailing weak episodes (not at position 0) are renamed to absolute_episode before removal.
         boolean strongPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx"));
         if (strongPresent) {
             for (var weak : weaks) {
-                if (weak.start() != 0) toRemove.add(weak);
+                if (weak.start() != 0) {
+                    ctx.matches.add(new Match("absolute_episode", weak.value(), weak.start(), weak.end(),
+                        weak.raw(), weak.priority(), weak.tags(), weak.isPrivate()));
+                    toRemove.add(weak);
+                }
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
     private static void removeAllWeak(ParseContext ctx) {
-        var weaks = ctx.matches.named(EPISODE).filter(m -> m.tags().contains("weak-episode")).toList();
+        var weaks = ctx.matches.named(EPISODE)
+            .filter(m -> m.tags().contains("weak-episode"))
+            .filter(m -> !m.tags().contains("weak-duplicate"))
+            .toList();
         for (var m : weaks) ctx.matches.remove(m);
     }
 }

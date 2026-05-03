@@ -393,6 +393,8 @@ public final class ReleaseGroupExtractor implements Extractor {
             && !containsIgnored(stripIgnoredSeps(s))) {
             s = stripIgnoredSeps(s);
         }
+        // Strip any residual group seps that were exposed by bracket removal above.
+        s = stripGroupSeps(s);
         // Drop forbidden prefix/suffix names if separated from rest by a sep.
         for (var forbidden : FORBIDDEN_NAMES) {
             if (s.toLowerCase().startsWith(forbidden) && s.length() > forbidden.length()

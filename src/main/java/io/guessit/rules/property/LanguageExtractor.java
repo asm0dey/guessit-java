@@ -74,6 +74,17 @@ public final class LanguageExtractor implements Extractor {
                 continue;
             }
 
+            // 1a. Standalone language-affix (e.g. "dublado", "dubbed") with no language
+            // attached → emit language=Undetermined. Mirrors python's behavior.
+            if (matchesAny(lower, languageAffixes)) {
+                var und = registry.find("und").orElse(null);
+                if (und != null && isAllowed(und, allowed)) {
+                    ctx.matches.add(new Match(LANGUAGE, und, word.start(), word.end(),
+                            word.value(), 1000, Set.of(), false));
+                    continue;
+                }
+            }
+
             // 2. Direct match on the whole word.
             var lang = registry.find(lower).orElse(null);
             if (lang != null && isAllowed(lang, allowed)) {
