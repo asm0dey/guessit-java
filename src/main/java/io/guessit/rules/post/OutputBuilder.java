@@ -113,8 +113,8 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         if (v instanceof String s) return Double.parseDouble(s);
         return null;
     }
-    private static List<Language> asLangList(List<Match> ms) { return ms.stream().map(m -> (Language) m.value()).toList(); }
-    private static List<Country> asCountryList(List<Match> ms) { return ms.stream().map(m -> (Country) m.value()).toList(); }
+    private static List<Language> asLangList(List<Match> ms) { return ms.stream().map(m -> (Language) m.value()).distinct().toList(); }
+    private static List<Country> asCountryList(List<Match> ms) { return ms.stream().map(m -> (Country) m.value()).distinct().toList(); }
     /**
      * Routes a single integer match to the scalar setter and 2+ matches to the
      * list setter. Mirrors guessit's behaviour where a single episode appears

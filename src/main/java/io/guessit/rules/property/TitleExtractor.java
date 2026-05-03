@@ -349,7 +349,7 @@ public final class TitleExtractor implements Extractor {
         var m = SEASON_WORD_PATTERN.matcher(value.trim());
         if (!m.matches()) return false;
         int n;
-        try { n = Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return false; }
+        try { n = Integer.parseInt(m.group(1)); } catch (NumberFormatException _) { return false; }
         return ctx.matches.named("season")
             .anyMatch(s -> Integer.valueOf(n).equals(s.value()));
     }
@@ -383,6 +383,9 @@ public final class TitleExtractor implements Extractor {
                 return m.start() >= hole.start && m.end() <= hole.end;
             }
         }
-        return true;
+        // In episode-title context (computing the trailing title), keep
+        // language/country matches: removing them produces an episode_title
+        // that swallows "ENG - sub" etc. and loses the language info entirely.
+        return !episodeTitleContext || !Set.of("language", "country").contains(m.name());
     }
 }

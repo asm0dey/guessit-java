@@ -71,19 +71,41 @@ public final class MatchSet {
     }
 
     public Optional<Match> chainBefore(int pos, String input, String seps, Predicate<Match> p) {
-        var i = pos - 1;
-        while (i >= 0 && seps.indexOf(input.charAt(i)) >= 0) i--;
-        if (i < 0) return Optional.empty();
-        var endPos = i + 1;
-        return matches.stream().filter(m -> m.end() == endPos).filter(p).findFirst();
+        // Mirror python rebulk's chain_before: walk backward; at each position
+        // gather matches at that index, stop when neither a predicate-matching
+        // match nor a separator character is present.
+        Match found = null;
+        for (int i = pos - 1; i >= 0; i--) {
+            final int idx = i;
+            var matchesAtIdx = matches.stream()
+                .filter(m -> m.start() <= idx && idx < m.end())
+                .filter(p)
+                .findFirst();
+            if (matchesAtIdx.isPresent()) {
+                if (found == null) found = matchesAtIdx.get();
+                continue;
+            }
+            // No match at this index — only continue if separator char.
+            if (seps.indexOf(input.charAt(i)) < 0) break;
+        }
+        return Optional.ofNullable(found);
     }
 
     public Optional<Match> chainAfter(int pos, String input, String seps, Predicate<Match> p) {
-        var i = pos;
-        while (i < input.length() && seps.indexOf(input.charAt(i)) >= 0) i++;
-        if (i >= input.length()) return Optional.empty();
-        var startPos = i;
-        return matches.stream().filter(m -> m.start() == startPos).filter(p).findFirst();
+        Match found = null;
+        for (int i = pos; i < input.length(); i++) {
+            final int idx = i;
+            var matchesAtIdx = matches.stream()
+                .filter(m -> m.start() <= idx && idx < m.end())
+                .filter(p)
+                .findFirst();
+            if (matchesAtIdx.isPresent()) {
+                if (found == null) found = matchesAtIdx.get();
+                continue;
+            }
+            if (seps.indexOf(input.charAt(i)) < 0) break;
+        }
+        return Optional.ofNullable(found);
     }
 
     public Stream<Match> tagged(String tag) {

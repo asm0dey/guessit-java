@@ -42,28 +42,30 @@ public final class DatePatterns {
     public static boolean validWeek(int week) { return 1 <= week && week < 53; }
 
     public static Optional<Result> search(String input, Boolean yearFirst, Boolean dayFirst) {
+        // Mirror python's date.py: take only the FIRST match per regex. If that
+        // match fails to parse to a valid date (e.g. month=18 in "21.18-5"),
+        // skip to the next regex pattern rather than advancing within the
+        // current one — otherwise a downstream "18-5-4" would resolve to a
+        // bogus date in inputs like "...2x21.18-5-4..." where python rejects
+        // every candidate.
         for (var p : REGEXPS) {
             var matcher = p.matcher(input);
-            int from = 0;
-            while (matcher.find(from)) {
-                int s = matcher.start(1);
-                int e = matcher.end(1);
-                from = s + 1;
+            if (!matcher.find()) continue;
+            int s = matcher.start(1);
+            int e = matcher.end(1);
+            if (!sepsSurround(input, s, e)) continue;
 
-                if (!sepsSurround(input, s, e)) continue;
+            int gc = matcher.groupCount();
+            String[] parts = new String[gc - 1];
+            for (int i = 0; i < parts.length; i++) parts[i] = matcher.group(2 + i);
 
-                int gc = matcher.groupCount();
-                String[] parts = new String[gc - 1];
-                for (int i = 0; i < parts.length; i++) parts[i] = matcher.group(2 + i);
+            Boolean df = dayFirst;
+            if (Boolean.TRUE.equals(yearFirst) && df == null) df = false;
+            if (df == null) df = guessDayFirst(parts);
 
-                Boolean df = dayFirst;
-                if (Boolean.TRUE.equals(yearFirst) && df == null) df = false;
-                if (df == null) df = guessDayFirst(parts);
-
-                var date = parseAllValid(matcher.group(1), yearFirst, df);
-                if (date.isPresent()) {
-                    return Optional.of(new Result(s, e, date.get()));
-                }
+            var date = parseAllValid(matcher.group(1), yearFirst, df);
+            if (date.isPresent()) {
+                return Optional.of(new Result(s, e, date.get()));
             }
         }
         return Optional.empty();

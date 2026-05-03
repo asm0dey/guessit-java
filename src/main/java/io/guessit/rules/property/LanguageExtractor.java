@@ -203,7 +203,10 @@ public final class LanguageExtractor implements Extractor {
         // "st" or "sub" (mirrors python's RemoveInvalidLanguages priority).
         dropCommonWordLanguages(ctx);
         dropUndeterminedWhenRealLangPresent(ctx);
-        dropPrivateAffixes(ctx);
+        // Keep MARKER_PREFIX private matches alive: downstream EpisodeTitle
+        // hole-computation uses them to terminate holes (mirrors python which
+        // never strips its subtitle_language.prefix marker). dropPrivateAffixes
+        // is a no-op now but the call site is preserved for future cleanup.
         cleanupReleaseGroups(ctx);
     }
 
@@ -259,6 +262,7 @@ public final class LanguageExtractor implements Extractor {
                 .toList();
         if (markers.isEmpty()) return;
 
+        var toDropMarker = new ArrayList<Match>();
         for (var marker : markers) {
             var renamed = renameAdjacentLanguagesAfter(ctx, marker);
             if (!renamed) renamed = renameAdjacentLanguagesBefore(ctx, marker);
@@ -268,13 +272,23 @@ public final class LanguageExtractor implements Extractor {
             // the surrounding match (or filepart edge) contain only separator
             // chars, and the marker is not inside a non-trivial bracket group
             // (which would imply a release group token like "[ShinBunBu-Subs]").
-            if (!isStandaloneAffix(ctx, marker)) continue;
+            if (!isStandaloneAffix(ctx, marker)) {
+                // Marker abuts content (e.g. "St.Patricks.Day") — it served no
+                // purpose, drop it so it doesn't break downstream title-hole
+                // computation.
+                toDropMarker.add(marker);
+                continue;
+            }
             var registry = LanguageRegistry.instance();
             var und = registry.find("und").orElse(null);
             if (und == null) continue;
             ctx.matches.add(new Match(SUBTITLE_LANGUAGE, und, marker.start(), marker.end(),
                 marker.raw(), 1000, Set.of(), false));
+            // Marker has done its job: emitted und. Drop it so it doesn't
+            // block downstream title-hole computation.
+            toDropMarker.add(marker);
         }
+        for (var m : toDropMarker) ctx.matches.remove(m);
     }
 
     private static boolean renameAdjacentLanguagesAfter(ParseContext ctx, Match marker) {
@@ -407,13 +421,6 @@ public final class LanguageExtractor implements Extractor {
                 }
             }
         }
-    }
-
-    private void dropPrivateAffixes(ParseContext ctx) {
-        var toRemove = ctx.matches.all()
-                .filter(m -> m.name().equals(MARKER_PREFIX))
-                .toList();
-        for (var m : toRemove) ctx.matches.remove(m);
     }
 
     private static boolean betweenIsSeps(String input, int start, int end) {
