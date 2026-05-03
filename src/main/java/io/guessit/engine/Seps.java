@@ -15,6 +15,9 @@ public final class Seps {
     /** Verbatim copy of Python guessit's seps constant (rules/common/__init__.py). */
     public static final String CHARS = " [](){}+*|=-_~#/\\.,;:";
 
+    /** Python guessit's title_seps — the subset used to split a hole into title + alternative_title. */
+    public static final String TITLE_CHARS = "-+/\\|";
+
     private static final boolean[] LOOKUP = new boolean[128];
     static {
         for (char c : CHARS.toCharArray()) {
