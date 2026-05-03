@@ -267,6 +267,28 @@ public final class TitleExtractor implements Extractor {
 
             if (alternativeMatchName != null) {
                 var split = hole.split(Seps.TITLE_CHARS);
+                // Mirrors Python title.py: re-merge adjacent splits joined by a
+                // bare '-' with non-sep on each side (e.g. "Ant-Man") so the
+                // hyphen-compound stays in title rather than spawning altTitle.
+                if (split.size() > 1) {
+                    var merged = new ArrayList<Holes.Hole>();
+                    merged.add(split.getFirst());
+                    for (int i = 1; i < split.size(); i++) {
+                        var prev = merged.getLast();
+                        var cur = split.get(i);
+                        var sep = ctx.input.substring(prev.end, cur.start);
+                        var prevRaw = prev.raw();
+                        var curRaw = cur.raw();
+                        if (sep.length() == 1 && sep.charAt(0) == '-'
+                            && !prevRaw.isEmpty() && !Seps.isSep(prevRaw.charAt(prevRaw.length() - 1))
+                            && !curRaw.isEmpty() && !Seps.isSep(curRaw.charAt(0))) {
+                            prev.end = cur.end;
+                        } else {
+                            merged.add(cur);
+                        }
+                    }
+                    split = merged;
+                }
                 if (split.size() > 1) {
                     titles.clear();
                     titles.add(new Match(matchName, split.getFirst().value(), split.getFirst().start, split.getFirst().end,
@@ -276,6 +298,10 @@ public final class TitleExtractor implements Extractor {
                         titles.add(new Match(alternativeMatchName, s.value(), s.start, s.end, s.raw(),
                             1000, Set.of(TITLE), false));
                     }
+                } else if (split.size() == 1 && (split.getFirst().start != hole.start || split.getFirst().end != hole.end)) {
+                    titles.clear();
+                    titles.add(new Match(matchName, split.getFirst().value(), split.getFirst().start, split.getFirst().end,
+                        split.getFirst().raw(), 1000, Set.copyOf(matchTags), false));
                 }
             }
             return new TitlesInFilepart(titles, toRemove);
