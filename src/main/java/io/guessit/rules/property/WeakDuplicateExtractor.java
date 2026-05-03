@@ -120,9 +120,14 @@ public final class WeakDuplicateExtractor implements Extractor {
                 ctx.matches.remove(matchingEpisode);
             }
         }
-        // Drop weak-episode matches that overlap with weak-duplicate matches
+        // Drop weak-episode matches that overlap with weak-duplicate matches —
+        // skip when a SxxExx episode/season is present, since weak-duplicate
+        // will be dropped below and we want the wider weak-episode to survive
+        // for the absolute_episode rename (e.g. "Show.Name.s16e03-05.313-315").
+        boolean sxxExxPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
+                || ctx.matches.named(SEASON).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
         var weakDuplicates = ctx.matches.all().filter(m -> m.tags().contains(WEAK_DUPLICATE)).toList();
-        if (!weakDuplicates.isEmpty()) {
+        if (!weakDuplicates.isEmpty() && !sxxExxPresent) {
             var toRemove = ctx.matches.all()
                     .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
                     .filter(m -> weakDuplicates.stream().anyMatch(wd -> wd.overlaps(m)))
@@ -145,8 +150,6 @@ public final class WeakDuplicateExtractor implements Extractor {
             for (var m : insideExpected) ctx.matches.remove(m);
         }
 
-        boolean strongPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
-                || ctx.matches.named(SEASON).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
         var years = ctx.matches.named("year").toList();
         var codecs = ctx.matches.all()
                 .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
@@ -155,7 +158,7 @@ public final class WeakDuplicateExtractor implements Extractor {
         for (var name : new String[]{SEASON, EPISODE}) {
             for (var m : ctx.matches.named(name).toList()) {
                 if (!m.tags().contains(WEAK_DUPLICATE)) continue;
-                if (strongPresent) {
+                if (sxxExxPresent) {
                     toRemove.add(m);
                     continue;
                 }

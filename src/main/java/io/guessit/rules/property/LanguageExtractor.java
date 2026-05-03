@@ -116,7 +116,7 @@ public final class LanguageExtractor implements Extractor {
             int ws = word.start();
             ctx
                     .matches
-                    cloc.named(LANGUAGE)
+                    .named(LANGUAGE)
                     .filter(m -> m.end() <= ws)
                     .filter(m -> betweenIsSeps(input, m.end(), ws))
                     .max(Comparator.comparingInt(Match::end))
