@@ -85,7 +85,7 @@ public final class EpisodeTitleExtractor implements Extractor {
             var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> "title".equals(m.name())).findAny().isPresent();
             if (!hasTitle) continue;
             var titles = titleExtractor.checkTitlesInFilepart(ctx, fp,
-                m -> false, "episode_title", List.of("title"), null, true);
+                TitleExtractor::isIgnored, "episode_title", List.of("title"), null, true);
             if (titles == null) continue;
             for (var t : titles.titles()) {
                 var prev = ctx.matches.previous(t, m -> PREVIOUS_NAMES.contains(m.name()));

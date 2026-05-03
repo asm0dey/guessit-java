@@ -261,8 +261,15 @@ public final class ReleaseGroupExtractor implements Extractor {
      */
     static String cleanGroupName(String input) {
         var s = stripGroupSeps(input);
-        // Conditional inner strip of brackets/parens: only drop when *not* needed for structure.
-        if (!(endsWithIgnored(s) && startsWithIgnored(s))
+        // Strip a balanced outer bracket/paren pair when the contents have no
+        // inner brackets ("[NY2]" → "NY2", "(rartv)" → "rartv"). Mixed shapes
+        // like "name) [tag]" are preserved here and rewritten by PARENS_BRACKETS.
+        if (s.length() >= 2
+            && ((s.charAt(0) == '[' && s.charAt(s.length() - 1) == ']')
+                || (s.charAt(0) == '(' && s.charAt(s.length() - 1) == ')'))
+            && !containsIgnored(s.substring(1, s.length() - 1))) {
+            s = s.substring(1, s.length() - 1);
+        } else if (!(endsWithIgnored(s) && startsWithIgnored(s))
             && !containsIgnored(stripIgnoredSeps(s))) {
             s = stripIgnoredSeps(s);
         }
