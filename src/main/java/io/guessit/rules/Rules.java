@@ -6,6 +6,7 @@ import io.guessit.rules.markers.PathMarker;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
+import io.guessit.rules.post.RangeFiller;
 import io.guessit.rules.post.TypeProcessor;
 import io.guessit.rules.property.*;
 
@@ -38,6 +39,7 @@ public final class Rules {
             new ExtractorPostPhase(extractors),
             new PostPhase(List.of(
                 new PreferLastPath(),
+                new RangeFiller(),
                 new TypeProcessor(),
                 new PrivateRemover()
             )),

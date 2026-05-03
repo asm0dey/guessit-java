@@ -43,7 +43,7 @@ public final class EpisodeTitleExtractor implements Extractor {
                 if (after == null || !NEXT_NAMES.contains(after.name())) continue;
                 var group = Markers.atMatch(ctx.markers, m, mk -> "group".equals(mk.name())).orElse(null);
                 java.util.function.Predicate<Match> sameGroup = c ->
-                    c.value() != null && !c.raw().strip().isEmpty()
+                    c.value() != null && !c.raw().isBlank()
                         && java.util.Objects.equals(group,
                             Markers.atMatch(ctx.markers, c, mk -> "group".equals(mk.name())).orElse(null));
 

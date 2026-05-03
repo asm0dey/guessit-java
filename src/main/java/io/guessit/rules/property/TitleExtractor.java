@@ -261,7 +261,7 @@ public final class TitleExtractor implements Extractor {
                 x -> x.name().equals(m.name()) && !toKeep.contains(x)
                     && !NON_SPECIFIC_LANGUAGES.contains(String.valueOf(x.value()))
                     && (x.end() <= hole.start || x.start() >= hole.end));
-            if (others.findAny().isEmpty() && (!starting || m.raw().length() <= 3)) return true;
+            return others.findAny().isEmpty() && (!starting || m.raw().length() <= 3);
         }
         return false;
     }

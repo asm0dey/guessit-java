@@ -36,6 +36,7 @@ public final class EpisodeWordExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
 
         var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")");
+        var seasonTailRe = Pattern.compile("(?i)[ ._-]*(?:to|a|and|et|-|~|&|\\+)[ ._-]*(\\d+)");
         var seasonMatcher = seasonRe.matcher(input);
         while (seasonMatcher.find()) {
             var raw = seasonMatcher.group();
@@ -48,6 +49,23 @@ public final class EpisodeWordExtractor implements Extractor {
             if (n < 0) continue;
             ctx.matches.add(new Match("season", n, valStart, valEnd,
                 input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
+            // Continue scanning after the first season number for additional
+            // season values: "Season 1 to 3", "Season.1.3.4", "Saison 1 a 3".
+            int prevVal = n;
+            int scanFrom = seasonMatcher.end();
+            while (true) {
+                var tail = seasonTailRe.matcher(input);
+                tail.region(scanFrom, input.length());
+                if (!tail.lookingAt()) break;
+                int v = parseSafe(tail.group(1));
+                if (v < 0 || v <= prevVal) break;
+                int tStart = tail.start(1);
+                int tEnd = tail.end(1);
+                ctx.matches.add(new Match("season", v, tStart, tEnd,
+                    input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
+                prevVal = v;
+                scanFrom = tail.end();
+            }
         }
 
         boolean episodeType = EPISODE.equals(ctx.options.type());

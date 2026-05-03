@@ -34,7 +34,7 @@ public final class TypeProcessor implements PostProcessor {
     private static String decide(ParseContext ctx) {
         var optType = ctx.options.type();
         if (optType != null) return optType;
-        if (anyNamed(ctx, EPISODE, m -> !m.tags().contains("weak-episode")) || anyNamed(ctx, "season")
+        if (anyNamed(ctx, EPISODE) || anyNamed(ctx, "season")
                 || anyNamed(ctx, "episode_details") || anyNamed(ctx, "absolute_episode")) {
             return EPISODE;
         }
@@ -52,7 +52,4 @@ public final class TypeProcessor implements PostProcessor {
         return ctx.matches.named(name).findAny().isPresent();
     }
 
-    private static boolean anyNamed(ParseContext ctx, String name, java.util.function.Predicate<Match> filter) {
-        return ctx.matches.named(name).anyMatch(filter);
-    }
 }

@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.engine.*;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -51,35 +52,45 @@ public final class SeasonEpisodeExtractor implements Extractor {
     @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
-        runChain(ctx, new Chain(HEAD_S_E).tail(TAIL_E, Chain.Repeater.STAR), input, true);
-        runChain(ctx, new Chain(HEAD_NUM_X).tail(TAIL_NUM_X, Chain.Repeater.STAR), input, true);
-        runChain(ctx, new Chain(HEAD_S).tail(TAIL_S, Chain.Repeater.STAR), input, false);
+        runChain(ctx, new Chain(HEAD_S_E).tail(TAIL_E, Chain.Repeater.STAR), input, true, false);
+        runChain(ctx, new Chain(HEAD_NUM_X).tail(TAIL_NUM_X, Chain.Repeater.STAR), input, true, true);
+        runChain(ctx, new Chain(HEAD_S).tail(TAIL_S, Chain.Repeater.STAR), input, false, false);
         runCap(ctx, input);
     }
 
-    private void runChain(ParseContext ctx, Chain chain, String input, boolean withEpisode) {
+    private void runChain(ParseContext ctx, Chain chain, String input, boolean withEpisode, boolean skipScreenSize) {
         var seps = Validators.sepsSurround(input);
+        var screenSizeSpans = skipScreenSize
+            ? ctx.matches.named("screen_size").map(m -> new int[]{m.start(), m.end()}).toList()
+            : List.<int[]>of();
         for (var run : chain.scan(input)) {
-            var headMatch = new Match("seasonHead", null, run.start(), run.end(),
-                input.substring(run.start(), run.end()), 1000, Set.of(SXX_EXX), true);
-            if (!seps.test(headMatch)) continue;
-            ctx.matches.add(headMatch);
+            if (skipScreenSize && overlapsAny(run.start(), run.end(), screenSizeSpans)) continue;
             var seasonValues = run.captures(SEASON);
             var episodeValues = run.captures(EPISODE);
             var seasonSpans = run.spans(SEASON);
             var episodeSpans = run.spans(EPISODE);
             var episodeSeparators = run.captures("episodeSeparator");
             var episodeMarkers = run.captures("episodeMarker");
-            if (!isAscending(seasonValues) || !isAscending(episodeValues)) continue;
+            if (isDescending(seasonValues) || isDescending(episodeValues)) continue;
             // Mirror Python rebulk's repeater('*'): when ordering_validator rejects the
             // full chain, fall back to the longest valid prefix of tail repeats.
             int validTails = longestValidTail(episodeValues, episodeSeparators);
-            if (validTails < episodeValues.size() - 1) {
+            if (!episodeValues.isEmpty() && validTails < episodeValues.size() - 1) {
                 int keep = validTails + 1;
                 episodeValues = episodeValues.subList(0, keep);
                 episodeSpans = episodeSpans.subList(0, keep);
                 episodeSeparators = episodeSeparators.subList(0, Math.max(0, keep - 1));
             }
+            int runEnd = run.end();
+            if (!episodeSpans.isEmpty()) {
+                runEnd = Math.min(runEnd, episodeSpans.getLast()[1]);
+            } else if (!seasonSpans.isEmpty()) {
+                runEnd = Math.min(runEnd, seasonSpans.getLast()[1]);
+            }
+            var headMatch = new Match("seasonHead", null, run.start(), runEnd,
+                input.substring(run.start(), runEnd), 1000, Set.of(SXX_EXX), true);
+            if (!seps.test(headMatch)) continue;
+            ctx.matches.add(headMatch);
             boolean discRun = episodeMarkers.stream().anyMatch(s -> s.equalsIgnoreCase("d"))
                 || episodeSeparators.stream().anyMatch(s -> s.equalsIgnoreCase("d"));
             for (int i = 0; i < seasonValues.size(); i++) {
@@ -105,7 +116,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
      * Weak discrete separators (".", "_", " ") require value gap ≤ MAX_RANGE_GAP+1; strong
      * discrete separators ("&", "+", "and", "et") short-circuit acceptance.
      */
-    private static int longestValidTail(java.util.List<String> values, java.util.List<String> seps) {
+    private static int longestValidTail(List<String> values, List<String> seps) {
         int validTails = 0;
         for (int i = 1; i < values.size() && i - 1 < seps.size(); i++) {
             String sep = seps.get(i - 1).toLowerCase(java.util.Locale.ROOT);
@@ -140,14 +151,21 @@ public final class SeasonEpisodeExtractor implements Extractor {
         }
     }
 
-    private static boolean isAscending(java.util.List<String> values) {
+    private static boolean overlapsAny(int start, int end, java.util.List<int[]> spans) {
+        for (var s : spans) {
+            if (start < s[1] && end > s[0]) return true;
+        }
+        return false;
+    }
+
+    private static boolean isDescending(List<String> values) {
         int prev = Integer.MIN_VALUE;
         for (var v : values) {
             int n = Integer.parseInt(v);
-            if (n < prev) return false;
+            if (n < prev) return true;
             prev = n;
         }
-        return true;
+        return false;
     }
 
     @Override

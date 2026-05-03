@@ -64,7 +64,7 @@ class YmlParityTest {
         } else {
             assertThat(expectedEntries)
                     .as(c + " expected " + c.expected() + " ⊆ result " + result)
-                    .allSatisfy(e -> assertSame(e.getValue(), result.get(e.getKey())));
+                    .allSatisfy(e -> assertSame(result.get(e.getKey()), e.getValue()));
         }
     }
 
