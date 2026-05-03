@@ -157,7 +157,7 @@ public final class YmlTestLoader {
     }
 
     private static void applyArgString(OptionsAccum a, String s) {
-        var tokens = s.trim().split("\\s+");
+        var tokens = tokenizeArgs(s);
         for (int i = 0; i < tokens.length; i++) {
             switch (tokens[i]) {
                 case "--episode-prefer-number" -> a.episodePreferNumber = true;
@@ -176,6 +176,31 @@ public final class YmlTestLoader {
                 default -> { /* ignore unknown for now */ }
             }
         }
+    }
+
+    /**
+     * Shell-like tokenizer: respects single and double quotes so that
+     * {@code -T 'An Anime Show 100'} becomes [{@code -T}, {@code An Anime Show 100}].
+     */
+    private static String[] tokenizeArgs(String s) {
+        var out = new ArrayList<String>();
+        var sb = new StringBuilder();
+        char quote = 0;
+        for (int i = 0; i < s.length(); i++) {
+            var c = s.charAt(i);
+            if (quote != 0) {
+                if (c == quote) quote = 0;
+                else sb.append(c);
+            } else if (c == '\'' || c == '"') {
+                quote = c;
+            } else if (Character.isWhitespace(c)) {
+                if (!sb.isEmpty()) { out.add(sb.toString()); sb.setLength(0); }
+            } else {
+                sb.append(c);
+            }
+        }
+        if (!sb.isEmpty()) out.add(sb.toString());
+        return out.toArray(new String[0]);
     }
 
     private static void applyKv(OptionsAccum a, String k, Object v) {

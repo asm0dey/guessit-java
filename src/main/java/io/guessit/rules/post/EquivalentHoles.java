@@ -3,6 +3,8 @@ package io.guessit.rules.post;
 import io.guessit.engine.*;
 import io.guessit.engine.PostPhase.PostProcessor;
 
+import java.util.List;
+
 /**
  * Port of python {@code processors.EquivalentHoles}: when a hole in any
  * filepart has the same case-insensitive text as an existing string-valued
@@ -26,7 +28,7 @@ public final class EquivalentHoles implements PostProcessor {
             // that python finds, so a hole appears where python has a match —
             // letting the rule flip the better-cased existing value to the worse
             // one. Title casing is the primary win here anyway.
-            var names = java.util.List.of("title", "alternative_title", "episode_title");
+            var names = List.of("title", "alternative_title", "episode_title");
             for (var name : names) {
                 for (var hole : holes) {
                     if (hole == null) continue;

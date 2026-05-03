@@ -71,6 +71,21 @@ public final class WeakDuplicateExtractor implements Extractor {
             for (var m : toRemove) ctx.matches.remove(m);
         }
 
+        // Drop weak-duplicate (and overlapping weak-episode) matches that fall
+        // entirely inside an expected-title span: the user told us those digits
+        // are part of the title, not a season/episode pair.
+        var expectedTitles = ctx.matches.all()
+                .filter(m -> "title".equals(m.name()) && m.tags().contains("expected"))
+                .toList();
+        if (!expectedTitles.isEmpty()) {
+            var insideExpected = ctx.matches.all()
+                    .filter(m -> "season".equals(m.name()) || "episode".equals(m.name()))
+                    .filter(m -> m.tags().contains("weak-episode") || m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> expectedTitles.stream().anyMatch(t -> t.start() <= m.start() && m.end() <= t.end()))
+                    .toList();
+            for (var m : insideExpected) ctx.matches.remove(m);
+        }
+
         boolean strongPresent = ctx.matches.named("episode").anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
                 || ctx.matches.named("season").anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
         var years = ctx.matches.named("year").toList();

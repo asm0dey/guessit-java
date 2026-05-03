@@ -36,18 +36,35 @@ public final class TitleExtractor implements Extractor {
         var expected = ctx.options.expectedTitle();
         if (expected.isEmpty()) return;
         var input = ctx.input;
+        // Mirror python rules/common/expected.py: normalize seps in both input
+        // and search to a single space before substring scanning, so a search
+        // like "An Anime Show 100" matches "An_Anime_Show_100" in the input.
+        // Spans stay valid because replacement is 1:1 by char.
+        var normalizedInput = normalizeSeps(input);
         var sepsSurround = Validators.sepsSurround(input);
         for (var word : expected) {
+            var search = normalizeSeps(word);
+            var lcInput = normalizedInput.toLowerCase(java.util.Locale.ROOT);
+            var lcSearch = search.toLowerCase(java.util.Locale.ROOT);
             int idx = 0;
-            while ((idx = input.indexOf(word, idx)) >= 0) {
-                var raw = input.substring(idx, idx + word.length());
+            while ((idx = lcInput.indexOf(lcSearch, idx)) >= 0) {
+                var raw = input.substring(idx, idx + search.length());
                 var formatted = Formatters.titleText(raw);
-                var m = new Match(TITLE, formatted, idx, idx + word.length(), raw,
+                var m = new Match(TITLE, formatted, idx, idx + search.length(), raw,
                     1000, Set.of("expected", TITLE), false);
                 if (sepsSurround.test(m)) ctx.matches.add(m);
-                idx += word.length();
+                idx += search.length();
             }
         }
+    }
+
+    private static String normalizeSeps(String s) {
+        var sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            var c = s.charAt(i);
+            sb.append(Seps.isSep(c) ? ' ' : c);
+        }
+        return sb.toString();
     }
 
     @Override
