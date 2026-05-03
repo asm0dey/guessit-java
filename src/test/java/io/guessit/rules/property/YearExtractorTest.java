@@ -44,12 +44,17 @@ class YearExtractorTest {
         assertEquals(1, ms.size());
         assertEquals(2018, ms.get(0).value());
     }
-    @Test void noGroupedYear_keepsFirstAndDropsLaterDuplicates() {
+    @Test void noGroupedYear_keepsSecondAndDropsRest() {
         var ms = run("Movie.2015.Cut.2018.Edit.2020.mkv");
-        // Ungrouped: keep first, keep nothing past index 1; per Python: keep [0], drop [2..]
-        assertEquals(2, ms.size());
-        assertEquals(2015, ms.get(0).value());
-        assertEquals(2018, ms.get(1).value());
+        // Per python KeepMarkedYearInFilepart: drop year[0] (it falls into the
+        // title hole) and year[2..]; keep only year[1] as the release year.
+        assertEquals(1, ms.size());
+        assertEquals(2018, ms.get(0).value());
+    }
+    @Test void noGroupedYear_twoYears_dropsFirst() {
+        var ms = run("Movie.2015.Title.2018.mkv");
+        assertEquals(1, ms.size());
+        assertEquals(2018, ms.get(0).value());
     }
     @Test void boundaryValues() {
         assertEquals(1920, run("F.1920.mkv").get(0).value());

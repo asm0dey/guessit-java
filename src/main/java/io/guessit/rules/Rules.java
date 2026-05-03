@@ -3,6 +3,7 @@ package io.guessit.rules;
 import io.guessit.engine.*;
 import io.guessit.rules.markers.GroupMarker;
 import io.guessit.rules.markers.PathMarker;
+import io.guessit.rules.post.EquivalentHoles;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
@@ -39,6 +40,7 @@ public final class Rules {
             new ConflictPhase(),
             new ExtractorPostPhase(extractors),
             new PostPhase(List.of(
+                new EquivalentHoles(),
                 new PreferLastPath(),
                 new RangeFiller(),
                 new SeasonYearLink(),

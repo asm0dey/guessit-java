@@ -74,10 +74,30 @@ public final class YearExtractor implements Extractor {
             if (!grouped.isEmpty() && !ungrouped.isEmpty()) {
                 toRemove.addAll(ungrouped);
                 if (grouped.size() > 1) toRemove.addAll(grouped.subList(1, grouped.size()));
-            } else if (grouped.isEmpty() && ungrouped.size() > 2)
-                toRemove.addAll(ungrouped.subList(2, ungrouped.size()));
+            } else if (grouped.isEmpty()) {
+                // Drop the FIRST ungrouped year so it can fall into the title hole;
+                // the second year is the actual release year. Mirrors python
+                // KeepMarkedYearInFilepart: "Keep first year for title".
+                toRemove.add(ungrouped.get(0));
+                if (ungrouped.size() > 2) toRemove.addAll(ungrouped.subList(2, ungrouped.size()));
+            }
 
         }
         for (var m : toRemove) ctx.matches.remove(m);
+
+        // After dropping a leading year, also kill any weak-duplicate
+        // season/episode matches that landed inside that year's 4-digit span.
+        // WeakDuplicateExtractor's post-pass runs after us and uses the
+        // current year set as a guard; once year[0] is gone its NN/NN split
+        // is no longer protected, and "2012.2009..." would parse as
+        // season=20/episode=12.
+        for (var dropped : toRemove) {
+            var weakDups = ctx.matches.all()
+                    .filter(m -> m.tags().contains("weak-duplicate"))
+                    .filter(m -> "season".equals(m.name()) || "episode".equals(m.name()))
+                    .filter(m -> dropped.overlaps(m))
+                    .toList();
+            for (var m : weakDups) ctx.matches.remove(m);
+        }
     }
 }
