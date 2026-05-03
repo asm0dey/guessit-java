@@ -94,7 +94,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             var ext = ctx.matches.named("container")
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
-            int end = ext != null ? ext.start() : filepart.end();
+            int end = ext != null ? ext.start() : trimKnownExtension(ctx, filepart);
             end = trimNotARgTail(ctx, filepart, end);
             int dash = input.lastIndexOf('-', end - 1);
             if (dash > filepart.start() && dash < end - 1) {
@@ -173,7 +173,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             var ext = ctx.matches.named("container")
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
-            final int rangeEnd = trimNotARgTail(ctx, filepart, ext != null ? ext.start() : filepart.end());
+            final int rangeEnd = trimNotARgTail(ctx, filepart, ext != null ? ext.start() : trimKnownExtension(ctx, filepart));
 
             var prev = ctx.matches.all()
                 .filter(m -> SCENE_PREV.contains(m.name()))
@@ -265,6 +265,26 @@ public final class ReleaseGroupExtractor implements Extractor {
      * so they don't block release-group detection. Mirrors Python guessit's
      * predicate filter in {@code release_group.detect}.
      */
+    private static final java.util.regex.Pattern KNOWN_TRAILING_EXT = java.util.regex.Pattern.compile(
+        "(?i)\\.(?:mkv|mp4|avi|mov|m4v|mpeg|mpg|ts|m2ts|wmv|webm|flv|ogg|ogm|ogv|"
+        + "iso|3gp|3g2|3gp2|asf|divx|mka|mk2|mk3d|mp4a|qt|ra|ram|rm|vob|wav|wma|"
+        + "srt|idx|sub|ssa|ass|nfo|torrent|nzb)$");
+
+    /**
+     * When no container match is present (e.g. dropped by ConflictPhase in favor
+     * of an overlapping source), still trim a recognised trailing extension so
+     * RG detection doesn't include the dot-suffix in the group name.
+     */
+    private static int trimKnownExtension(ParseContext ctx, Marker filepart) {
+        var input = ctx.input;
+        int s = filepart.start();
+        int e = filepart.end();
+        var part = input.substring(s, e);
+        var m = KNOWN_TRAILING_EXT.matcher(part);
+        if (m.find()) return s + m.start();
+        return e;
+    }
+
     private static int trimNotARgTail(ParseContext ctx, Marker filepart, int rangeEnd) {
         var input = ctx.input;
         boolean changed = true;
