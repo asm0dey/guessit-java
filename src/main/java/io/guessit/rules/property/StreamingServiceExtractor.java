@@ -46,20 +46,25 @@ public final class StreamingServiceExtractor implements Extractor {
     private static void emit(ParseContext ctx, String input, String value, Object pat) {
         if (pat instanceof String s) {
             if (s.startsWith("re:")) emitRegex(ctx, input, value, s.substring(3));
-            else emitString(ctx, input, value, s);
+            else emitString(ctx, input, value, s, true);
         } else if (pat instanceof Map<?, ?> m) {
             var s = m.get("string");
             var r = m.get("regex");
-            if (s instanceof String str) emitString(ctx, input, value, str);
-            else if (s instanceof List<?> l) for (var x : l) emitString(ctx, input, value, x.toString());
+            var p = m.get("pattern");
+            boolean ignoreCase = !(m.get("ignore_case") instanceof Boolean b) || b;
+            if (s instanceof String str) emitString(ctx, input, value, str, true);
+            else if (s instanceof List<?> l) for (var x : l) emitString(ctx, input, value, x.toString(), true);
+            if (p instanceof String str) emitString(ctx, input, value, str, ignoreCase);
+            else if (p instanceof List<?> l) for (var x : l) emitString(ctx, input, value, x.toString(), ignoreCase);
             if (r instanceof String str) emitRegex(ctx, input, value, str);
             else if (r instanceof List<?> l) for (var x : l) emitRegex(ctx, input, value, x.toString());
         }
     }
 
-    private static void emitString(ParseContext ctx, String input, String value, String needle) {
-        var hay = input.toLowerCase(Locale.ROOT);
-        var n = needle.toLowerCase(Locale.ROOT);
+    private static void emitString(ParseContext ctx, String input, String value, String needle,
+                                   boolean ignoreCase) {
+        var hay = ignoreCase ? input.toLowerCase(Locale.ROOT) : input;
+        var n = ignoreCase ? needle.toLowerCase(Locale.ROOT) : needle;
         int from = 0;
         while (true) {
             int i = hay.indexOf(n, from);
@@ -108,24 +113,46 @@ public final class StreamingServiceExtractor implements Extractor {
             .anyMatch(m -> prefixSide ? m.end() == pos : m.start() == pos);
     }
 
-    /** Replicates Python ValidateStreamingService — service must abut a
-     *  source-tagged neighbor, or an {@code other} match with the
-     *  streaming_service.prefix/suffix tag (covers {@code NetflixUHD},
-     *  {@code AmazonHD}, {@code iTunesHD}). */
+    /** Replicates Python ValidateStreamingService — keep when there's a
+     *  next match tagged {@code streaming_service.suffix} (or previous match
+     *  tagged {@code streaming_service.prefix}) with only sep characters
+     *  between the service and the neighbor. */
     @Override
     public void postProcess(ParseContext ctx) {
         var services = ctx.matches.named(STREAMING_SERVICE).toList();
         if (services.isEmpty()) return;
+        var input = ctx.input;
         var toRemove = new ArrayList<Match>();
         for (var s : services) {
-            boolean hasSource = ctx.matches.named("source")
-                .anyMatch(m -> Math.abs(m.start() - s.end()) <= 1 || Math.abs(s.start() - m.end()) <= 1);
-            if (hasSource) continue;
-            boolean abutsTagged =
-                abutsStreamingTagged(ctx, s.start(), true)
-                || abutsStreamingTagged(ctx, s.end(), false);
-            if (!abutsTagged) toRemove.add(s);
+            // next match with streaming_service.suffix tag, after the service
+            var next = ctx.matches.all()
+                .filter(m -> !m.isPrivate())
+                .filter(m -> m.tags().contains("streaming_service.suffix"))
+                .filter(m -> m.start() >= s.end())
+                .min(Comparator.comparingInt(Match::start)).orElse(null);
+            boolean nextOk = next != null
+                && betweenIsSeps(input, s.end(), next.start())
+                && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1)));
+            if (nextOk) continue;
+
+            var prev = ctx.matches.all()
+                .filter(m -> !m.isPrivate())
+                .filter(m -> m.tags().contains("streaming_service.prefix"))
+                .filter(m -> m.end() <= s.start())
+                .max(Comparator.comparingInt(Match::end)).orElse(null);
+            boolean prevOk = prev != null
+                && betweenIsSeps(input, prev.end(), s.start())
+                && (s.end() >= input.length() || Seps.isSep(input.charAt(s.end())));
+            if (prevOk) continue;
+
+            toRemove.add(s);
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean betweenIsSeps(String input, int from, int to) {
+        if (from > to) return false;
+        for (int i = from; i < to; i++) if (!Seps.isSep(input.charAt(i))) return false;
+        return true;
     }
 }

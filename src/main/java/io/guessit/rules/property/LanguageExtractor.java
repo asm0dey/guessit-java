@@ -68,7 +68,28 @@ public final class LanguageExtractor implements Extractor {
         var languageSuffixes = combine(languageAffixes, stringList(section.get("language_suffixes")));
 
         var words = Words.iter(input);
-        for (Words.Word word : words) {
+
+        // Two-word language alias pass: registry knows combos like
+        // "espanol castellano" → ca. Try every consecutive pair before
+        // single-word lookup so the pair wins (otherwise espanol→es and
+        // castellano→ca emit as two separate matches).
+        var pairConsumed = new java.util.HashSet<Integer>();
+        for (int i = 0; i + 1 < words.size(); i++) {
+            var w1 = words.get(i);
+            var w2 = words.get(i + 1);
+            var combined = (w1.value() + " " + w2.value()).toLowerCase(Locale.ROOT);
+            var pairLang = registry.find(combined).orElse(null);
+            if (pairLang == null || !isAllowed(pairLang, allowed)) continue;
+            ctx.matches.add(new Match(LANGUAGE, pairLang, w1.start(), w2.end(),
+                input.substring(w1.start(), w2.end()), 1000, Set.of(), false));
+            pairConsumed.add(i);
+            pairConsumed.add(i + 1);
+            i++;
+        }
+
+        for (int wi = 0; wi < words.size(); wi++) {
+            if (pairConsumed.contains(wi)) continue;
+            Words.Word word = words.get(wi);
             var lower = word.value().toLowerCase(Locale.ROOT);
             if (lower.chars().allMatch(Character::isDigit)) continue;
 
