@@ -24,8 +24,9 @@ import java.util.regex.Pattern;
  */
 public final class EpisodeWordExtractor implements Extractor {
     public static final String EPISODE = "episode";
+    private static final int MAX_RANGE_GAP = 1;
     private static final List<String> EPISODE_WORDS = List.of(EPISODE, "episodes", "ep", "eps", "episodio", "episodios", "capitulo", "capitulos", "part", "parts", "ch", "chapter", "chapters", "e");
-    private static final List<String> SEASON_WORDS = List.of("season", "seasons", "saison", "saisons", "serie", "series", "temp", "temporada", "temporadas", "staffel", "staffeln");
+    private static final List<String> SEASON_WORDS = List.of("season", "seasons", "saison", "saisons", "seizoen", "serie", "series", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
     private static final List<String> OF_WORDS = List.of("of", "sur", "de");
 
     @Override public String name() { return "episode_word"; }
@@ -37,7 +38,12 @@ public final class EpisodeWordExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
 
         var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")");
-        var seasonTailRe = Pattern.compile("(?i)[ ._-]*(?:to|a|and|et|-|~|&|\\+)[ ._-]*(\\d+)");
+        // Tail captures one separator token (group 1) and the next digits (group 2).
+        // Strong:  &, +, and, et — emits as additive list, terminates further weak checks.
+        // Range:   -, ~, to, a   — expands inclusive between prev and v.
+        // Weak:    .,  , _       — only valid when 0 < v-prev <= MAX_RANGE_GAP+1.
+        var seasonTailRe = Pattern.compile(
+            "(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
         var seasonMatcher = seasonRe.matcher(input);
         while (seasonMatcher.find()) {
             var raw = seasonMatcher.group();
@@ -51,17 +57,49 @@ public final class EpisodeWordExtractor implements Extractor {
             ctx.matches.add(new Match("season", n, valStart, valEnd,
                 input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
             // Continue scanning after the first season number for additional
-            // season values: "Season 1 to 3", "Season.1.3.4", "Saison 1 a 3".
+            // season values: "Season 1 to 3", "Season.1.3.4", "Saison 1 a 3",
+            // "Season.1.3&5" → [1,3,5], "Season.1.2.3-5" → [1,2,3,4,5].
             int prevVal = n;
             int scanFrom = seasonMatcher.end();
+            // Tail digits inside an existing strong match (screen_size, year,
+            // source, video_codec, audio_codec) are part of that property,
+            // not a new season number.
+            var blockSpans = ctx.matches.all()
+                .filter(m -> {
+                    String nm = m.name();
+                    return "screen_size".equals(nm) || "year".equals(nm)
+                        || "source".equals(nm) || "video_codec".equals(nm)
+                        || "audio_codec".equals(nm) || "video_profile".equals(nm)
+                        || "audio_channels".equals(nm) || "frame_rate".equals(nm);
+                })
+                .map(m -> new int[]{m.start(), m.end()})
+                .toList();
             while (true) {
                 var tail = seasonTailRe.matcher(input);
                 tail.region(scanFrom, input.length());
                 if (!tail.lookingAt()) break;
-                int v = parseSafe(tail.group(1));
+                String sepToken = tail.group(1).strip().toLowerCase();
+                // Trim leading/trailing weak chars to extract the operator (if any).
+                String op = sepToken.replaceAll("^[. _]+|[. _]+$", "");
+                boolean strong = op.equals("&") || op.equals("+") || op.equals("and") || op.equals("et");
+                boolean range = op.equals("-") || op.equals("~") || op.equals("to") || op.equals("a");
+                int v = parseSafe(tail.group(2));
                 if (v < 0 || v <= prevVal) break;
-                int tStart = tail.start(1);
-                int tEnd = tail.end(1);
+                int tStart = tail.start(2);
+                int tEnd = tail.end(2);
+                final int ts = tStart, te = tEnd;
+                if (blockSpans.stream().anyMatch(sp -> sp[0] < te && ts < sp[1])) break;
+                if (!strong && !range) {
+                    // weak: must be near-consecutive
+                    if (v - prevVal > MAX_RANGE_GAP + 1) break;
+                }
+                if (range) {
+                    // expand intermediate values privately so seasonList captures full range
+                    for (int x = prevVal + 1; x < v; x++) {
+                        ctx.matches.add(new Match("season", x, tStart, tStart, "",
+                            1000, Set.of("season-word"), false));
+                    }
+                }
                 ctx.matches.add(new Match("season", v, tStart, tEnd,
                     input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
                 prevVal = v;

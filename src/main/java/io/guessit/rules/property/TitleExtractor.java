@@ -335,8 +335,8 @@ public final class TitleExtractor implements Extractor {
     }
 
     private static final java.util.regex.Pattern SEASON_WORD_PATTERN = java.util.regex.Pattern.compile(
-        "(?i)^(?:season|seasons|saison|saisons|serie|series|temp|temporada|temporadas|"
-        + "staffel|staffeln)[ ._-]*(\\d+)$");
+        "(?i)^(?:season|seasons|saison|saisons|seizoen|serie|series|temp|temporada|temporadas|"
+        + "staffel|staffeln|stagione|stagioni)[ ._-]*(\\d+)$");
 
     /**
      * True when {@code value} is a season-word followed by a number that already

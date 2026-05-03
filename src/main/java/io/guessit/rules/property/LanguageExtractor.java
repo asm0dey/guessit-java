@@ -198,6 +198,10 @@ public final class LanguageExtractor implements Extractor {
         dropCommonWordLanguages(ctx);
         renameStandaloneAffixes(ctx);
         renameWithSubtitleExtension(ctx);
+        // Re-run common-word filter to drop subtitle_language=und matches that
+        // renameStandaloneAffixes synthesised over a common-word marker like
+        // "st" or "sub" (mirrors python's RemoveInvalidLanguages priority).
+        dropCommonWordLanguages(ctx);
         dropUndeterminedWhenRealLangPresent(ctx);
         dropPrivateAffixes(ctx);
         cleanupReleaseGroups(ctx);
@@ -257,7 +261,19 @@ public final class LanguageExtractor implements Extractor {
 
         for (var marker : markers) {
             var renamed = renameAdjacentLanguagesAfter(ctx, marker);
-            if (!renamed) renameAdjacentLanguagesBefore(ctx, marker);
+            if (!renamed) renamed = renameAdjacentLanguagesBefore(ctx, marker);
+            if (renamed) continue;
+            // No adjacent language to rename. Emit subtitle_language=und only
+            // when the marker is "standalone" — both sides between marker and
+            // the surrounding match (or filepart edge) contain only separator
+            // chars, and the marker is not inside a non-trivial bracket group
+            // (which would imply a release group token like "[ShinBunBu-Subs]").
+            if (!isStandaloneAffix(ctx, marker)) continue;
+            var registry = LanguageRegistry.instance();
+            var und = registry.find("und").orElse(null);
+            if (und == null) continue;
+            ctx.matches.add(new Match(SUBTITLE_LANGUAGE, und, marker.start(), marker.end(),
+                marker.raw(), 1000, Set.of(), false));
         }
     }
 
@@ -295,6 +311,56 @@ public final class LanguageExtractor implements Extractor {
         if (!betweenIsSeps(input, marker.end(), next.start())) return false;
         renameToSubtitle(ctx, next);
         return true;
+    }
+
+    private static boolean isStandaloneAffix(ParseContext ctx, Match marker) {
+        var input = ctx.input;
+        // Reject when inside a group that contains additional non-sep content
+        // beyond the marker itself (e.g. "[ShinBunBu-Subs]").
+        for (var g : ctx.markers) {
+            if (!"group".equals(g.name())) continue;
+            if (marker.start() < g.start() || marker.end() > g.end()) continue;
+            int innerStart = Math.min(g.start() + 1, marker.start());
+            int innerEnd = Math.max(g.end() - 1, marker.end());
+            if (innerStart >= marker.start() && innerEnd <= marker.end()) {
+                // marker fills the entire group — fall through to outer-bound check
+                continue;
+            }
+            String before = innerStart < marker.start()
+                ? input.substring(innerStart, marker.start()) : "";
+            String after = innerEnd > marker.end()
+                ? input.substring(marker.end(), innerEnd) : "";
+            if (!before.chars().allMatch(c -> Seps.isSep((char) c))
+                || !after.chars().allMatch(c -> Seps.isSep((char) c))) {
+                return false;
+            }
+        }
+        // Determine bounds: nearest match end before, nearest match start after.
+        int leftBound = 0;
+        int rightBound = input.length();
+        for (var fp : ctx.markers) {
+            if (!"path".equals(fp.name())) continue;
+            if (marker.start() >= fp.start() && marker.end() <= fp.end()) {
+                leftBound = fp.start();
+                rightBound = fp.end();
+                break;
+            }
+        }
+        int prevEnd = leftBound;
+        int nextStart = rightBound;
+        for (var m : ctx.matches.all().toList()) {
+            if (m == marker) continue;
+            if (m.isPrivate() && !"language".equals(m.name())) {
+                // ignore private markers (incl. self) for this check
+                continue;
+            }
+            if (m.end() <= marker.start() && m.end() > prevEnd) prevEnd = m.end();
+            if (m.start() >= marker.end() && m.start() < nextStart) nextStart = m.start();
+        }
+        String beforeGap = input.substring(prevEnd, marker.start());
+        String afterGap = input.substring(marker.end(), nextStart);
+        return beforeGap.chars().allMatch(c -> Seps.isSep((char) c))
+            && afterGap.chars().allMatch(c -> Seps.isSep((char) c));
     }
 
     private static boolean renameAdjacentLanguagesBefore(ParseContext ctx, Match marker) {

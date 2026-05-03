@@ -117,15 +117,53 @@ public final class WeakEpisodeExtractor implements Extractor {
             }
         }
         // Drop weaks if a SxxExx-tagged episode exists in the same filepart (RemoveWeakIfSxxExx).
-        // Trailing weak episodes (not at position 0) are renamed to absolute_episode before removal.
         boolean strongPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx"));
         if (strongPresent) {
+            // Mirror Python's RemoveWeakIfSxxExx + RenameToAbsoluteEpisode +
+            // EpisodeNumberSeparatorRange. For each non-leading weak:
+            //  - same filepart, contiguous to a preceding episode (only sep
+            //    chars between), value < 100: keep as episode so it joins the
+            //    SxxExx list ("E01 02 03" → [1,2,3]).
+            //  - same filepart, contiguous, value >= 100 and ≥2 high-value
+            //    weaks present: rename all to absolute_episode (313-314 form).
+            //  - otherwise drop the weak.
+            var allEpisodes = ctx.matches.named(EPISODE)
+                .sorted(java.util.Comparator.comparingInt(Match::start))
+                .toList();
+            var paths = io.guessit.engine.Markers.named(ctx.markers, "path").toList();
+            long highWeakCount = weaks.stream()
+                .filter(w -> w.start() != 0 && w.value() instanceof Integer i && i >= 100)
+                .count();
             for (var weak : weaks) {
-                if (weak.start() != 0) {
+                if (weak.start() == 0) continue;
+                int v = weak.value() instanceof Integer i ? i : -1;
+                Match prev = null;
+                for (var ep : allEpisodes) {
+                    if (ep == weak) continue;
+                    if (ep.end() <= weak.start()) prev = ep;
+                    else break;
+                }
+                boolean contiguous = false;
+                boolean sameFilepart = false;
+                if (prev != null) {
+                    String gap = ctx.input.substring(prev.end(), weak.start());
+                    contiguous = gap.chars().allMatch(c -> Seps.isSep((char) c));
+                    for (var fp : paths) {
+                        if (prev.start() >= fp.start() && prev.end() <= fp.end()
+                            && weak.start() >= fp.start() && weak.end() <= fp.end()) {
+                            sameFilepart = true;
+                            break;
+                        }
+                    }
+                }
+                if (contiguous && sameFilepart && v < 100) {
+                    continue;
+                }
+                if (v >= 100 && (highWeakCount >= 2 || !contiguous)) {
                     ctx.matches.add(new Match("absolute_episode", weak.value(), weak.start(), weak.end(),
                         weak.raw(), weak.priority(), weak.tags(), weak.isPrivate()));
-                    toRemove.add(weak);
                 }
+                toRemove.add(weak);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);

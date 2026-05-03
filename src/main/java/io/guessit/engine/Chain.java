@@ -99,7 +99,9 @@ public final class Chain {
                 if (step.rep == Repeater.PLUS && tailCount == 0) { ok = false; break; }
             }
             if (ok) runs.add(new Run(hStart, cursor, caps, spans));
-            from = Math.max(hEnd, hStart + 1);
+            // Advance past the entire consumed run (head + tails) so the next
+            // head search does not re-capture a tail digit as its own head.
+            from = Math.max(Math.max(hEnd, hStart + 1), cursor);
         }
         return runs;
     }
