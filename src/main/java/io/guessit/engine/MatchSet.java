@@ -1,7 +1,10 @@
 package io.guessit.engine;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -46,6 +49,48 @@ public final class MatchSet {
     public Stream<Match> inMarker(Marker marker) {
         return matches.stream().filter(m -> marker.covers(m.start(), m.end()));
     }
+
+    public Stream<Match> range(int start, int end, Predicate<Match> p) {
+        return matches.stream()
+            .filter(m -> m.start() >= start && m.end() <= end)
+            .filter(p);
+    }
+
+    public Optional<Match> previous(Match m, Predicate<Match> p) {
+        return matches.stream()
+            .filter(o -> o.end() <= m.start())
+            .filter(p)
+            .max(Comparator.comparingInt(Match::end));
+    }
+
+    public Optional<Match> next(Match m, Predicate<Match> p) {
+        return matches.stream()
+            .filter(o -> o.start() >= m.end())
+            .filter(p)
+            .min(Comparator.comparingInt(Match::start));
+    }
+
+    public Optional<Match> chainBefore(int pos, String input, String seps, Predicate<Match> p) {
+        var i = pos - 1;
+        while (i >= 0 && seps.indexOf(input.charAt(i)) >= 0) i--;
+        if (i < 0) return Optional.empty();
+        var endPos = i + 1;
+        return matches.stream().filter(m -> m.end() == endPos).filter(p).findFirst();
+    }
+
+    public Optional<Match> chainAfter(int pos, String input, String seps, Predicate<Match> p) {
+        var i = pos;
+        while (i < input.length() && seps.indexOf(input.charAt(i)) >= 0) i++;
+        if (i >= input.length()) return Optional.empty();
+        var startPos = i;
+        return matches.stream().filter(m -> m.start() == startPos).filter(p).findFirst();
+    }
+
+    public Stream<Match> tagged(String tag) {
+        return matches.stream().filter(m -> m.tags().contains(tag));
+    }
+
+    public List<Match> snapshot() { return List.copyOf(matches); }
 
     public int size() { return matches.size(); }
 }

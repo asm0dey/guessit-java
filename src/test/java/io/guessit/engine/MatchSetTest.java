@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MatchSetTest {
@@ -61,5 +62,71 @@ class MatchSetTest {
         assertEquals(List.of(b), s.all().collect(Collectors.toList()));
         s.remove(b);
         assertEquals(0, s.all().count());
+    }
+
+    @Test
+    void rangeReturnsMatchesFullyInsideSpan() {
+        var set = new MatchSet();
+        set.add(Match.of("a", 1, 0, 5, "00000"));
+        set.add(Match.of("b", 2, 6, 10, "1111"));
+        set.add(Match.of("c", 3, 11, 15, "2222"));
+        var inRange = set.range(0, 10, m -> true).toList();
+        assertEquals(2, inRange.size());
+        assertEquals("a", inRange.get(0).name());
+        assertEquals("b", inRange.get(1).name());
+    }
+
+    @Test
+    void previousAndNextRespectPredicate() {
+        var set = new MatchSet();
+        var a = Match.of("a", 1, 0, 3, "aaa");
+        var b = Match.of("b", 2, 5, 8, "bbb");
+        var c = Match.of("c", 3, 10, 13, "ccc");
+        set.add(a); set.add(b); set.add(c);
+        assertEquals(a, set.previous(b, m -> true).orElseThrow());
+        assertEquals(c, set.next(b, m -> true).orElseThrow());
+        assertTrue(set.previous(a, m -> true).isEmpty());
+    }
+
+    @Test
+    void chainBeforeWalksOnlyThroughSeps() {
+        var input = "abc.def-ghi";
+        var set = new MatchSet();
+        var a = Match.of("a", 1, 0, 3, "abc");
+        var b = Match.of("b", 2, 4, 7, "def");
+        set.add(a); set.add(b);
+        assertEquals(b, set.chainBefore(8, input, " ._-", m -> true).orElseThrow());
+        assertEquals(a, set.chainBefore(4, input, " ._-", m -> true).orElseThrow());
+    }
+
+    @Test
+    void chainAfterWalksOnlyThroughSeps() {
+        var input = "abc.def-ghi";
+        var set = new MatchSet();
+        var b = Match.of("b", 2, 4, 7, "def");
+        var c = Match.of("c", 3, 8, 11, "ghi");
+        set.add(b); set.add(c);
+        assertEquals(b, set.chainAfter(3, input, " ._-", m -> true).orElseThrow());
+        assertEquals(c, set.chainAfter(7, input, " ._-", m -> true).orElseThrow());
+    }
+
+    @Test
+    void taggedFiltersByTagSet() {
+        var set = new MatchSet();
+        set.add(new Match("a", null, 0, 1, "a", 1000, java.util.Set.of("foo"), false));
+        set.add(Match.of("b", null, 2, 3, "b"));
+        var tagged = set.tagged("foo").toList();
+        assertEquals(1, tagged.size());
+        assertEquals("a", tagged.get(0).name());
+    }
+
+    @Test
+    void snapshotReturnsImmutableCopy() {
+        var set = new MatchSet();
+        var a = Match.of("x", null, 0, 1, "x");
+        set.add(a);
+        var snap = set.snapshot();
+        assertEquals(1, snap.size());
+        assertThrows(UnsupportedOperationException.class, () -> snap.add(null));
     }
 }
