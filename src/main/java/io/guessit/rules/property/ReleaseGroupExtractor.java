@@ -283,9 +283,44 @@ public final class ReleaseGroupExtractor implements Extractor {
             if (notRg != null) {
                 rangeEnd = notRg.start();
                 changed = true;
+                continue;
+            }
+            // Trailing website matches ("tvu.org.ru", "sharethefiles.com") aren't
+            // part of the release group either — skip them (and any wrapping group
+            // marker) so the actual group span sits at the new range end.
+            int strip = trimTrailingWebsite(ctx, filepart, rangeEnd);
+            if (strip < rangeEnd) {
+                rangeEnd = strip;
+                changed = true;
             }
         }
         return rangeEnd;
+    }
+
+    /**
+     * Walk back over a trailing website match (with any wrapping group marker
+     * and abutting separators), so detection sees the real group span instead
+     * of treating "[tvu.org.ru]" as the trailing token.
+     */
+    private static int trimTrailingWebsite(ParseContext ctx, Marker filepart, int rangeEnd) {
+        var input = ctx.input;
+        int probe = rangeEnd;
+        // Skip a trailing close-bracket so we can match websites wrapped in [..] or (..).
+        if (probe > filepart.start() && (input.charAt(probe - 1) == ']' || input.charAt(probe - 1) == ')')) {
+            probe--;
+        }
+        final int p = probe;
+        var website = ctx.matches.named("website")
+            .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
+            .filter(m -> m.end() == p)
+            .findFirst().orElse(null);
+        if (website == null) return rangeEnd;
+        int newEnd = website.start();
+        // Strip an opening bracket immediately preceding the website span.
+        if (newEnd > filepart.start() && (input.charAt(newEnd - 1) == '[' || input.charAt(newEnd - 1) == '(')) {
+            newEnd--;
+        }
+        return newEnd;
     }
 
     /**
