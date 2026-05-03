@@ -30,7 +30,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
         "(?i)(?<episodeSeparator>ex|xe|ep|and|et|to|e|x|d|\\.|_| |-|\\+|&|a|~)@?(?<episode>\\d+)");
     private static final java.util.Set<String> STRONG_SEPS = Set.of("+", "&", "and", "et");
     private static final java.util.Set<String> RANGE_SEPS = Set.of("-", "~", "to", "a");
-    private static final java.util.Set<String> MARKER_SEPS = Set.of("e", "ex", "xe", "ep", "x", "d");
+    private static final java.util.Set<String> MARKER_SEPS = Set.of("e", "ex", "xe", "ep", "x", "d", "s");
     private static final int MAX_RANGE_GAP = 1;
     private static final Pattern HEAD_NUM_X = Pattern.compile(
         "(?i)(?<season>\\d+)@?(?<episodeMarker>x)@?(?<episode>\\d+)");
@@ -43,7 +43,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
     private static final Pattern HEAD_S = Pattern.compile(
         "(?i)s(?<season>\\d+)");
     private static final Pattern TAIL_S = Pattern.compile(
-        "(?i)(?<seasonSeparator>s|-|\\+|&|to|a|and|et|~)(?<season>\\d+)");
+        "(?i)(?<seasonSeparator>s|and|et|to|a|[-+&~. _])(?<season>\\d+)");
     private static final Pattern HEAD_CAP = Pattern.compile(
         "(?i)(?<seasonMarker>cap)[ ._-]?(?<season>\\d{1,2})(?<episode>\\d{2})"
         + "(?:[_-](?<season2>\\d{1,2})(?<episode2>\\d{2}))?");
@@ -81,7 +81,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 .map(m -> new int[]{m.start(), m.end()})
                 .toList()
             : List.<int[]>of();
-        for (var run : chain.scan(input)) {
+        for (var run : chain.scan(input, this::effectiveRunEnd)) {
             if (skipScreenSize && overlapsAny(run.start(), run.end(), screenSizeSpans)) continue;
             if (isWeakEChain && overlapsAny(run.start(), run.end(), existingSxxExx)) continue;
             var seasonValues = run.captures(SEASON);
@@ -90,7 +90,9 @@ public final class SeasonEpisodeExtractor implements Extractor {
             var episodeSpans = run.spans(EPISODE);
             var episodeSeparators = run.captures("episodeSeparator");
             var episodeMarkers = run.captures("episodeMarker");
-            if (isDescending(seasonValues) || isDescending(episodeValues)) continue;
+            var seasonSeparators = run.captures("seasonSeparator");
+            // Note: descending values are pruned by longestValidTail below — let
+            // it trim to the longest valid prefix instead of skipping the whole run.
             // Mirror Python rebulk's repeater('*'): when ordering_validator rejects the
             // full chain, fall back to the longest valid prefix of tail repeats.
             int validTails = longestValidTail(episodeValues, episodeSeparators);
@@ -99,6 +101,12 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 episodeValues = episodeValues.subList(0, keep);
                 episodeSpans = episodeSpans.subList(0, keep);
                 episodeSeparators = episodeSeparators.subList(0, Math.max(0, keep - 1));
+            }
+            int validSeasonTails = longestValidTail(seasonValues, seasonSeparators);
+            if (!seasonValues.isEmpty() && validSeasonTails < seasonValues.size() - 1) {
+                int keep = validSeasonTails + 1;
+                seasonValues = seasonValues.subList(0, keep);
+                seasonSpans = seasonSpans.subList(0, keep);
             }
             int runEnd = run.end();
             if (!episodeSpans.isEmpty()) {
@@ -128,6 +136,36 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 }
             }
         }
+    }
+
+    /**
+     * Mirror of the validation done in {@link #runChain} but returning the
+     * end position the next head search should resume from. When the longest
+     * valid tail prefix is shorter than the captured run, return the position
+     * just past the last valid tail; otherwise return -1 to let scan advance
+     * past the full run cursor.
+     */
+    private int effectiveRunEnd(Chain.Run run) {
+        var episodeValues = run.captures(EPISODE);
+        var episodeSpans = run.spans(EPISODE);
+        var episodeSeparators = run.captures("episodeSeparator");
+        var seasonValues = run.captures(SEASON);
+        var seasonSpans = run.spans(SEASON);
+        var seasonSeparators = run.captures("seasonSeparator");
+        int epKeep = episodeValues.isEmpty() ? 0
+            : Math.min(longestValidTail(episodeValues, episodeSeparators) + 1, episodeValues.size());
+        int seasonKeep = seasonValues.isEmpty() ? 0
+            : Math.min(longestValidTail(seasonValues, seasonSeparators) + 1, seasonValues.size());
+        int end;
+        if (epKeep > 0) {
+            end = episodeSpans.get(epKeep - 1)[1];
+        } else if (seasonKeep > 0) {
+            end = seasonSpans.get(seasonKeep - 1)[1];
+        } else {
+            return -1;
+        }
+        if (end >= run.end()) return -1;
+        return end;
     }
 
     /**

@@ -350,7 +350,7 @@ public final class LanguageExtractor implements Extractor {
         int nextStart = rightBound;
         for (var m : ctx.matches.all().toList()) {
             if (m == marker) continue;
-            if (m.isPrivate() && !"language".equals(m.name())) {
+            if (m.isPrivate() && !LANGUAGE.equals(m.name())) {
                 // ignore private markers (incl. self) for this check
                 continue;
             }

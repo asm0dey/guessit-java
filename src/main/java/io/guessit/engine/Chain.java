@@ -48,7 +48,19 @@ public final class Chain {
         public List<int[]> spans(String name) { return spans.getOrDefault(name, List.of()); }
     }
 
-    public List<Run> scan(String input) {
+    public List<Run> scan(String input) { return scan(input, _ -> -1); }
+
+    /**
+     * Scan with a per-run "effective end" callback. The callback receives the
+     * full Run (head + greedy tails) and returns the position at which the
+     * next head search should resume — typically after the caller-validated
+     * portion of the run. Returning a negative value means "trust the run as
+     * captured" (advance past the full cursor). When the callback returns
+     * a value strictly less than the run's full end, {@code from} is set to
+     * that adjusted position so subsequent runs can capture the tail digits
+     * the validator rejected.
+     */
+    public List<Run> scan(String input, java.util.function.ToIntFunction<Run> effectiveEnd) {
         var runs = new ArrayList<Run>();
         var headMatcher = head.matcher(input);
         int from = 0;
@@ -82,9 +94,6 @@ public final class Chain {
                     if (step.rep == Repeater.QMARK) break;
                 }
                 if (step.rep == Repeater.PLUS && taken == 0) {
-                    // PLUS step matched zero times — the chain run is invalid.
-                    // Roll back to head-only state so the outer loop tries the
-                    // next head occurrence cleanly.
                     cursor = hEnd;
                     caps.clear();
                     spans.clear();
@@ -98,10 +107,14 @@ public final class Chain {
             for (var step : tails) {
                 if (step.rep == Repeater.PLUS && tailCount == 0) { ok = false; break; }
             }
-            if (ok) runs.add(new Run(hStart, cursor, caps, spans));
+            Run run = ok ? new Run(hStart, cursor, caps, spans) : null;
+            if (run != null) runs.add(run);
+            int adjusted = run != null ? effectiveEnd.applyAsInt(run) : -1;
+            int advance = adjusted >= 0 ? adjusted : cursor;
             // Advance past the entire consumed run (head + tails) so the next
-            // head search does not re-capture a tail digit as its own head.
-            from = Math.max(Math.max(hEnd, hStart + 1), cursor);
+            // head search does not re-capture a tail digit as its own head,
+            // unless the validator says we should resume earlier.
+            from = Math.max(Math.max(hEnd, hStart + 1), advance);
         }
         return runs;
     }
