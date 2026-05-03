@@ -45,6 +45,26 @@ public final class AudioCodecExtractor implements Extractor {
                 o.name().equals("audio_codec") && o.end() == wc.start());
             if (!hasCodecBefore) ctx.matches.remove(wc);
         }
+
+        // AudioProfileRule: drop audio_profile matches tagged audio_profile.rule when there's
+        // no matching audio_codec (specified in the same tag set) anywhere in the input.
+        var profilesWithRule = ctx.matches.named("audio_profile")
+            .filter(m -> m.tags().contains("audio_profile.rule"))
+            .toList();
+        var codecValues = ctx.matches.named("audio_codec").map(m -> m.value().toString()).collect(java.util.stream.Collectors.toSet());
+        for (var prof : profilesWithRule) {
+            // The required codec is encoded as another tag (e.g. "DTS-HD"). Find the first
+            // tag that names a codec and verify the codec is present.
+            String requiredCodec = null;
+            for (var t : prof.tags()) {
+                if ("audio_profile.rule".equals(t)) continue;
+                requiredCodec = t;
+                break;
+            }
+            if (requiredCodec != null && !codecValues.contains(requiredCodec)) {
+                ctx.matches.remove(prof);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
