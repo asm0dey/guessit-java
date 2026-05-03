@@ -36,8 +36,25 @@ public final class EpisodeWordExtractor implements Extractor {
         if ("movie".equals(ctx.options.type())) return;
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
+        // Season-word head accepts the standard separator boundaries OR a
+        // chain-tail boundary ('&', '+', '-', '~', 'a', 'and', 'et', 'to')
+        // that isn't in Seps.CHARS but is still a valid chain continuation
+        // (mirrors python's chain validator or_(seps_before, seps_after) but
+        // restricted to known season-chain operators to avoid greedily
+        // matching "Temple" as season-word "temp" + Roman L).
+        var sepsBefore = Validators.sepsBefore(input);
+        var sepsAfter = Validators.sepsAfter(input);
+        java.util.function.Predicate<Match> seasonHeadValidator = m -> {
+            if (!sepsBefore.test(m)) return false;
+            if (sepsAfter.test(m)) return true;
+            int e = m.end();
+            if (e >= input.length()) return true;
+            char c = input.charAt(e);
+            return c == '&' || c == '+' || c == '~';
+        };
 
-        var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")");
+        var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")"
+            + "(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
         // Tail captures one separator token (group 1) and the next digits (group 2).
         // Strong:  &, +, and, et — emits as additive list, terminates further weak checks.
         // Range:   -, ~, to, a   — expands inclusive between prev and v.
@@ -48,7 +65,7 @@ public final class EpisodeWordExtractor implements Extractor {
         while (seasonMatcher.find()) {
             var raw = seasonMatcher.group();
             var headMatch = new Match("season", null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
-            if (!seps.test(headMatch)) continue;
+            if (!seasonHeadValidator.test(headMatch)) continue;
             ctx.matches.add(headMatch);
             int valStart = seasonMatcher.start(2);
             int valEnd = seasonMatcher.end(2);
@@ -56,6 +73,16 @@ public final class EpisodeWordExtractor implements Extractor {
             if (n < 0) continue;
             ctx.matches.add(new Match("season", n, valStart, valEnd,
                 input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
+            // "Season N of M" → season_count=M.
+            if (seasonMatcher.group(3) != null) {
+                int countStart = seasonMatcher.start(3);
+                int countEnd = seasonMatcher.end(3);
+                int c = parseSafe(seasonMatcher.group(3));
+                if (c >= 0) {
+                    ctx.matches.add(new Match("season_count", c, countStart, countEnd,
+                        seasonMatcher.group(3), 1000, Set.of(), false));
+                }
+            }
             // Continue scanning after the first season number for additional
             // season values: "Season 1 to 3", "Season.1.3.4", "Saison 1 a 3",
             // "Season.1.3&5" → [1,3,5], "Season.1.2.3-5" → [1,2,3,4,5].
