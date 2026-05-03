@@ -8,8 +8,22 @@ import java.util.Set;
 
 public final class EpisodeTitleExtractor implements Extractor {
     public static final String TITLE = "title";
+    public static final String EPISODE = "episode";
+    public static final String SEASON = "season";
+    public static final String EPISODE_COUNT = "episode_count";
     private static final Set<String> PREVIOUS_NAMES = Set.of(
-        "episode", "episode_count", "season", "season_count", "date", TITLE, "year");
+            EPISODE, EPISODE_COUNT, SEASON, "season_count", "date", TITLE, "year");
+    /**
+     * Subset of {@link #PREVIOUS_NAMES} excluding {@code title}: in Python,
+     * RemoveConflictsWithEpisodeTitle (priority 64) fires before
+     * TitleFromPosition (priority 0), so {@code title} is never in the match
+     * set when it runs. Java's pipeline runs TitleExtractor.postProcess first
+     * and would otherwise see {@code title} as the {@code before} match,
+     * incorrectly dropping a valid {@code year} that sits between the title
+     * hole and downstream markers (e.g. {@code Show.Name.2015.Nice.Title.1080p.PBS...}).
+     */
+    private static final Set<String> CONFLICT_PREVIOUS_NAMES = Set.of(
+            EPISODE, EPISODE_COUNT, SEASON, "season_count", "date", "year");
     private static final Set<String> NEXT_NAMES = Set.of(
         "streaming_service", "screen_size", "source", "video_codec",
         "audio_codec", "other", "container");
@@ -41,7 +55,7 @@ public final class EpisodeTitleExtractor implements Extractor {
                 var before = ctx.matches.range(fp.start(), m.start(), x -> !x.isPrivate())
                     .max(java.util.Comparator.comparingInt(Match::end))
                     .orElse(null);
-                if (before == null || !PREVIOUS_NAMES.contains(before.name())) continue;
+                if (before == null || !CONFLICT_PREVIOUS_NAMES.contains(before.name())) continue;
                 var after = ctx.matches.range(m.end(), fp.end(), x -> !x.isPrivate())
                     .min(java.util.Comparator.comparingInt(Match::start))
                     .orElse(null);
@@ -64,7 +78,7 @@ public final class EpisodeTitleExtractor implements Extractor {
         for (var t : titles) values.add(t.value());
         if (values.size() < 2) return;
         for (var t : titles) {
-            var prev = ctx.matches.previous(t, m -> "episode".equals(m.name()));
+            var prev = ctx.matches.previous(t, m -> EPISODE.equals(m.name()));
             if (prev.isPresent()) {
                 ctx.matches.replace(t, new Match(EPISODE_TITLE, t.value(), t.start(), t.end(),
                     t.raw(), t.priority(), t.tags(), t.isPrivate()));
@@ -115,8 +129,8 @@ public final class EpisodeTitleExtractor implements Extractor {
         var filename = paths.getLast();
         var directory = paths.get(paths.size() - 2);
         var subdirectory = paths.get(paths.size() - 3);
-        if (ctx.matches.range(filename.start(), filename.end(), m -> "episode".equals(m.name())).findAny().isEmpty()) return;
-        if (ctx.matches.range(directory.start(), directory.end(), m -> "season".equals(m.name())).findAny().isEmpty()) return;
+        if (ctx.matches.range(filename.start(), filename.end(), m -> EPISODE.equals(m.name())).findAny().isEmpty()) return;
+        if (ctx.matches.range(directory.start(), directory.end(), m -> SEASON.equals(m.name())).findAny().isEmpty()) return;
         // Skip if filename already produced a title — the file gave the show
         // name, the subdir is generic ("/series/").
         var hasFilenameTitle = ctx.matches.named(TITLE)
@@ -141,9 +155,9 @@ public final class EpisodeTitleExtractor implements Extractor {
         if (paths.size() < 2) return;
         var filename = paths.getLast();
         var directory = paths.get(paths.size() - 2);
-        if (ctx.matches.range(filename.start(), filename.end(), m -> "episode".equals(m.name())).findAny().isEmpty()) return;
-        var hasSeason = ctx.matches.range(directory.start(), directory.end(), m -> "season".equals(m.name())).findAny().isPresent()
-            || ctx.matches.range(filename.start(), filename.end(), m -> "season".equals(m.name())).findAny().isPresent();
+        if (ctx.matches.range(filename.start(), filename.end(), m -> EPISODE.equals(m.name())).findAny().isEmpty()) return;
+        var hasSeason = ctx.matches.range(directory.start(), directory.end(), m -> SEASON.equals(m.name())).findAny().isPresent()
+            || ctx.matches.range(filename.start(), filename.end(), m -> SEASON.equals(m.name())).findAny().isPresent();
         if (!hasSeason) return;
         var h = findEpisodeTitleHoles(ctx, directory);
         if (h == null) return;

@@ -83,6 +83,23 @@ public final class AudioCodecExtractor implements Extractor {
                 ctx.matches.remove(prof);
             }
         }
+
+        // HqConflictRule: drop other=High Quality matches whose span overlaps a
+        // surviving audio_profile=High Quality (e.g. AC3.HQ has both "other"
+        // and audio_profile candidates over the same "HQ" — the audio profile
+        // wins).
+        var hqProfileSpans = ctx.matches.named("audio_profile")
+            .filter(m -> "High Quality".equals(m.value()))
+            .map(m -> new int[]{m.start(), m.end()})
+            .toList();
+        if (!hqProfileSpans.isEmpty()) {
+            var hqOthers = ctx.matches.named("other")
+                .filter(m -> "High Quality".equals(m.value()))
+                .filter(m -> hqProfileSpans.stream()
+                    .anyMatch(sp -> sp[0] == m.start() && sp[1] == m.end()))
+                .toList();
+            for (var m : hqOthers) ctx.matches.remove(m);
+        }
     }
 
     @SuppressWarnings("unchecked")

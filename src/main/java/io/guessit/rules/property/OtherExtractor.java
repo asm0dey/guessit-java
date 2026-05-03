@@ -254,9 +254,39 @@ public final class OtherExtractor implements Extractor {
         validateScreener(ctx);
         validateMux(ctx);
         validateStreamingServiceNeighbor(ctx);
+        validateHardcodedSubs(ctx);
         validateAtEnd(ctx);
         renameAnother();
         dedupSameSpan(ctx);
+    }
+
+    /**
+     * Drop {@code other=Hardcoded Subtitles} matches that aren't adjacent to a
+     * {@code subtitle_language} match (only sep characters between). Mirrors
+     * python's {@code ValidateHardcodedSubs}: bare "HC" without a subtitle
+     * language neighbour is almost always part of a release tag (e.g.
+     * {@code TEST.2015.1080p.HC.WEBRip} - HC there is a hardcoded label, but
+     * python keeps "Hardcoded Subtitles" only when it's bound to a language).
+     */
+    private static void validateHardcodedSubs(ParseContext ctx) {
+        var input = ctx.input;
+        var subLangs = ctx.matches.named("subtitle_language").toList();
+        var toRemove = new ArrayList<Match>();
+        for (var hc : ctx.matches.named(OTHER)
+            .filter(m -> "Hardcoded Subtitles".equals(m.value()))
+            .toList()) {
+            boolean keep = false;
+            for (var sl : subLangs) {
+                if (sl.start() >= hc.end() && betweenIsSeps(input, hc.end(), sl.start())) {
+                    keep = true; break;
+                }
+                if (sl.end() <= hc.start() && betweenIsSeps(input, sl.end(), hc.start())) {
+                    keep = true; break;
+                }
+            }
+            if (!keep) toRemove.add(hc);
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
     }
 
     /**

@@ -54,7 +54,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "subtitle_language" -> b.subtitleLanguage(asLangList(e.getValue()));
                 case "country" -> b.country(asCountryList(e.getValue()));
                 case "source" -> b.source(asString(e.getValue().getFirst()));
-                case "other" -> b.other(asStringList(e.getValue()));
+                case "other" -> b.other(dedupedStringList(e.getValue()));
                 case "video_codec" -> b.videoCodec(dedupedStringList(e.getValue()));
                 case "audio_codec" -> b.audioCodec(dedupedStringList(e.getValue()));
                 case "audio_channels" -> b.audioChannels(dedupedStringList(e.getValue()));
@@ -98,7 +98,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         if (v instanceof String s) return Integer.parseInt(s);
         return null;
     }
-    private static List<String> asStringList(List<Match> ms) { return ms.stream().map(OutputBuilder::asString).toList(); }
+
     private static List<String> dedupedStringList(List<Match> ms) { return ms.stream().map(OutputBuilder::asString).distinct().toList(); }
     private static String asFrameRate(Match m) {
         var v = m.value();
