@@ -32,6 +32,7 @@ public final class EpisodeWordExtractor implements Extractor {
 
     @Override
     public void extract(ParseContext ctx) {
+        if ("movie".equals(ctx.options.type())) return;
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
 

@@ -4,6 +4,8 @@ import io.guessit.Guessit;
 import io.guessit.lang.Country;
 import io.guessit.lang.Language;
 import io.guessit.util.Canonical;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.presentation.UnicodeRepresentation;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -13,6 +15,9 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class YmlParityTest {
+    static {
+        Assertions.useRepresentation(UnicodeRepresentation.UNICODE_REPRESENTATION);
+    }
 
     /**
      * Properties shipped through Phases 1 + 2 + 3 + 4. Only cases whose expected output is entirely

@@ -33,8 +33,12 @@ public final class CountryExtractor implements Extractor {
         var input = ctx.input;
 
         for (var word : Words.iter(input)) {
-            var lower = word.value().toLowerCase(Locale.ROOT);
+            var raw = word.value();
+            var lower = raw.toLowerCase(Locale.ROOT);
             if (lower.chars().allMatch(Character::isDigit)) continue;
+            // Short codes (US, GB, JP, CA...) must be ALL CAPS to be read as country.
+            // Title-case forms ("Us", "Jp") are normal English words inside the title.
+            if (raw.length() <= 3 && !raw.equals(raw.toUpperCase(Locale.ROOT))) continue;
             var country = registry.findCountry(lower).orElse(null);
             if (country == null) continue;
             if (!allowedLc.contains(country.alpha2().toLowerCase(Locale.ROOT))

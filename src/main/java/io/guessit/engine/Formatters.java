@@ -51,6 +51,17 @@ public final class Formatters {
             for (var i : indices) {
                 if (potentialBefore(i, input) && potentialAfter(i, input)) potential.add(i);
             }
+            // Extend leftward: a leading acronym dot ("S." in "S.W.A.T.") fails
+            // potentialBefore (no i-2 sep) but should still be preserved when its
+            // sibling at i+2 is already potential AND the run on the left is a
+            // single character (otherwise "of.S.H.I.E.L.D" would absorb "of").
+            for (var i : indices) {
+                if (potential.contains(i)) continue;
+                if (i - 1 < 0 || i + 1 >= input.length()) continue;
+                if (Seps.isSep(input.charAt(i - 1)) || Seps.isSep(input.charAt(i + 1))) continue;
+                boolean leftSingleChar = i - 2 < 0 || Seps.isSep(input.charAt(i - 2));
+                if (leftSingleChar && potential.contains(i + 2)) potential.add(i);
+            }
             var replace = new java.util.ArrayList<Integer>();
             for (var p : potential) {
                 if (potential.contains(p - 2) || potential.contains(p + 2)) replace.add(p);

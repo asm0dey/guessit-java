@@ -7,6 +7,8 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,8 +24,8 @@ public final class YmlTestLoader {
         try {
             var url = loader.getResource(classpathRoot);
             if (url == null) return Stream.empty();
-            var rootPath = java.nio.file.Path.of(url.toURI());
-            return java.nio.file.Files.walk(rootPath)
+            var rootPath = Path.of(url.toURI());
+            return Files.walk(rootPath)
                 .filter(p -> {
                     var n = p.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
                     return n.endsWith(".yml") || n.endsWith(".yaml");
@@ -119,7 +121,7 @@ public final class YmlTestLoader {
         final List<String> includes = new ArrayList<>();
         final List<String> allowedLanguages = new ArrayList<>();
         final List<String> allowedCountries = new ArrayList<>();
-        final List<java.nio.file.Path> configPaths = new ArrayList<>();
+        final List<Path> configPaths = new ArrayList<>();
         final Map<String, Object> raw = new LinkedHashMap<>();
 
         Options build() {

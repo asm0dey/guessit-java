@@ -37,9 +37,12 @@ public final class EpisodeTitleExtractor implements Extractor {
             var inFp = ctx.matches.range(fp.start(), fp.end(), m -> AFFECTED_NAMES.contains(m.name())).toList();
             for (var m : inFp) {
                 var before = ctx.matches.range(fp.start(), m.start(), x -> !x.isPrivate())
-                    .reduce((a, b) -> b).orElse(null);
+                    .max(java.util.Comparator.comparingInt(Match::end))
+                    .orElse(null);
                 if (before == null || !PREVIOUS_NAMES.contains(before.name())) continue;
-                var after = ctx.matches.range(m.end(), fp.end(), x -> !x.isPrivate()).findFirst().orElse(null);
+                var after = ctx.matches.range(m.end(), fp.end(), x -> !x.isPrivate())
+                    .min(java.util.Comparator.comparingInt(Match::start))
+                    .orElse(null);
                 if (after == null || !NEXT_NAMES.contains(after.name())) continue;
                 var group = Markers.atMatch(ctx.markers, m, mk -> "group".equals(mk.name())).orElse(null);
                 java.util.function.Predicate<Match> sameGroup = c ->
