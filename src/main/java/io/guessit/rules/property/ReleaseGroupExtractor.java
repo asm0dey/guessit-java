@@ -2,13 +2,24 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
+import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public final class ReleaseGroupExtractor implements Extractor {
     private static final Set<String> SCENE_PREV = Set.of(
         "video_codec", "source", "video_api", "audio_codec", "audio_profile", "video_profile",
         "audio_channels", "screen_size", "other", "container",
-        "language", "subtitle_language");
+        "language", "subtitle_language", "year");
+
+    /** Forbidden release-group prefix/suffix names (from config: release_group.forbidden_names). */
+    private static final List<String> FORBIDDEN_NAMES = List.of("bonus", "by", "for", "par", "pour", "rip");
+
+    /** Separators that are NOT stripped from group names (config: release_group.ignored_seps). */
+    private static final String IGNORED_SEPS = "[]{}()";
+
+    /** Combined parens+brackets pattern: "name) [tag]" → "name tag". Mirrors Python clean_groupname. */
+    private static final Pattern PARENS_BRACKETS = Pattern.compile("(.+)\\)\\s?\\[(.+)]");
 
     @Override public String name() { return "release_group"; }
     @Override public int priority() { return 1000; }
@@ -58,14 +69,17 @@ public final class ReleaseGroupExtractor implements Extractor {
             if (dash > filepart.start() && dash < end - 1) {
                 int s = dash + 1;
                 int e = end;
-                while (s < e && Seps.isSep(input.charAt(s))) s++;
-                while (e > s && Seps.isSep(input.charAt(e - 1))) e--;
+                while (s < e && isGroupSep(input.charAt(s))) s++;
+                while (e > s && isGroupSep(input.charAt(e - 1))) e--;
                 if (s < e) {
-                    var candidate = input.substring(s, e);
-                    if (validGroupName(candidate) && !overlapsNonLanguage(ctx, s, e)) {
+                    var raw = input.substring(s, e);
+                    var candidate = cleanGroupName(raw);
+                    if (validGroupName(candidate, false) && !overlapsNonLanguage(ctx, s, e)
+                        && !overlapsSubtitleLanguage(ctx, s, e)) {
+                        if (isProbableLanguagePrefix(candidate)) continue;
                         removeOverlappingLanguages(ctx, s, e);
                         ctx.matches.add(new Match("release_group", candidate, s, e,
-                            candidate, 1500, Set.of("scene"), false));
+                            raw, 1500, Set.of("scene"), false));
                         return true;
                     }
                 }
@@ -74,21 +88,34 @@ public final class ReleaseGroupExtractor implements Extractor {
             // Leading dash group: "abc-the.title..."
             int firstDash = part.indexOf('-');
             if (firstDash > 0 && firstDash < part.length() - 1) {
-                var candidate = part.substring(0, firstDash);
+                var rawCandidate = part.substring(0, firstDash);
+                var candidate = cleanGroupName(rawCandidate);
                 var rest = part.substring(firstDash + 1);
-                if (validGroupName(candidate) && rest.contains(".") && !rest.contains(" ")) {
+                if (validGroupName(candidate, false) && rest.contains(".") && !rest.contains(" ")) {
                     int absStart = filepart.start();
                     int absEnd = filepart.start() + firstDash;
-                    if (!overlapsNonLanguage(ctx, absStart, absEnd)) {
+                    if (!overlapsNonLanguage(ctx, absStart, absEnd)
+                        && !overlapsSubtitleLanguage(ctx, absStart, absEnd)
+                        && !overlapsLanguage(ctx, absStart, absEnd)) {
                         removeOverlappingLanguages(ctx, absStart, absEnd);
                         ctx.matches.add(new Match("release_group", candidate, absStart, absEnd,
-                            candidate, 1500, Set.of("scene"), false));
+                            rawCandidate, 1500, Set.of("scene"), false));
                         return true;
                     }
                 }
             }
         }
         return false;
+    }
+
+    private static boolean overlapsSubtitleLanguage(ParseContext ctx, int s, int e) {
+        return ctx.matches.named("subtitle_language")
+            .anyMatch(m -> m.start() < e && s < m.end());
+    }
+
+    private static boolean overlapsLanguage(ParseContext ctx, int s, int e) {
+        return ctx.matches.named("language")
+            .anyMatch(m -> m.start() < e && s < m.end());
     }
 
     private boolean detectScene(ParseContext ctx) {
@@ -109,17 +136,20 @@ public final class ReleaseGroupExtractor implements Extractor {
 
             var gap = input.substring(prev.end(), rangeEnd);
             int leadSeps = 0;
-            while (leadSeps < gap.length() && Seps.isSep(gap.charAt(leadSeps))) leadSeps++;
+            while (leadSeps < gap.length() && isGroupSep(gap.charAt(leadSeps))) leadSeps++;
             int trailSeps = 0;
-            while (trailSeps < gap.length() - leadSeps && Seps.isSep(gap.charAt(gap.length() - 1 - trailSeps))) trailSeps++;
+            while (trailSeps < gap.length() - leadSeps && isGroupSep(gap.charAt(gap.length() - 1 - trailSeps))) trailSeps++;
             int s = prev.end() + leadSeps;
             int e = rangeEnd - trailSeps;
             if (e <= s) continue;
-            var trimmed = input.substring(s, e);
-            if (!validGroupName(trimmed)) continue;
+            var raw = input.substring(s, e);
+            var candidate = cleanGroupName(raw);
+            if (!validGroupName(candidate, true)) continue;
+            if (isProbableLanguagePrefix(candidate)) continue;
             if (overlapsNonLanguage(ctx, s, e)) continue;
+            if (overlapsSubtitleLanguage(ctx, s, e)) continue;
             removeOverlappingLanguages(ctx, s, e);
-            ctx.matches.add(new Match("release_group", trimmed, s, e, trimmed, 1500, Set.of("scene"), false));
+            ctx.matches.add(new Match("release_group", candidate, s, e, raw, 1500, Set.of("scene"), false));
             return true;
         }
         return false;
@@ -168,11 +198,80 @@ public final class ReleaseGroupExtractor implements Extractor {
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
-    private static boolean validGroupName(String s) {
+    /** Group-aware separator: standard seps minus {@link #IGNORED_SEPS} (brackets/parens). */
+    private static boolean isGroupSep(char c) {
+        if (IGNORED_SEPS.indexOf(c) >= 0) return false;
+        return Seps.isSep(c);
+    }
+
+    /**
+     * Mirrors Python guessit's clean_groupname: strips group-seps, drops forbidden
+     * prefix/suffix words (by, rip, …), and converts "name) [tag]" → "name tag".
+     */
+    static String cleanGroupName(String input) {
+        var s = stripGroupSeps(input);
+        // Conditional inner strip of brackets/parens: only drop when *not* needed for structure.
+        if (!(endsWithIgnored(s) && startsWithIgnored(s))
+            && !containsIgnored(stripIgnoredSeps(s))) {
+            s = stripIgnoredSeps(s);
+        }
+        // Drop forbidden prefix/suffix names if separated from rest by a sep.
+        for (var forbidden : FORBIDDEN_NAMES) {
+            if (s.toLowerCase().startsWith(forbidden) && s.length() > forbidden.length()
+                && Seps.isSep(s.charAt(forbidden.length()))) {
+                s = stripGroupSeps(s.substring(forbidden.length()));
+            }
+            if (s.toLowerCase().endsWith(forbidden) && s.length() > forbidden.length()
+                && Seps.isSep(s.charAt(s.length() - forbidden.length() - 1))) {
+                s = stripGroupSeps(s.substring(0, s.length() - forbidden.length()));
+            }
+        }
+        // "Individual) [Group]" → "Individual Group".
+        var m = PARENS_BRACKETS.matcher(s.trim());
+        if (m.matches()) {
+            s = m.group(1) + " " + m.group(2);
+        }
+        return s.trim();
+    }
+
+    private static String stripGroupSeps(String s) {
+        int i = 0, j = s.length();
+        while (i < j && isGroupSep(s.charAt(i))) i++;
+        while (j > i && isGroupSep(s.charAt(j - 1))) j--;
+        return s.substring(i, j);
+    }
+
+    private static String stripIgnoredSeps(String s) {
+        int i = 0, j = s.length();
+        while (i < j && IGNORED_SEPS.indexOf(s.charAt(i)) >= 0) i++;
+        while (j > i && IGNORED_SEPS.indexOf(s.charAt(j - 1)) >= 0) j--;
+        return s.substring(i, j);
+    }
+
+    private static boolean startsWithIgnored(String s) {
+        return !s.isEmpty() && IGNORED_SEPS.indexOf(s.charAt(0)) >= 0;
+    }
+
+    private static boolean endsWithIgnored(String s) {
+        return !s.isEmpty() && IGNORED_SEPS.indexOf(s.charAt(s.length() - 1)) >= 0;
+    }
+
+    private static boolean containsIgnored(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (IGNORED_SEPS.indexOf(s.charAt(i)) >= 0) return true;
+        }
+        return false;
+    }
+
+    private static boolean validGroupName(String s, boolean allowSpaces) {
         var t = s.trim();
         if (t.length() < 2) return false;
-        if (t.contains(" ")) return false;
-        if (t.chars().allMatch(Character::isDigit)) return false;
-        return true;
+        if (!allowSpaces && t.contains(" ")) return false;
+        return !t.chars().allMatch(Character::isDigit);
+    }
+
+    private static boolean isProbableLanguagePrefix(String candidate) {
+        var lower = candidate.toLowerCase();
+        return lower.startsWith("sub") || lower.startsWith("st") || lower.endsWith("sub");
     }
 }
