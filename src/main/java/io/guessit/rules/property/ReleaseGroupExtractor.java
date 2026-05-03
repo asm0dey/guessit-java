@@ -132,7 +132,13 @@ public final class ReleaseGroupExtractor implements Extractor {
                     .mapToInt(Match::start).min().orElse(filepart.end());
                 if (firstMatchAfter < absDashEnd + 1) firstMatchAfter = absDashEnd + 1;
                 var restToFirstMatch = ctx.input.substring(absDashEnd + 1, firstMatchAfter);
+                // Python guessit's candidate stops at the first sep; we use the
+                // dash-prefix shape so reject candidates that already contain a
+                // word separator ("Show.Name." → reject for inputs like
+                // "Show.Name.-.07.(2016).[Group]..." where the title sits where
+                // we'd otherwise call it a release_group).
                 if (validGroupName(candidate, false)
+                    && !candidate.contains(".") && !candidate.contains(" ")
                     && restToFirstMatch.contains(".")
                     && !restToFirstMatch.contains(" ")
                     && restToFirstMatch.indexOf('-') < 0) {
