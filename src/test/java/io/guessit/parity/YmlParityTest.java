@@ -5,7 +5,6 @@ import io.guessit.util.Canonical;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -45,10 +44,10 @@ class YmlParityTest {
         // on actual are allowed; only declared expected keys must match.
         var actual = Guessit.parse(c.input(), c.options());
         var expected = YmlExpected.build(c.expected());
-        var expectedKeys = c.expected().entrySet().stream()
-                .filter(e -> e.getValue() != null)
-                .map(Map.Entry::getKey)
-                .toList();
+        // Iterate every key, including those with null values: YAML `field: null` asserts
+        // the field must be absent on actual too — skipping null-expected keys would mask
+        // real mismatches.
+        var expectedKeys = c.expected().keySet().stream().toList();
         if (c.negative()) {
             boolean allMatch = true;
             for (String k : expectedKeys) {
@@ -61,12 +60,17 @@ class YmlParityTest {
                     .as(c + " negative case unexpectedly matched: expected " + expected + " in " + actual)
                     .isFalse();
         } else {
+//            assertThat(actual)
+//                    .usingRecursiveAssertion()
+//                    .isEqualTo(expected);
+
             for (String k : expectedKeys) {
                 Object actualValue = actual.field(k);
                 Object expectedValue = expected.field(k);
                 assertThat(Canonical.keySet(actualValue))
                         .as(c + " field=" + k + " expected " + expectedValue + " in result " + actualValue)
                         .isEqualTo(Canonical.keySet(expectedValue));
+
             }
         }
     }
