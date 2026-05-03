@@ -30,7 +30,11 @@ public final class VersionExtractor implements Extractor {
         var toRemove = new ArrayList<Match>();
         var input = ctx.input;
         for (var v : versions) {
-            boolean precedingEpisode = episodes.stream().anyMatch(e -> e.end() == v.start());
+            boolean precedingEpisode = episodes.stream().anyMatch(e -> {
+                if (e.end() == v.start()) return true;
+                if (e.end() + 1 == v.start() && Character.toLowerCase(input.charAt(e.end())) == 'v') return true;
+                return false;
+            });
             boolean surrounded = Validators.sepsSurround(input).test(v);
             if (!precedingEpisode && !surrounded) toRemove.add(v);
         }
