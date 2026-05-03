@@ -366,11 +366,30 @@ public final class OtherExtractor implements Extractor {
                     .filter(x -> x.start() >= m.end() && x.end() <= filepart.end())
                     .anyMatch(x -> !x.name().equals(OTHER) && !x.name().equals("container"));
                 if (nonOtherAfter) { toRemove.add(m); continue; }
-                // Hole filled with non-sep content after match → remove
-                if (!between(input, m.end(), filepart.end())) toRemove.add(m);
+                // Holes in [m.end, filepart.end] (gaps not covered by any non-private
+                // match) must contain only separator chars. Mirrors python's
+                // matches.holes(match.end, filepart.end, predicate=value.strip(seps)).
+                if (hasNonSepHole(ctx, input, m.end(), filepart.end())) toRemove.add(m);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean hasNonSepHole(ParseContext ctx, String input, int s, int e) {
+        if (s >= e) return false;
+        boolean[] covered = new boolean[e - s];
+        ctx.matches.all()
+            .filter(x -> !x.isPrivate())
+            .filter(x -> x.start() < e && x.end() > s)
+            .forEach(x -> {
+                int from = Math.max(x.start(), s) - s;
+                int to = Math.min(x.end(), e) - s;
+                for (int i = from; i < to; i++) covered[i] = true;
+            });
+        for (int i = 0; i < covered.length; i++) {
+            if (!covered[i] && !Seps.isSep(input.charAt(s + i))) return true;
+        }
+        return false;
     }
 
     private static void renameAnother() {
