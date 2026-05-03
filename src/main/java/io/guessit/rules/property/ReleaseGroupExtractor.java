@@ -126,15 +126,22 @@ public final class ReleaseGroupExtractor implements Extractor {
                     && part.charAt(0) != '[' && part.charAt(0) != '(') {
                 var rawCandidate = part.substring(0, firstDash);
                 var candidate = cleanGroupName(rawCandidate);
-                var rest = part.substring(firstDash + 1);
-                if (validGroupName(candidate, false) && rest.contains(".") && !rest.contains(" ")) {
+                int absDashEnd = filepart.start() + firstDash;
+                int firstMatchAfter = ctx.matches.all()
+                    .filter(m -> !m.isPrivate())
+                    .filter(m -> m.start() >= absDashEnd && m.end() <= filepart.end())
+                    .mapToInt(Match::start).min().orElse(filepart.end());
+                var restToFirstMatch = ctx.input.substring(absDashEnd + 1, firstMatchAfter);
+                if (validGroupName(candidate, false)
+                    && restToFirstMatch.contains(".")
+                    && !restToFirstMatch.contains(" ")
+                    && restToFirstMatch.indexOf('-') < 0) {
                     int absStart = filepart.start();
-                    int absEnd = filepart.start() + firstDash;
-                    if (!overlapsNonLanguage(ctx, absStart, absEnd)
-                        && !overlapsSubtitleLanguage(ctx, absStart, absEnd)
-                        && !overlapsLanguage(ctx, absStart, absEnd)) {
-                        removeOverlappingLanguages(ctx, absStart, absEnd);
-                        ctx.matches.add(new Match(RELEASE_GROUP, candidate, absStart, absEnd,
+                    if (!overlapsNonLanguage(ctx, absStart, absDashEnd)
+                        && !overlapsSubtitleLanguage(ctx, absStart, absDashEnd)
+                        && !overlapsLanguage(ctx, absStart, absDashEnd)) {
+                        removeOverlappingLanguages(ctx, absStart, absDashEnd);
+                        ctx.matches.add(new Match(RELEASE_GROUP, candidate, absStart, absDashEnd,
                             rawCandidate, 1500, Set.of("scene"), false));
                         return true;
                     }
