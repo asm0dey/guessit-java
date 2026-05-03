@@ -34,13 +34,18 @@ public final class LanguageExtractor implements Extractor {
 
     public static final String SUBTITLE_LANGUAGE = "subtitle_language";
     public static final String LANGUAGE = "language";
-    /** Private match name for a standalone language-suffix word (e.g. {@code AUDIO})
-     *  abutting a language match. Mirrors python's {@code language.suffix} match,
-     *  used by {@link ReleaseGroupExtractor} to widen the scene-prev boundary so
-     *  the release-group candidate skips past the suffix. */
+    /**
+     * Private match name for a standalone language-suffix word (e.g. {@code AUDIO})
+     * abutting a language match. Mirrors python's {@code language.suffix} match,
+     * used by {@link ReleaseGroupExtractor} to widen the scene-prev boundary so
+     * the release-group candidate skips past the suffix.
+     */
     public static final String LANGUAGE_SUFFIX = "language.suffix";
 
-    @Override public String name() { return LANGUAGE; }
+    @Override
+    public String name() {
+        return LANGUAGE;
+    }
 
     private static final String UND_NAME = "Undetermined";
     private static final String MUL_NAME = "Multiple languages";
@@ -109,15 +114,21 @@ public final class LanguageExtractor implements Extractor {
             var lower = word.value().toLowerCase(Locale.ROOT);
             if (!matchesAny(lower, languageSuffixes)) continue;
             int ws = word.start();
-            var prev = ctx.matches.named(LANGUAGE)
-                .filter(m -> m.end() <= ws)
-                .filter(m -> betweenIsSeps(input, m.end(), ws))
-                .max(Comparator.comparingInt(Match::end))
-                .orElse(null);
-            if (prev != null) {
-                ctx.matches.add(new Match(LANGUAGE_SUFFIX, word.value(),
-                    word.start(), word.end(), word.value(), 1000, Set.of(), true));
-            }
+            ctx
+                    .matches
+                    cloc.named(LANGUAGE)
+                    .filter(m -> m.end() <= ws)
+                    .filter(m -> betweenIsSeps(input, m.end(), ws))
+                    .max(Comparator.comparingInt(Match::end))
+                    .ifPresent(
+                            _ -> ctx.matches.add(new Match(LANGUAGE_SUFFIX,
+                                    word.value(),
+                                    word.start(),
+                                    word.end(),
+                                    word.value(),
+                                    1000,
+                                    Set.of(),
+                                    true)));
         }
     }
 
@@ -143,7 +154,7 @@ public final class LanguageExtractor implements Extractor {
             var lang = reg.find(rest).orElse(null);
             if (lang != null && isAllowed(lang, allowed)) {
                 ctx.matches.add(new Match(name, lang, word.start(), word.end(),
-                    word.value(), 1000, Set.of(), false));
+                        word.value(), 1000, Set.of(), false));
                 return true;
             }
         }
@@ -177,7 +188,8 @@ public final class LanguageExtractor implements Extractor {
         if (a.isEmpty()) return b;
         if (b.isEmpty()) return a;
         var out = new ArrayList<String>(a.size() + b.size());
-        out.addAll(a); out.addAll(b);
+        out.addAll(a);
+        out.addAll(b);
         return out;
     }
 
@@ -195,8 +207,8 @@ public final class LanguageExtractor implements Extractor {
         var groups = ctx.matches.named("release_group").toList();
         for (var g : groups) {
             var langs = ctx.matches.named(SUBTITLE_LANGUAGE)
-                .filter(m -> m.start() >= g.start() && m.end() <= g.end())
-                .toList();
+                    .filter(m -> m.start() >= g.start() && m.end() <= g.end())
+                    .toList();
             if (!langs.isEmpty()) {
                 ctx.matches.remove(g);
             }
@@ -222,8 +234,8 @@ public final class LanguageExtractor implements Extractor {
 
     private void renameStandaloneAffixes(ParseContext ctx) {
         var markers = ctx.matches.all()
-            .filter(m -> MARKER_PREFIX.equals(m.name()))
-            .toList();
+                .filter(m -> MARKER_PREFIX.equals(m.name()))
+                .toList();
         if (markers.isEmpty()) return;
 
         for (var marker : markers) {
@@ -250,8 +262,8 @@ public final class LanguageExtractor implements Extractor {
         if (nextGroup != null && betweenIsSeps(input, marker.end(), nextGroup.start())) {
             final Marker fg = nextGroup;
             var inGroup = langs.stream()
-                .filter(l -> l.start() >= fg.start() && l.end() <= fg.end())
-                .toList();
+                    .filter(l -> l.start() >= fg.start() && l.end() <= fg.end())
+                    .toList();
             if (!inGroup.isEmpty()) {
                 for (var l : inGroup) renameToSubtitle(ctx, l);
                 return true;
@@ -259,9 +271,9 @@ public final class LanguageExtractor implements Extractor {
         }
 
         var next = langs.stream()
-            .filter(l -> l.start() >= marker.end())
-            .min(Comparator.comparingInt(Match::start))
-            .orElse(null);
+                .filter(l -> l.start() >= marker.end())
+                .min(Comparator.comparingInt(Match::start))
+                .orElse(null);
         if (next == null) return false;
         if (!betweenIsSeps(input, marker.end(), next.start())) return false;
         renameToSubtitle(ctx, next);
@@ -271,9 +283,9 @@ public final class LanguageExtractor implements Extractor {
     private static boolean renameAdjacentLanguagesBefore(ParseContext ctx, Match marker) {
         var input = ctx.input;
         var prev = ctx.matches.named(LANGUAGE)
-            .filter(l -> l.end() <= marker.start())
-            .max(Comparator.comparingInt(Match::end))
-            .orElse(null);
+                .filter(l -> l.end() <= marker.start())
+                .max(Comparator.comparingInt(Match::end))
+                .orElse(null);
         if (prev == null) return false;
         if (!betweenIsSeps(input, prev.end(), marker.start())) return false;
         renameToSubtitle(ctx, prev);
@@ -282,19 +294,19 @@ public final class LanguageExtractor implements Extractor {
 
     private static void renameToSubtitle(ParseContext ctx, Match lang) {
         ctx.matches.replace(lang, new Match(SUBTITLE_LANGUAGE, lang.value(),
-            lang.start(), lang.end(), lang.raw(), lang.priority() + 1, lang.tags(), false));
+                lang.start(), lang.end(), lang.raw(), lang.priority() + 1, lang.tags(), false));
     }
 
     private void renameWithSubtitleExtension(ParseContext ctx) {
         var subtitleExt = ctx.matches.named("container")
-            .filter(m -> m.tags().contains("subtitle") && m.tags().contains("extension"))
-            .findFirst()
-            .orElse(null);
+                .filter(m -> m.tags().contains("subtitle") && m.tags().contains("extension"))
+                .findFirst()
+                .orElse(null);
         if (subtitleExt == null) return;
         var lang = ctx.matches.named(LANGUAGE)
-            .filter(l -> l.end() <= subtitleExt.start())
-            .max(Comparator.comparingInt(Match::end))
-            .orElse(null);
+                .filter(l -> l.end() <= subtitleExt.start())
+                .max(Comparator.comparingInt(Match::end))
+                .orElse(null);
         if (lang == null) return;
         renameToSubtitle(ctx, lang);
     }
@@ -303,7 +315,7 @@ public final class LanguageExtractor implements Extractor {
         for (var prop : List.of(LANGUAGE, SUBTITLE_LANGUAGE)) {
             var matches = ctx.matches.named(prop).toList();
             boolean hasReal = matches.stream().anyMatch(m -> m.value() instanceof Language l
-                && !UND_NAME.equals(l.name()) && !MUL_NAME.equals(l.name()));
+                    && !UND_NAME.equals(l.name()) && !MUL_NAME.equals(l.name()));
             if (hasReal) {
                 for (var m : matches) {
                     if (m.value() instanceof Language l && UND_NAME.equals(l.name())) {
@@ -316,8 +328,8 @@ public final class LanguageExtractor implements Extractor {
 
     private void dropPrivateAffixes(ParseContext ctx) {
         var toRemove = ctx.matches.all()
-            .filter(m -> m.name().equals(MARKER_PREFIX))
-            .toList();
+                .filter(m -> m.name().equals(MARKER_PREFIX))
+                .toList();
         for (var m : toRemove) ctx.matches.remove(m);
     }
 

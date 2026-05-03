@@ -190,6 +190,14 @@ public final class ReleaseGroupExtractor implements Extractor {
             int s = prev.end() + leadSeps;
             int e = rangeEnd - trailSeps;
             if (e <= s) continue;
+            // When the gap starts with a stray closing bracket, the scene_prev
+            // sat inside a preceding "[...]" decoration. Skip past the bracket
+            // and any seps; if what follows is just a plain trailing token
+            // (e.g. "[Dublado].RK"), use that as the candidate. If the next
+            // non-sep is another '[', fall through to detectAnimeBrackets.
+            while (s < e && (input.charAt(s) == ']' || isGroupSep(input.charAt(s)))) s++;
+            if (s >= e) continue;
+            if (input.charAt(s) == '[') continue;
             var raw = input.substring(s, e);
             var candidate = cleanGroupName(raw);
             if (!validGroupName(candidate, true)) continue;
@@ -205,31 +213,47 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     private boolean detectAnimeBrackets(ParseContext ctx) {
-        for (var marker : ctx.markers) {
-            if (!"group".equals(marker.name())) continue;
-            var raw = marker.raw();
-            String innerStr = raw;
-            int innerS = marker.start();
-            int innerE = marker.end();
-            if (raw.length() >= 2 && (raw.charAt(0) == '[' || raw.charAt(0) == '(')) {
-                innerStr = raw.substring(1, raw.length() - 1);
-                innerS = marker.start() + 1;
-                innerE = marker.end() - 1;
+        // Collect group markers; iterate rightmost-first so trailing brackets
+        // (which typically hold the actual group when multiple "[...]" decorations
+        // are present) win over a leading-bracket fansub when both are bare.
+        var groups = new java.util.ArrayList<io.guessit.engine.Marker>();
+        for (var marker : ctx.markers) if ("group".equals(marker.name())) groups.add(marker);
+        // Try trailing-first; if no trailing bracket has empty content, fall back
+        // to leading-bracket (covers `[Fansub] One Piece 603` shape).
+        for (int dir = 0; dir < 2; dir++) {
+            for (int i = groups.size() - 1; i >= 0; i--) {
+                var marker = groups.get(i);
+                if (dir == 0 && i == 0 && groups.size() > 1) continue; // skip leading on first pass
+                if (tryEmitAnimeBracket(ctx, marker)) return true;
             }
-            final int fInnerS = innerS;
-            final int fInnerE = innerE;
-            var trimmed = innerStr.trim();
-            if (trimmed.isEmpty()) continue;
-            if (trimmed.chars().allMatch(Character::isDigit)) continue;
-            boolean hasOtherInside = ctx.matches.all()
-                .filter(m -> !m.name().equals(LANGUAGE) && !m.name().equals(SUBTITLE_LANGUAGE))
-                .anyMatch(m -> m.start() >= fInnerS && m.end() <= fInnerE);
-            if (hasOtherInside) continue;
-            ctx.matches.add(new Match(RELEASE_GROUP, trimmed, fInnerS, fInnerE,
-                innerStr, 1500, Set.of("anime"), false));
-            return true;
         }
         return false;
+    }
+
+    private boolean tryEmitAnimeBracket(ParseContext ctx, io.guessit.engine.Marker marker) {
+        var raw = marker.raw();
+        String innerStr = raw;
+        int innerS = marker.start();
+        int innerE = marker.end();
+        if (raw.length() >= 2 && (raw.charAt(0) == '[' || raw.charAt(0) == '(')) {
+            innerStr = raw.substring(1, raw.length() - 1);
+            innerS = marker.start() + 1;
+            innerE = marker.end() - 1;
+        }
+        final int fInnerS = innerS;
+        final int fInnerE = innerE;
+        var trimmed = innerStr.trim();
+        if (trimmed.isEmpty()) return false;
+        if (trimmed.chars().allMatch(Character::isDigit)) return false;
+        // Reject if the bracket contains *any* recognized property — including
+        // language matches: "[ENG+RU+PT]" is a language list, not a group.
+        boolean hasAnyInside = ctx.matches.all()
+            .filter(m -> !m.isPrivate())
+            .anyMatch(m -> m.start() >= fInnerS && m.end() <= fInnerE);
+        if (hasAnyInside) return false;
+        ctx.matches.add(new Match(RELEASE_GROUP, trimmed, fInnerS, fInnerE,
+            innerStr, 1500, Set.of("anime"), false));
+        return true;
     }
 
     private static boolean overlapsNonLanguage(ParseContext ctx, int s, int e) {
