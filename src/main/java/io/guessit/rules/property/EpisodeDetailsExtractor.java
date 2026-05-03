@@ -22,18 +22,24 @@ public final class EpisodeDetailsExtractor implements Extractor {
         }
     }
 
-    /** Replicates Python EpisodeDetailValidator. */
+    /**
+     * Mirrors Python TitleFromPosition's removal of episode_details inside the title hole:
+     * Special/Pilot/Unaired/Final survive only when at least one structural match precedes them
+     * (i.e., they are no longer in the title region).
+     */
+    private static final Set<String> STRUCTURAL = Set.of(
+        "season", "episode", "year", "date", "source", "video_codec", "audio_codec",
+        "audio_channels", "audio_profile", "video_profile", "screen_size",
+        "streaming_service", "website", "container", "episode_format", "release_group");
+
     @Override
     public void postProcess(ParseContext ctx) {
         var details = ctx.matches.named("episode_details").toList();
         var toRemove = new ArrayList<Match>();
         for (var d : details) {
-            boolean adjacentToEp = ctx.matches.all().anyMatch(m ->
-                ("season".equals(m.name()) || "episode".equals(m.name()))
-                    && (Math.abs(m.end() - d.start()) <= 1 || Math.abs(d.end() - m.start()) <= 1));
-            if (!adjacentToEp && !Validators.sepsSurround(ctx.input).test(d)) {
-                toRemove.add(d);
-            }
+            boolean structuralBefore = ctx.matches.all()
+                .anyMatch(m -> STRUCTURAL.contains(m.name()) && m.start() < d.start());
+            if (!structuralBefore) toRemove.add(d);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
