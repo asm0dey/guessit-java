@@ -19,8 +19,7 @@ import java.util.List;
  *   <li>{@link MarkerPhase} populates {@link #markers}.</li>
  *   <li>{@link ExtractorPhase} and {@link ExtractorPostPhase} mutate
  *       {@link #matches}.</li>
- *   <li>{@link PostPhase} processors set {@link #titleMarker} and finish
- *       cleaning {@link #matches}.</li>
+ *   <li>{@link PostPhase} processors finish cleaning {@link #matches}.</li>
  *   <li>{@link OutputPhase} writes the assembled value to {@link #result}.</li>
  * </ul>
  */
@@ -30,8 +29,6 @@ public final class ParseContext {
     public final OptionsConfig config;
     public final MatchSet matches = new MatchSet();
     public final List<Marker> markers = new ArrayList<>();
-    /** Chosen by {@code TitleMarkerSelector}; the path segment whose unmatched gaps yield the title. */
-    public Marker titleMarker;
     public GuessResultBuilder resultBuilder = GuessResult.builder();
     /** Final assembled result; written by {@link OutputPhase}. */
     public GuessResult result;

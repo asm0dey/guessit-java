@@ -64,11 +64,13 @@ public final class WeakDuplicateExtractor implements Extractor {
 
         boolean strongPresent = ctx.matches.named("episode").anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
             || ctx.matches.named("season").anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
-        if (!strongPresent) return;
+        var years = ctx.matches.named("year").toList();
         var toRemove = new ArrayList<Match>();
         for (var name : new String[]{"season", "episode"}) {
             for (var m : ctx.matches.named(name).toList()) {
-                if (m.tags().contains(WEAK_DUPLICATE)) toRemove.add(m);
+                if (!m.tags().contains(WEAK_DUPLICATE)) continue;
+                if (strongPresent) { toRemove.add(m); continue; }
+                if (years.stream().anyMatch(y -> y.overlaps(m))) toRemove.add(m);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);

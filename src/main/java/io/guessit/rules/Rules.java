@@ -6,7 +6,7 @@ import io.guessit.rules.markers.PathMarker;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
-import io.guessit.rules.post.TitleMarkerSelector;
+import io.guessit.rules.post.TypeProcessor;
 import io.guessit.rules.property.*;
 
 import java.util.List;
@@ -38,8 +38,8 @@ public final class Rules {
             new ExtractorPostPhase(extractors),
             new PostPhase(List.of(
                 new PreferLastPath(),
-                new PrivateRemover(),
-                new TitleMarkerSelector()
+                new TypeProcessor(),
+                new PrivateRemover()
             )),
             new OutputPhase(new OutputBuilder())
         );
@@ -77,7 +77,9 @@ public final class Rules {
             new DiscRule(),
             new DateExtractor(),
             new WeekExtractor(),
-            new ReleaseGroupExtractor()
+            new ReleaseGroupExtractor(),
+            new TitleExtractor(),
+            new EpisodeTitleExtractor()
         );
     }
 }

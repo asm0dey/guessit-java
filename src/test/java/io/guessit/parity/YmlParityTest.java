@@ -19,7 +19,7 @@ class YmlParityTest {
     }
 
     /**
-     * Properties shipped through Phases 1 + 2 + 3. Only cases whose expected output is entirely
+     * Properties shipped through Phases 1 + 2 + 3 + 4. Only cases whose expected output is entirely
      * within this set are tested.
      */
     private static final Set<String> PHASE_PROPS = Set.of(
@@ -36,7 +36,9 @@ class YmlParityTest {
             // Phase 3
             "date", "week", "absolute_episode", "disc",
             "episode_details", "episode_format", "version",
-            "season", "episode", "season_count", "episode_count"
+            "season", "episode", "season_count", "episode_count",
+            // Phase 4
+            "title", "alternative_title", "episode_title", "type"
     );
 
     @ParameterizedTest(name = "[{index}] {0}")

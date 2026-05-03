@@ -61,8 +61,9 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         for (var run : chain.scan(input)) {
             var headMatch = new Match("seasonHead", null, run.start(), run.end(),
-                input.substring(run.start(), run.end()), 1000, Set.of(SXX_EXX), false);
+                input.substring(run.start(), run.end()), 1000, Set.of(SXX_EXX), true);
             if (!seps.test(headMatch)) continue;
+            ctx.matches.add(headMatch);
             var seasonValues = run.captures(SEASON);
             var episodeValues = run.captures(EPISODE);
             var seasonSpans = run.spans(SEASON);

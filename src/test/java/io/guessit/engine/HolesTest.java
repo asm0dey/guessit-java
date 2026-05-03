@@ -3,9 +3,9 @@ package io.guessit.engine;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HolesTest {
     @Test void computeReturnsGapsBetweenMatches() {
@@ -14,9 +14,9 @@ class HolesTest {
             Match.of("year", 2020, 11, 15, "2020"),
             Match.of("screen_size", "1080p", 16, 21, "1080p"),
             Match.of("video_codec", "H.264", 22, 26, "x264"));
-        var holes = Holes.compute(input, 0, input.length(), matches, m -> false, null, Formatters::cleanup);
+        var holes = Holes.compute(input, 0, input.length(), matches, _ -> false, null, Formatters::cleanup);
         assertEquals(1, holes.size());
-        assertEquals("Movie Name", holes.get(0).value());
+        assertEquals("Movie Name", holes.getFirst().value());
     }
     @Test void ignoredMatchesAreTransparent() {
         var input = "Hello.world.bar";
@@ -24,7 +24,7 @@ class HolesTest {
         var holes = Holes.compute(input, 0, input.length(), matches,
             m -> m.name().equals("language"), null, Formatters::cleanup);
         assertEquals(1, holes.size());
-        assertEquals("Hello world bar", holes.get(0).value());
+        assertEquals("Hello world bar", holes.getFirst().value());
     }
     @Test void cropAroundMarker() {
         var input = "abc[def]ghi";
@@ -44,7 +44,7 @@ class HolesTest {
     @Test void emptyHoleSkipped() {
         var input = "ab";
         var matches = List.of(Match.of("x", null, 0, 2, "ab"));
-        var holes = Holes.compute(input, 0, input.length(), matches, m -> false, null, Formatters::cleanup);
+        var holes = Holes.compute(input, 0, input.length(), matches, _ -> false, null, Formatters::cleanup);
         assertTrue(holes.isEmpty());
     }
 }

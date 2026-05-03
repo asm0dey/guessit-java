@@ -24,11 +24,11 @@ public final class EpisodeTitleExtractor implements Extractor {
     @Override
     public void postProcess(ParseContext ctx) {
         removeConflictsWithEpisodeTitle(ctx);
+        filepart3EpisodeTitle(ctx);
+        filepart2EpisodeTitle(ctx);
         titleToEpisodeTitle(ctx);
         episodeTitleFromPosition(ctx);
         alternativeTitleReplace(ctx);
-        filepart3EpisodeTitle(ctx);
-        filepart2EpisodeTitle(ctx);
     }
 
     private void removeConflictsWithEpisodeTitle(ParseContext ctx) {

@@ -26,18 +26,32 @@ public final class Markers {
     }
 
     public static List<Marker> markerSorted(List<Marker> paths, MatchSet matches) {
-        var indexed = new ArrayList<int[]>();
-        for (var i = 0; i < paths.size(); i++) {
-            var p = paths.get(i);
-            var count = (int) matches.all().filter(x -> p.covers(x.start(), x.end())).count();
-            indexed.add(new int[]{i, count});
-        }
+        var indexed = new ArrayList<Integer>();
+        for (var i = 0; i < paths.size(); i++) indexed.add(i);
+
+        // exclusion predicate matching Python's marker_comparator_predicate
+        java.util.function.Predicate<Match> predicate = m ->
+            !m.isPrivate()
+            && !m.name().equals("proper_count")
+            && !m.name().equals("title")
+            && !(m.name().equals("container") && m.tags().contains("extension"))
+            && !(m.name().equals("other") && "Rip".equals(m.value()));
+
         indexed.sort((a, b) -> {
-            var byCount = Integer.compare(b[1], a[1]);
-            return byCount != 0 ? byCount : Integer.compare(a[0], b[0]);
+            var pa = paths.get(a);
+            var pb = paths.get(b);
+            // unique match names for each marker
+            var wa = (int) matches.range(pa.start(), pa.end(), predicate)
+                .map(Match::name).distinct().count();
+            var wb = (int) matches.range(pb.start(), pb.end(), predicate)
+                .map(Match::name).distinct().count();
+            var byWeight = Integer.compare(wb, wa);
+            if (byWeight != 0) return byWeight;
+            // tiebreaker: rightmost path first (reverse index)
+            return Integer.compare(b, a);
         });
         var ret = new ArrayList<Marker>();
-        for (var entry : indexed) ret.add(paths.get(entry[0]));
+        for (var entry : indexed) ret.add(paths.get(entry));
         return ret;
     }
 }

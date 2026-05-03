@@ -12,12 +12,15 @@ import io.guessit.engine.PostPhase.PostProcessor;
  * when the chosen type is not {@code episode} (Python {@code RenameEpisodeTitleWhenMovieType}).
  */
 public final class TypeProcessor implements PostProcessor {
+
+    public static final String EPISODE = "episode";
+
     @Override
     public void process(ParseContext ctx) {
         var type = decide(ctx);
         var len = ctx.input.length();
         ctx.matches.add(Match.of("type", type, len, len, ""));
-        if (!"episode".equals(type)) {
+        if (!EPISODE.equals(type)) {
             var toRename = ctx.matches.named("episode_title")
                 .filter(m -> !m.tags().contains("alternative-replaced"))
                 .toList();
@@ -31,21 +34,25 @@ public final class TypeProcessor implements PostProcessor {
     private static String decide(ParseContext ctx) {
         var optType = ctx.options.type();
         if (optType != null) return optType;
-        if (anyNamed(ctx, "episode") || anyNamed(ctx, "season")
+        if (anyNamed(ctx, EPISODE, m -> !m.tags().contains("weak-episode")) || anyNamed(ctx, "season")
                 || anyNamed(ctx, "episode_details") || anyNamed(ctx, "absolute_episode")) {
-            return "episode";
+            return EPISODE;
         }
         if (anyNamed(ctx, "film")) return "movie";
         var hasYear = anyNamed(ctx, "year");
-        if (anyNamed(ctx, "date") && !hasYear) return "episode";
-        if (anyNamed(ctx, "bonus") && !hasYear) return "episode";
+        if (anyNamed(ctx, "date") && !hasYear) return EPISODE;
+        if (anyNamed(ctx, "bonus") && !hasYear) return EPISODE;
         var hasCrc = anyNamed(ctx, "crc32");
         var anyAnimeRg = ctx.matches.named("release_group").anyMatch(m -> m.tags().contains("anime"));
-        if (hasCrc && anyAnimeRg) return "episode";
+        if (hasCrc && anyAnimeRg) return EPISODE;
         return "movie";
     }
 
     private static boolean anyNamed(ParseContext ctx, String name) {
         return ctx.matches.named(name).findAny().isPresent();
+    }
+
+    private static boolean anyNamed(ParseContext ctx, String name, java.util.function.Predicate<Match> filter) {
+        return ctx.matches.named(name).anyMatch(filter);
     }
 }

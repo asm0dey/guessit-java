@@ -39,8 +39,9 @@ public final class EpisodeWordExtractor implements Extractor {
         var seasonMatcher = seasonRe.matcher(input);
         while (seasonMatcher.find()) {
             var raw = seasonMatcher.group();
-            var headMatch = new Match("season", null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), false);
+            var headMatch = new Match("season", null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
             if (!seps.test(headMatch)) continue;
+            ctx.matches.add(headMatch);
             int valStart = seasonMatcher.start(2);
             int valEnd = seasonMatcher.end(2);
             int n = parseSafe(seasonMatcher.group(2));
@@ -56,10 +57,11 @@ public final class EpisodeWordExtractor implements Extractor {
         var epMatcher = epRe.matcher(input);
         while (epMatcher.find()) {
             var raw = epMatcher.group();
-            var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), false);
+            var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
             if (!seps.test(headMatch)) {
                 continue;
             }
+            ctx.matches.add(headMatch);
             int epStart = epMatcher.start(2);
             int epEnd = epMatcher.end(2);
             String epToken = epMatcher.group(2);

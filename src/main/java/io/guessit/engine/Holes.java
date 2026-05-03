@@ -31,6 +31,7 @@ public final class Holes {
             for (var m : markers) {
                 var newRet = new ArrayList<Hole>();
                 for (var h : ret) {
+                    //noinspection StatementWithEmptyBody
                     if (m.start() <= h.start && m.end() >= h.end) {
                         // marker fully covers hole - drop
                     } else if (m.start() >= h.start && m.end() <= h.end) {
@@ -38,10 +39,10 @@ public final class Holes {
                         var right = new Hole(m.end(), h.end, input, formatter);
                         if (left.length() > 0) newRet.add(left);
                         if (right.length() > 0) newRet.add(right);
-                    } else if (m.end() >= h.end && m.start() < h.end && m.start() > h.start) {
+                    } else if (m.end() >= h.end && m.start() < h.end) {
                         h.end = m.start();
                         if (h.length() > 0) newRet.add(h);
-                    } else if (m.start() <= h.start && m.end() > h.start && m.end() < h.end) {
+                    } else if (m.start() <= h.start && m.end() > h.start) {
                         h.start = m.end();
                         if (h.length() > 0) newRet.add(h);
                     } else {
@@ -93,22 +94,25 @@ public final class Holes {
             }
             if (current != null && seps != null && pos < input.length()
                     && seps.indexOf(input.charAt(pos)) >= 0) {
-                current.end = pos;
-                if (current.length() > 0) ret.add(current);
-                current = null;
+                current = closeHole(current, pos, ret);
             } else if (!inMatch && current == null) {
                 current = new Hole(pos, pos, input, formatter);
             } else if (inMatch && current != null) {
-                current.end = pos;
-                if (current.length() > 0) ret.add(current);
-                current = null;
+                current = closeHole(current, pos, ret);
             }
         }
         if (current != null) {
             current.end = end;
-            if (current.length() > 0) ret.add(current);
+            if (!current.isEmpty()) ret.add(current);
         }
         ret.removeIf(h -> { var v = h.value(); return v == null || v.isEmpty(); });
         return ret;
+    }
+
+    private static Hole closeHole(Hole current, int pos, ArrayList<Hole> ret) {
+        current.end = pos;
+        if (!current.isEmpty()) ret.add(current);
+        current = null;
+        return current;
     }
 }
