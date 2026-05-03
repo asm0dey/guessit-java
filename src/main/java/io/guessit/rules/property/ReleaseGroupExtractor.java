@@ -105,6 +105,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 if (s < e) {
                     var raw = input.substring(s, e);
                     var candidate = cleanGroupName(raw);
+                    dropHdInsideCandidate(ctx, s, e);
                     if (validGroupName(candidate, false) && !overlapsNonLanguage(ctx, s, e)
                         && !overlapsSubtitleLanguage(ctx, s, e)) {
                         if (isProbableLanguagePrefix(candidate)) continue;
@@ -180,6 +181,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             var candidate = cleanGroupName(raw);
             if (!validGroupName(candidate, true)) continue;
             if (isProbableLanguagePrefix(candidate)) continue;
+            dropHdInsideCandidate(ctx, s, e);
             if (overlapsNonLanguage(ctx, s, e)) continue;
             if (overlapsSubtitleLanguage(ctx, s, e)) continue;
             removeOverlappingLanguages(ctx, s, e);
@@ -222,6 +224,21 @@ public final class ReleaseGroupExtractor implements Extractor {
             .filter(m -> !m.isPrivate())
             .filter(m -> !m.name().equals(LANGUAGE) && !m.name().equals(SUBTITLE_LANGUAGE))
             .anyMatch(m -> m.start() < e && s < m.end());
+    }
+
+    /**
+     * Drop {@code other="HD"} matches fully contained in {@code [s, e]} so a trailing
+     * "...HD" suffix on a scene group ("CtrlHD", "HDClub") doesn't block group detection.
+     * "HD" alone has no seps_surround validator (it can fire inside any word), so the
+     * pipeline emits it inside group names — Python guessit suppresses it through a
+     * group-context post-rule; here we remove it just-in-time before overlap checks.
+     */
+    private static void dropHdInsideCandidate(ParseContext ctx, int s, int e) {
+        var toRemove = ctx.matches.all()
+            .filter(m -> "other".equals(m.name()) && "HD".equals(m.value()))
+            .filter(m -> m.start() >= s && m.end() <= e)
+            .toList();
+        for (var m : toRemove) ctx.matches.remove(m);
     }
 
     private static void removeOverlappingLanguages(ParseContext ctx, int s, int e) {
