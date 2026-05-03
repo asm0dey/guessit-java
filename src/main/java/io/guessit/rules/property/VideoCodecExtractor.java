@@ -30,7 +30,9 @@ public final class VideoCodecExtractor implements Extractor {
     @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
-        var v = Validators.sepsSurround(input);
+        // Match with sep on either side so cases like "PDTVx264-JIVE" pick up
+        // x264 (sepsAfter only) — mirrors python's or_(seps_before, seps_after).
+        var v = Validators.sepsBefore(input).or(Validators.sepsAfter(input));
 
         // codec
         addCodec(ctx, "Rv\\d{2}",                                   "RealVideo", v);
@@ -61,8 +63,12 @@ public final class VideoCodecExtractor implements Extractor {
                 .filter(e -> e.start() == g1s && e.end() < g1e)
                 .toList()
                 .forEach(ctx.matches::remove);
-            ctx.matches.add(new Match(VIDEO_CODEC, "H.265", g1s, g1e, raw1, 1000, Set.of(), false));
-            ctx.matches.add(new Match("color_depth", "10-bit", g2s, g2e, raw2, 1000, Set.of(), false));
+            ctx.matches.add(new Match(VIDEO_CODEC, "H.265", g1s, g1e, raw1, 1000,
+                Set.of("source-suffix", "streaming_service.suffix"), false));
+            // Tag color_depth suffix as video-codec-suffix so the abutting codec
+            // match passes validateVideoCodec without sepsAfter.
+            ctx.matches.add(new Match("color_depth", "10-bit", g2s, g2e, raw2, 1000,
+                Set.of("video-codec-suffix"), false));
         }
 
         // video_profile (validated, validators enforce seps_surround)
@@ -90,6 +96,7 @@ public final class VideoCodecExtractor implements Extractor {
     /** Replicates ValidateVideoCodec + VideoProfileRule. */
     @Override
     public void postProcess(ParseContext ctx) {
+        validateVideoCodec(ctx);
         boolean hasCodec = ctx.matches.named(VIDEO_CODEC).findAny().isPresent();
         if (hasCodec) return;
         ctx.matches.named(VIDEO_PROFILE)
@@ -98,10 +105,34 @@ public final class VideoCodecExtractor implements Extractor {
             .forEach(ctx.matches::remove);
     }
 
+    private void validateVideoCodec(ParseContext ctx) {
+        var input = ctx.input;
+        var sepsBefore = Validators.sepsBefore(input);
+        var sepsAfter = Validators.sepsAfter(input);
+        var allMatches = ctx.matches.all().toList();
+        var toRemove = new java.util.ArrayList<Match>();
+        for (var codec : ctx.matches.named(VIDEO_CODEC).toList()) {
+            boolean before = sepsBefore.test(codec)
+                || allMatches.stream().anyMatch(m -> m.end() == codec.start()
+                    && m.tags().contains("video-codec-prefix"));
+            boolean after = sepsAfter.test(codec)
+                || allMatches.stream().anyMatch(m -> m.start() == codec.end()
+                    && m.tags().contains("video-codec-suffix"));
+            if (!before || !after) toRemove.add(codec);
+        }
+        toRemove.forEach(ctx.matches::remove);
+    }
+
     private void addCodec(ParseContext ctx, String src, String value, java.util.function.Predicate<Match> v) {
         var p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE);
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
-        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_CODEC, opts)) ctx.matches.add(m);
+        // Tag video_codec matches with source-suffix so adjacent source matches
+        // (e.g. PDTV in "PDTVx264") pass ValidateSourcePrefixSuffix when the
+        // codec abuts the source without a separator.
+        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_CODEC, opts)) {
+            ctx.matches.add(new Match(VIDEO_CODEC, m.value(), m.start(), m.end(), m.raw(),
+                m.priority(), Set.of("source-suffix", "streaming_service.suffix"), false));
+        }
     }
     private void addRegexProfile(ParseContext ctx, String src, String value, java.util.function.Predicate<Match> v) {
         addRegexNamed(ctx, VIDEO_PROFILE, src, value, v);

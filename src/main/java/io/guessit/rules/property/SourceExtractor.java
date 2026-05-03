@@ -68,7 +68,9 @@ public final class SourceExtractor implements Extractor {
 
     private static List<Rule> buildRules(String ripPrefix, String ripSuffix,
                                          String optRipSuffix) {
-        var common = Set.<String>of();
+        // Tag every source match as a video-codec-prefix so a video_codec
+        // immediately following it (e.g. "PDTVx264") survives validateVideoCodec.
+        var common = Set.of("video-codec-prefix", "streaming_service.suffix");
         var rules = new ArrayList<Rule>();
         rules.add(new Rule(List.of("VHS"), "", optRipSuffix, "VHS", "Rip", null, common, false));
         rules.add(new Rule(List.of("CAM"), "", optRipSuffix, "Camera", "Rip", null, common, false));
