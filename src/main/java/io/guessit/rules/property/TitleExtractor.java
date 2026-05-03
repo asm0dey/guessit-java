@@ -190,19 +190,28 @@ public final class TitleExtractor implements Extractor {
             var fp = fileparts.get(index);
             var inFp = ctx.matches.range(fp.start(), fp.end(), m -> !m.isPrivate()).toList();
             if (inFp.size() == 1 && "season".equals(inFp.getFirst().name())
-                    && inFp.getFirst().start() == fp.start() && inFp.getFirst().end() == fp.end()) {
+                    && spansFilepartIgnoringSeps(inFp.getFirst(), fp, ctx.input)) {
                 return fileparts.get(index + 1);
             }
             // The season head match is now private; check ALL matches (including private)
             // for a full-span season head.
             var allInFp = ctx.matches.range(fp.start(), fp.end(), _ -> true).toList();
             var seasonHeads = allInFp.stream().filter(m -> "season".equals(m.name()) && m.value() == null
-                && m.start() == fp.start() && m.end() == fp.end()).toList();
+                && spansFilepartIgnoringSeps(m, fp, ctx.input)).toList();
             if (seasonHeads.size() == 1) {
                 return fileparts.get(index + 1);
             }
         }
         return null;
+    }
+
+    /** True when {@code m} occupies {@code fp} except for separator padding —
+     *  mirrors python's parent.span match-or-equals tolerance. */
+    private static boolean spansFilepartIgnoringSeps(Match m, Marker fp, String input) {
+        if (m.start() < fp.start() || m.end() > fp.end()) return false;
+        for (int i = fp.start(); i < m.start(); i++) if (!Seps.isSep(input.charAt(i))) return false;
+        for (int i = m.end(); i < fp.end(); i++) if (!Seps.isSep(input.charAt(i))) return false;
+        return true;
     }
 
     record TitlesInFilepart(List<Match> titles, List<Match> toRemove) {}
