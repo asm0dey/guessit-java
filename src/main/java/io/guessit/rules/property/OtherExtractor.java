@@ -253,9 +253,55 @@ public final class OtherExtractor implements Extractor {
         validateHasNeighborAfter(ctx);
         validateScreener(ctx);
         validateMux(ctx);
+        validateStreamingServiceNeighbor(ctx);
         validateAtEnd(ctx);
         renameAnother();
         dedupSameSpan(ctx);
+    }
+
+    /**
+     * Drop {@code other} matches tagged {@code streaming_service.{prefix,suffix}}
+     * when they sit flush against a non-separator character on the wrong side.
+     * Mirrors python guessit's {@code ValidateStreamingServiceNeighbor}: the tag
+     * is meant for tokens that hug a streaming-service marker (e.g. {@code AmazonHD},
+     * {@code NetflixUHD}); a bare {@code HD} stuck to a digit (e.g. {@code 2HD})
+     * has no such neighbour and should not be kept.
+     */
+    private static void validateStreamingServiceNeighbor(ParseContext ctx) {
+        var input = ctx.input;
+        var toRemove = new ArrayList<Match>();
+        var ssMatches = ctx.matches.named("streaming_service").toList();
+        for (var m : ctx.matches.named(OTHER).toList()) {
+            boolean hasPrefix = m.tags().contains("streaming_service.prefix");
+            boolean hasSuffix = m.tags().contains("streaming_service.suffix");
+            if (!hasPrefix && !hasSuffix) continue;
+            boolean sepsAfter = m.end() >= input.length() || Seps.isSep(input.charAt(m.end()));
+            boolean sepsBefore = m.start() == 0 || Seps.isSep(input.charAt(m.start() - 1));
+            if (!sepsAfter) {
+                if (hasPrefix) {
+                    var next = ssMatches.stream()
+                        .filter(s -> s.start() >= m.end())
+                        .min(Comparator.comparingInt(Match::start)).orElse(null);
+                    if (next != null && betweenIsSeps(input, m.end(), next.start())) continue;
+                }
+                toRemove.add(m);
+            } else if (!sepsBefore) {
+                if (hasSuffix) {
+                    var prev = ssMatches.stream()
+                        .filter(s -> s.end() <= m.start())
+                        .max(Comparator.comparingInt(Match::end)).orElse(null);
+                    if (prev != null && betweenIsSeps(input, prev.end(), m.start())) continue;
+                }
+                toRemove.add(m);
+            }
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean betweenIsSeps(String input, int s, int e) {
+        if (s >= e) return true;
+        for (int i = s; i < e; i++) if (!Seps.isSep(input.charAt(i))) return false;
+        return true;
     }
 
     private static void validateHasNeighbor(ParseContext ctx) {
