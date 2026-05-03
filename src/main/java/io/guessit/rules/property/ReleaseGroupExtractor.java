@@ -87,8 +87,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     private boolean detectDashSeparated(ParseContext ctx) {
         var input = ctx.input;
-        for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
+        for (var filepart : pathFilepartsRightmostFirst(ctx)) {
             var part = input.substring(filepart.start(), filepart.end());
 
             // Trailing dash group: "...-Group.ext"
@@ -163,8 +162,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     private boolean detectScene(ParseContext ctx) {
         var input = ctx.input;
-        for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
+        for (var filepart : pathFilepartsRightmostFirst(ctx)) {
             var ext = ctx.matches.named("container")
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
@@ -243,6 +241,15 @@ public final class ReleaseGroupExtractor implements Extractor {
             .filter(m -> !m.name().equals(LANGUAGE) && !m.name().equals(SUBTITLE_LANGUAGE))
             .filter(m -> !("other".equals(m.name()) && RG_INTERIOR_OTHER.contains(m.value())))
             .anyMatch(m -> m.start() < e && s < m.end());
+    }
+
+    /** Path markers in marker_sorted order (rightmost first when counts tie),
+     *  so filename wins over parent dir for release-group detection. */
+    private static List<Marker> pathFilepartsRightmostFirst(ParseContext ctx) {
+        var paths = new java.util.ArrayList<Marker>();
+        for (var m : ctx.markers) if ("path".equals(m.name())) paths.add(m);
+        java.util.Collections.reverse(paths);
+        return paths;
     }
 
     /**
