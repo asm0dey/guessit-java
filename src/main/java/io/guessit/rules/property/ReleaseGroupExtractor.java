@@ -41,7 +41,7 @@ public final class ReleaseGroupExtractor implements Extractor {
     private static final Set<String> SCENE_PREV = Set.of(
         "video_codec", "source", "video_api", "audio_codec", "audio_profile", "video_profile",
         "audio_channels", "screen_size", "other", "container",
-            LANGUAGE, SUBTITLE_LANGUAGE, "year");
+            LANGUAGE, SUBTITLE_LANGUAGE, "language.suffix", "year");
 
     /** Forbidden release-group prefix/suffix names (from config: release_group.forbidden_names). */
     private static final List<String> FORBIDDEN_NAMES = List.of("bonus", "by", "for", "par", "pour", "rip");

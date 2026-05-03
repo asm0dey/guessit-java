@@ -34,6 +34,11 @@ public final class LanguageExtractor implements Extractor {
 
     public static final String SUBTITLE_LANGUAGE = "subtitle_language";
     public static final String LANGUAGE = "language";
+    /** Private match name for a standalone language-suffix word (e.g. {@code AUDIO})
+     *  abutting a language match. Mirrors python's {@code language.suffix} match,
+     *  used by {@link ReleaseGroupExtractor} to widen the scene-prev boundary so
+     *  the release-group candidate skips past the suffix. */
+    public static final String LANGUAGE_SUFFIX = "language.suffix";
 
     @Override public String name() { return LANGUAGE; }
 
@@ -84,6 +89,24 @@ public final class LanguageExtractor implements Extractor {
             if (tryStripAffix(ctx, word, lower, subtitleSuffixes, false, allowed, registry, SUBTITLE_LANGUAGE))
                 continue;
             tryStripAffix(ctx, word, lower, languageSuffixes, false, allowed, registry, LANGUAGE);
+        }
+
+        // Standalone language-suffix word (e.g. "AUDIO" in "SPANISH.AUDIO-NEWPCT"):
+        // emit a private language.suffix match abutting the prior language match
+        // so RG detection treats it as the scene-prev boundary.
+        for (Words.Word word : words) {
+            var lower = word.value().toLowerCase(Locale.ROOT);
+            if (!matchesAny(lower, languageSuffixes)) continue;
+            int ws = word.start();
+            var prev = ctx.matches.named(LANGUAGE)
+                .filter(m -> m.end() <= ws)
+                .filter(m -> betweenIsSeps(input, m.end(), ws))
+                .max(Comparator.comparingInt(Match::end))
+                .orElse(null);
+            if (prev != null) {
+                ctx.matches.add(new Match(LANGUAGE_SUFFIX, word.value(),
+                    word.start(), word.end(), word.value(), 1000, Set.of(), true));
+            }
         }
     }
 
