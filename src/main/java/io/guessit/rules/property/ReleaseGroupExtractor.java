@@ -106,10 +106,10 @@ public final class ReleaseGroupExtractor implements Extractor {
                 if (s < e) {
                     var raw = input.substring(s, e);
                     var candidate = cleanGroupName(raw);
-                    dropHdInsideCandidate(ctx, s, e);
-                    if (validGroupName(candidate, false) && !overlapsNonLanguage(ctx, s, e)
+                    if (validGroupName(candidate, false) && !overlapsNonLanguageExceptHd(ctx, s, e)
                         && !overlapsSubtitleLanguage(ctx, s, e)) {
                         if (isProbableLanguagePrefix(candidate)) continue;
+                        dropHdInsideCandidate(ctx, s, e);
                         removeOverlappingLanguages(ctx, s, e);
                         ctx.matches.add(new Match(RELEASE_GROUP, candidate, s, e,
                             raw, 1500, Set.of("scene"), false));
@@ -182,9 +182,9 @@ public final class ReleaseGroupExtractor implements Extractor {
             var candidate = cleanGroupName(raw);
             if (!validGroupName(candidate, true)) continue;
             if (isProbableLanguagePrefix(candidate)) continue;
-            dropHdInsideCandidate(ctx, s, e);
-            if (overlapsNonLanguage(ctx, s, e)) continue;
+            if (overlapsNonLanguageExceptHd(ctx, s, e)) continue;
             if (overlapsSubtitleLanguage(ctx, s, e)) continue;
+            dropHdInsideCandidate(ctx, s, e);
             removeOverlappingLanguages(ctx, s, e);
             ctx.matches.add(new Match(RELEASE_GROUP, candidate, s, e, raw, 1500, Set.of("scene"), false));
             return true;
@@ -227,6 +227,17 @@ public final class ReleaseGroupExtractor implements Extractor {
             .anyMatch(m -> m.start() < e && s < m.end());
     }
 
+    /** Like {@link #overlapsNonLanguage} but ignores {@code other} matches whose
+     *  values are video-format flags ({@link #RG_INTERIOR_OTHER}) — those get
+     *  dropped by {@link #dropHdInsideCandidate} once the group commits. */
+    private static boolean overlapsNonLanguageExceptHd(ParseContext ctx, int s, int e) {
+        return ctx.matches.all()
+            .filter(m -> !m.isPrivate())
+            .filter(m -> !m.name().equals(LANGUAGE) && !m.name().equals(SUBTITLE_LANGUAGE))
+            .filter(m -> !("other".equals(m.name()) && RG_INTERIOR_OTHER.contains(m.value())))
+            .anyMatch(m -> m.start() < e && s < m.end());
+    }
+
     /**
      * Walks back over trailing {@code other} matches tagged
      * {@code not-a-release-group} (Sample, Proof, Obfuscated, Repost suffixes)
@@ -263,9 +274,13 @@ public final class ReleaseGroupExtractor implements Extractor {
      * pipeline emits it inside group names — Python guessit suppresses it through a
      * group-context post-rule; here we remove it just-in-time before overlap checks.
      */
+    private static final Set<String> RG_INTERIOR_OTHER = Set.of(
+        "HD", "Ultra HD", "Full HD", "HDR10", "Dolby Vision", "BT.2020",
+        "Standard Dynamic Range");
+
     private static void dropHdInsideCandidate(ParseContext ctx, int s, int e) {
         var toRemove = ctx.matches.all()
-            .filter(m -> "other".equals(m.name()) && "HD".equals(m.value()))
+            .filter(m -> "other".equals(m.name()) && RG_INTERIOR_OTHER.contains(m.value()))
             .filter(m -> m.start() >= s && m.end() <= e)
             .toList();
         for (var m : toRemove) ctx.matches.remove(m);
