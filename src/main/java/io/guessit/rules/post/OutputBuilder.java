@@ -122,7 +122,13 @@ public final class OutputBuilder implements Consumer<ParseContext> {
      */
     private static void applyIntList(List<Match> ms, Consumer<Integer> single,
                                      Consumer<List<Integer>> list) {
-        if (ms.size() == 1) single.accept(asInt(ms.getFirst()));
-        else list.accept(ms.stream().map(OutputBuilder::asInt).toList());
+        if (ms.size() == 1) {
+            single.accept(asInt(ms.getFirst()));
+            return;
+        }
+        var values = ms.stream().map(OutputBuilder::asInt).toList();
+        var distinct = values.stream().distinct().toList();
+        if (distinct.size() == 1) single.accept(distinct.getFirst());
+        else list.accept(values);
     }
 }

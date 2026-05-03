@@ -223,10 +223,27 @@ public final class LanguageExtractor implements Extractor {
         if (!(raw instanceof List<?> l)) return;
         var lc = new HashSet<String>();
         for (var s : l) lc.add(s.toString().toLowerCase(Locale.ROOT));
+        // Bracket markers ("[ENG+PT+DE]") that contain 2+ language matches form a
+        // language list — exempt their members from common-word filtering so all
+        // codes survive even when one happens to be a common word like "de".
+        var langListMarkers = new ArrayList<int[]>();
+        for (var marker : ctx.markers) {
+            if (!"group".equals(marker.name())) continue;
+            int s = marker.start();
+            int e = marker.end();
+            long count = ctx.matches.all()
+                    .filter(mm -> LANGUAGE.equals(mm.name()) || SUBTITLE_LANGUAGE.equals(mm.name()))
+                    .filter(mm -> mm.start() >= s && mm.end() <= e)
+                    .count();
+            if (count >= 2) langListMarkers.add(new int[]{s, e});
+        }
         var toRemove = new ArrayList<Match>();
         for (var name : List.of(LANGUAGE, SUBTITLE_LANGUAGE)) {
             for (var match : ctx.matches.named(name).toList()) {
-                if (lc.contains(match.raw().toLowerCase(Locale.ROOT))) toRemove.add(match);
+                if (!lc.contains(match.raw().toLowerCase(Locale.ROOT))) continue;
+                boolean inList = langListMarkers.stream().anyMatch(
+                        sp -> match.start() >= sp[0] && match.end() <= sp[1]);
+                if (!inList) toRemove.add(match);
             }
         }
         for (var match : toRemove) ctx.matches.remove(match);

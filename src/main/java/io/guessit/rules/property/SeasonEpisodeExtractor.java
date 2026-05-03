@@ -233,9 +233,30 @@ public final class SeasonEpisodeExtractor implements Extractor {
         if (matches.size() <= 1) return;
         boolean strongSeen = matches.stream().anyMatch(m -> m.tags().contains(SXX_EXX));
         if (!strongSeen) return;
+        // Latest SxxExx end — trailing weak matches (after this) MAY be absolute_episode
+        // candidates. Exempt them only when no media property (screen_size, source,
+        // codec, etc.) sits between the weak match and end of input — otherwise
+        // they're title-bordering noise (e.g. "TEST.S01E10.24.1080p..."  where 24
+        // is the episode_title, not an absolute episode).
+        int strongMaxEnd = matches.stream()
+            .filter(m -> m.tags().contains(SXX_EXX))
+            .mapToInt(Match::end).max().orElse(Integer.MAX_VALUE);
+        var mediaNames = java.util.Set.of("screen_size", "source", "video_codec",
+            "audio_codec", "audio_channels", "audio_profile", "video_profile",
+            "streaming_service");
+        var mediaSpans = ctx.matches.all()
+            .filter(m -> mediaNames.contains(m.name()))
+            .toList();
         var toRemove = new ArrayList<Match>();
         for (var m : matches) {
-            if (!m.tags().contains(SXX_EXX)) toRemove.add(m);
+            if (m.tags().contains(SXX_EXX)) continue;
+            boolean isWeak = m.tags().contains("weak-episode") || m.tags().contains("weak-duplicate");
+            if (isWeak && m.start() >= strongMaxEnd) {
+                final Match weak = m;
+                boolean mediaAfter = mediaSpans.stream().anyMatch(media -> media.start() >= weak.end());
+                if (!mediaAfter) continue;
+            }
+            toRemove.add(m);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
