@@ -34,6 +34,11 @@ public final class TitleExtractor implements Extractor {
     @Override
     public void extract(ParseContext ctx) {
         var expected = ctx.options.expectedTitle();
+        if (expected.isEmpty()) {
+            // Fall back to expected_title list from options.json so defaults
+            // like "This is Us" / "OSS 117" are applied automatically.
+            expected = ctx.config.topLevelList("expected_title");
+        }
         if (expected.isEmpty()) return;
         var input = ctx.input;
         // Mirror python rules/common/expected.py: normalize seps in both input
