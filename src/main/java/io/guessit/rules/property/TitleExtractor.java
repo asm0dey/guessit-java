@@ -272,6 +272,7 @@ public final class TitleExtractor implements Extractor {
             var titles = new ArrayList<Match>();
             var raw = hole.raw();
             var value = hole.value();
+            if (isRedundantSeasonWord(value, ctx)) continue;
             titles.add(new Match(matchName, value, hole.start, hole.end, raw, 1000, Set.copyOf(matchTags), false));
 
             if (alternativeMatchName != null) {
@@ -304,6 +305,7 @@ public final class TitleExtractor implements Extractor {
                         split.getFirst().raw(), 1000, Set.copyOf(matchTags), false));
                     for (var i = 1; i < split.size(); i++) {
                         var s = split.get(i);
+                        if (isRedundantSeasonWord(s.value(), ctx)) continue;
                         titles.add(new Match(alternativeMatchName, s.value(), s.start, s.end, s.raw(),
                             1000, Set.of(TITLE), false));
                     }
@@ -330,6 +332,26 @@ public final class TitleExtractor implements Extractor {
         var ret = new ArrayList<Holes.Hole>();
         for (var h : holes) ret.addAll(h.crop(groupMarkers));
         return ret;
+    }
+
+    private static final java.util.regex.Pattern SEASON_WORD_PATTERN = java.util.regex.Pattern.compile(
+        "(?i)^(?:season|seasons|saison|saisons|serie|series|temp|temporada|temporadas|"
+        + "staffel|staffeln)[ ._-]*(\\d+)$");
+
+    /**
+     * True when {@code value} is a season-word followed by a number that already
+     * matches an existing season match. Used to drop dangling alt-title /
+     * episode-title splits that just restate the season (e.g. "Temporada 4"
+     * paired with a Cap.408 SxxExx match).
+     */
+    private static boolean isRedundantSeasonWord(String value, ParseContext ctx) {
+        if (value == null || value.isEmpty()) return false;
+        var m = SEASON_WORD_PATTERN.matcher(value.trim());
+        if (!m.matches()) return false;
+        int n;
+        try { n = Integer.parseInt(m.group(1)); } catch (NumberFormatException e) { return false; }
+        return ctx.matches.named("season")
+            .anyMatch(s -> Integer.valueOf(n).equals(s.value()));
     }
 
     static boolean isIgnored(Match m) {
