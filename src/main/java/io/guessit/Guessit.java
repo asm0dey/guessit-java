@@ -6,6 +6,9 @@ import io.guessit.engine.ParseContext;
 import io.guessit.engine.Pipeline;
 import io.guessit.rules.Rules;
 
+import java.util.List;
+import java.util.Map;
+
 public final class Guessit {
 
     private final Options options;
@@ -32,13 +35,9 @@ public final class Guessit {
         return ctx.result;
     }
 
-    public java.util.Map<String, java.util.List<Object>> properties() {
+    public Map<String, List<Object>> properties() {
         // Stub: no extractors yet. Real implementation lands with rule introspection.
         return java.util.Map.of();
     }
 
-    public java.util.List<String> suggestedExpected(java.util.Collection<String> titles) {
-        // Stub: returns unique titles unchanged. Real heuristic lands when title rule does (Plan 4).
-        return titles.stream().distinct().toList();
-    }
 }

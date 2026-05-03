@@ -2,17 +2,37 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code screen_size} (e.g. {@code 1080p}, {@code 2160p}, {@code 720x576})
+ * and the related {@code aspect_ratio} and {@code frame_rate} properties.
+ *
+ * <p>Two passes:
+ * <ol>
+ *   <li>{@link #extract} — recognises the common shapes: width×height,
+ *       height+scan ({@code 1080p}, {@code 1080i}), height+scan+frame_rate
+ *       ({@code 1080p24}), the {@code 4k} alias, and standalone frame rates.</li>
+ *   <li>{@link #postProcess} — normalises raw spans into canonical values
+ *       (computing aspect ratios from W×H, choosing {@code "1080p"} vs
+ *       {@code "1920x1080"} based on whether the AR falls in the 16:9-ish
+ *       envelope), extracts frame rates piggy-backed on screen sizes, and
+ *       drops duplicate screen sizes within a filepart.</li>
+ * </ol>
+ */
 public final class ScreenSizeExtractor implements Extractor {
 
-    @Override public String name() { return "screen_size"; }
-    @Override public int priority() { return 1000; }
+    public static final String SCREEN_SIZE = "screen_size";
+
+    @Override public String name() { return SCREEN_SIZE; }
 
     @Override
     public void extract(ParseContext ctx) {
-        var section = ctx.config.section("screen_size");
+        var section = ctx.config.section(SCREEN_SIZE);
         var interlaced = stringList(section.get("interlaced"));
         var progressive = stringList(section.get("progressive"));
         var frameRates = stringList(section.get("frame_rates"));
@@ -28,8 +48,8 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // width-x-height fallback for non-standard sizes — extract before height+scan
         // so WxH matches are last in MatchSet (ScreenSizeOnlyOne sorts by start DESC).
-        var whP = Pattern.compile("(?<width>\\d{3,4})-?\\s*(?:x|\\*)\\s*-?(?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
-        for (var m : PatternMatcher.regex(input, whP, "screen_size", opts)) {
+        var whP = Pattern.compile("(?<width>\\d{3,4})-?\\s*[x*]\\s*-?(?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
+        for (var m : PatternMatcher.regex(input, whP, SCREEN_SIZE, opts)) {
             ctx.matches.add(m);
         }
 
@@ -40,8 +60,8 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // 4k literal → 2160p
         var fourK = StringOpts.defaults().withValidator(validator);
-        for (var m : PatternMatcher.string(input, Set.of("4k"), "screen_size", fourK)) {
-            ctx.matches.add(new Match("screen_size", "2160p", m.start(), m.end(), m.raw(),
+        for (var m : PatternMatcher.string(input, Set.of("4k"), SCREEN_SIZE, fourK)) {
+            ctx.matches.add(new Match(SCREEN_SIZE, "2160p", m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("normalized"), false));
         }
 
@@ -62,7 +82,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
     private static void addRegex(ParseContext ctx, String src, RegexOpts opts) {
         var p = Pattern.compile(src, Pattern.CASE_INSENSITIVE);
-        for (var m : PatternMatcher.regex(ctx.input, p, "screen_size", opts)) {
+        for (var m : PatternMatcher.regex(ctx.input, p, SCREEN_SIZE, opts)) {
             ctx.matches.add(m);
         }
     }
@@ -70,7 +90,7 @@ public final class ScreenSizeExtractor implements Extractor {
     /** PostProcessScreenSize + ScreenSizeOnlyOne. ResolveScreenSizeConflicts deferred to Plan 3. */
     @Override
     public void postProcess(ParseContext ctx) {
-        var section = ctx.config.section("screen_size");
+        var section = ctx.config.section(SCREEN_SIZE);
         var standardHeights = new HashSet<>(stringList(section.get("progressive")));
         double minAr = ((Number) section.getOrDefault("min_ar", 1.333)).doubleValue();
         double maxAr = ((Number) section.getOrDefault("max_ar", 1.898)).doubleValue();
@@ -79,7 +99,7 @@ public final class ScreenSizeExtractor implements Extractor {
         var widthHeight = Pattern.compile("(?<width>\\d{3,4})\\s*[x*-]\\s*(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
         var heightScan  = Pattern.compile("(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
 
-        for (var m : ctx.matches.named("screen_size").toList()) {
+        for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
             if (m.tags().contains("normalized")) continue;
             var wh = widthHeight.matcher(m.raw());
             if (wh.find()) {
@@ -89,10 +109,14 @@ public final class ScreenSizeExtractor implements Extractor {
                 double ar = (double) w / h;
                 ctx.matches.add(new Match("aspect_ratio", Math.round(ar * 1000.0) / 1000.0,
                     m.start(), m.end(), m.raw(), m.priority(), Set.of(), false));
+                // Use the canonical "1080p"-style label only when the height
+                // is a known standard AND the aspect ratio falls in the
+                // typical movie/TV range; otherwise preserve the explicit
+                // WxH shape so unusual sources (e.g. anamorphic) are not lied about.
                 String value = (standardHeights.contains(String.valueOf(h)) && minAr < ar && ar < maxAr)
                     ? h + scan : w + "x" + h;
 
-                ctx.matches.replace(m, new Match("screen_size", value, m.start(), m.end(), m.raw(),
+                ctx.matches.replace(m, new Match(SCREEN_SIZE, value, m.start(), m.end(), m.raw(),
                     m.priority(), Set.of("normalized"), false));
                 continue;
             }
@@ -100,7 +124,7 @@ public final class ScreenSizeExtractor implements Extractor {
             if (hs.find()) {
                 String h = hs.group("height");
                 String scan = hs.group("scan") == null ? "p" : hs.group("scan").toLowerCase(Locale.ROOT);
-                ctx.matches.replace(m, new Match("screen_size", h + scan, m.start(), m.end(), m.raw(),
+                ctx.matches.replace(m, new Match(SCREEN_SIZE, h + scan, m.start(), m.end(), m.raw(),
                     m.priority(), Set.of("normalized"), false));
             }
         }
@@ -110,7 +134,7 @@ public final class ScreenSizeExtractor implements Extractor {
         if (allNames.stream().anyMatch(n -> n.equals("frame_rate"))) {
             // Already have a standalone frame_rate match — no need to re-parse.
         } else {
-            for (var m : ctx.matches.named("screen_size").toList()) {
+            for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
                 var fr = FRAME_RATE_PATTERN.matcher(m.raw());
                 if (fr.find()) {
                     var rawFr = fr.group("fr");
@@ -125,7 +149,7 @@ public final class ScreenSizeExtractor implements Extractor {
         // ScreenSizeOnlyOne: per filepart, keep last screen_size only when distinct values present.
         for (var filepart : ctx.markers) {
             if (!"path".equals(filepart.name()) && !"whole".equals(filepart.name())) continue;
-            var inPart = ctx.matches.named("screen_size")
+            var inPart = ctx.matches.named(SCREEN_SIZE)
                 .filter(m -> filepart.covers(m.start(), m.end()))
                 .sorted((a, b) -> {
                     if (a.start() != b.start()) return Integer.compare(b.start(), a.start());

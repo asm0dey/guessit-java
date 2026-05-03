@@ -7,6 +7,15 @@ import io.guessit.engine.ParseContext;
 
 import java.util.ArrayList;
 
+/**
+ * Extracts {@code date} via {@link DatePatterns#search}.
+ *
+ * <p>Priority 1100 (above the default 1000) so the date wins overlap against
+ * the year/season/episode digits embedded inside it. The post-pass
+ * additionally removes any year/season/episode/crc32 match whose span sits
+ * fully inside the date — those are now redundant components of the date,
+ * not standalone properties.
+ */
 public final class DateExtractor implements Extractor {
     @Override
     public String name() {

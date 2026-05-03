@@ -2,14 +2,16 @@ package io.guessit.rules.property;
 
 import io.guessit.Options;
 import io.guessit.config.OptionsConfig;
-import io.guessit.engine.*;
+import io.guessit.engine.Match;
+import io.guessit.engine.ParseContext;
 import io.guessit.rules.markers.GroupMarker;
 import io.guessit.rules.markers.PathMarker;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class YearExtractorTest {
 

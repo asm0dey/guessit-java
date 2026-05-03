@@ -46,11 +46,6 @@ public final class LanguageRegistry {
         return Optional.ofNullable(countryByKey.get(token.trim().toLowerCase(Locale.ROOT)));
     }
 
-    public Optional<String> findScript(String token) {
-        if (token == null || token.isBlank()) return Optional.empty();
-        return Optional.ofNullable(scripts.get(token.trim().toLowerCase(Locale.ROOT)));
-    }
-
     private void loadIso639() {
         forEachRecord("data/iso-639.csv", r -> {
             var a2 = trimOrEmpty(r, "alpha2");
@@ -90,8 +85,9 @@ public final class LanguageRegistry {
     }
 
     private void loadLangAliases() {
-        // TODO(plan-2): some aliases (pob, swissgerman, flemish) imply a country qualifier in the note field;
-        // not yet propagated to a Language+Country pair.
+        // TODO(phase-5 polish): some aliases (pob, swissgerman, flemish) imply a country qualifier
+        // in the note field (e.g. "guessit-synonym-pt-BR"); not yet propagated to a Language+Country pair.
+        // Plan 2 explicitly defers extended-word merging (pt-BR, soft subs) to phase-5 polish.
         forEachRecord("data/lang-aliases.csv", r -> {
             var alias = trimOrEmpty(r, "alias");
             var alpha3 = trimOrEmpty(r, "alpha3");

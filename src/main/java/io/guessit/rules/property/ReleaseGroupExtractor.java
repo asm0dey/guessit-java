@@ -6,11 +6,42 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code release_group} (the scene/p2p group name appended to the
+ * release).
+ *
+ * <p>Last extractor in the registry order — release-group detection looks
+ * at <em>everything else</em> the pipeline already produced (codecs, source,
+ * languages, the container extension, structural markers) to find the
+ * untaken span at the end of the filepart.
+ *
+ * <p>Three detection strategies, tried in order until one succeeds:
+ * <ol>
+ *   <li>{@link #detectDashSeparated} — trailing {@code -Group.ext}, the
+ *       most common scene shape.</li>
+ *   <li>{@link #detectScene} — token after a known scene-property tail
+ *       ({@code video_codec}, {@code audio_codec}, {@code source}, etc.).</li>
+ *   <li>{@link #detectAnimeBrackets} — group inside leading or trailing
+ *       brackets, the typical anime fansub shape.</li>
+ * </ol>
+ *
+ * <p>{@link #FORBIDDEN_NAMES} is the small denylist of false-positive
+ * candidates ("rip", "by", "for", …) — words that look like group names but
+ * are actually release-language fragments. {@link #cleanGroupName} normalises
+ * the {@code "name) [tag]"} → {@code "name tag"} pattern that releasers use
+ * when combining a group name with a sub-tag.
+ *
+ * <p>The {@code expected_group} option short-circuits all heuristics: any
+ * configured name found in the input becomes a {@code release_group} match
+ * with priority 2000 so nothing else can displace it.
+ */
 public final class ReleaseGroupExtractor implements Extractor {
+    public static final String LANGUAGE = "language";
+    public static final String SUBTITLE_LANGUAGE = "subtitle_language";
     private static final Set<String> SCENE_PREV = Set.of(
         "video_codec", "source", "video_api", "audio_codec", "audio_profile", "video_profile",
         "audio_channels", "screen_size", "other", "container",
-        "language", "subtitle_language", "year");
+            LANGUAGE, SUBTITLE_LANGUAGE, "year");
 
     /** Forbidden release-group prefix/suffix names (from config: release_group.forbidden_names). */
     private static final List<String> FORBIDDEN_NAMES = List.of("bonus", "by", "for", "par", "pour", "rip");
@@ -20,9 +51,9 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     /** Combined parens+brackets pattern: "name) [tag]" → "name tag". Mirrors Python clean_groupname. */
     private static final Pattern PARENS_BRACKETS = Pattern.compile("(.+)\\)\\s?\\[(.+)]");
+    public static final String RELEASE_GROUP = "release_group";
 
-    @Override public String name() { return "release_group"; }
-    @Override public int priority() { return 1000; }
+    @Override public String name() { return RELEASE_GROUP; }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -38,7 +69,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 int idx = hay.indexOf(n, from);
                 if (idx < 0) break;
                 int end = idx + name.length();
-                var m = new Match("release_group", name, idx, end, input.substring(idx, end),
+                var m = new Match(RELEASE_GROUP, name, idx, end, input.substring(idx, end),
                     2000, Set.of("expected"), false);
                 if (validator.test(m)) ctx.matches.add(m);
                 from = idx + 1;
@@ -48,7 +79,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
-        if (ctx.matches.named("release_group").findAny().isPresent()) return;
+        if (ctx.matches.named(RELEASE_GROUP).findAny().isPresent()) return;
         if (detectDashSeparated(ctx)) return;
         if (detectScene(ctx)) return;
         detectAnimeBrackets(ctx);
@@ -78,7 +109,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                         && !overlapsSubtitleLanguage(ctx, s, e)) {
                         if (isProbableLanguagePrefix(candidate)) continue;
                         removeOverlappingLanguages(ctx, s, e);
-                        ctx.matches.add(new Match("release_group", candidate, s, e,
+                        ctx.matches.add(new Match(RELEASE_GROUP, candidate, s, e,
                             raw, 1500, Set.of("scene"), false));
                         return true;
                     }
@@ -98,7 +129,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                         && !overlapsSubtitleLanguage(ctx, absStart, absEnd)
                         && !overlapsLanguage(ctx, absStart, absEnd)) {
                         removeOverlappingLanguages(ctx, absStart, absEnd);
-                        ctx.matches.add(new Match("release_group", candidate, absStart, absEnd,
+                        ctx.matches.add(new Match(RELEASE_GROUP, candidate, absStart, absEnd,
                             rawCandidate, 1500, Set.of("scene"), false));
                         return true;
                     }
@@ -109,12 +140,12 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     private static boolean overlapsSubtitleLanguage(ParseContext ctx, int s, int e) {
-        return ctx.matches.named("subtitle_language")
+        return ctx.matches.named(SUBTITLE_LANGUAGE)
             .anyMatch(m -> m.start() < e && s < m.end());
     }
 
     private static boolean overlapsLanguage(ParseContext ctx, int s, int e) {
-        return ctx.matches.named("language")
+        return ctx.matches.named(LANGUAGE)
             .anyMatch(m -> m.start() < e && s < m.end());
     }
 
@@ -149,7 +180,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             if (overlapsNonLanguage(ctx, s, e)) continue;
             if (overlapsSubtitleLanguage(ctx, s, e)) continue;
             removeOverlappingLanguages(ctx, s, e);
-            ctx.matches.add(new Match("release_group", candidate, s, e, raw, 1500, Set.of("scene"), false));
+            ctx.matches.add(new Match(RELEASE_GROUP, candidate, s, e, raw, 1500, Set.of("scene"), false));
             return true;
         }
         return false;
@@ -173,10 +204,10 @@ public final class ReleaseGroupExtractor implements Extractor {
             if (trimmed.isEmpty()) continue;
             if (trimmed.chars().allMatch(Character::isDigit)) continue;
             boolean hasOtherInside = ctx.matches.all()
-                .filter(m -> !m.name().equals("language") && !m.name().equals("subtitle_language"))
+                .filter(m -> !m.name().equals(LANGUAGE) && !m.name().equals(SUBTITLE_LANGUAGE))
                 .anyMatch(m -> m.start() >= fInnerS && m.end() <= fInnerE);
             if (hasOtherInside) continue;
-            ctx.matches.add(new Match("release_group", trimmed, fInnerS, fInnerE,
+            ctx.matches.add(new Match(RELEASE_GROUP, trimmed, fInnerS, fInnerE,
                 innerStr, 1500, Set.of("anime"), false));
             return true;
         }
@@ -186,13 +217,13 @@ public final class ReleaseGroupExtractor implements Extractor {
     private static boolean overlapsNonLanguage(ParseContext ctx, int s, int e) {
         return ctx.matches.all()
             .filter(m -> !m.isPrivate())
-            .filter(m -> !m.name().equals("language") && !m.name().equals("subtitle_language"))
+            .filter(m -> !m.name().equals(LANGUAGE) && !m.name().equals(SUBTITLE_LANGUAGE))
             .anyMatch(m -> m.start() < e && s < m.end());
     }
 
     private static void removeOverlappingLanguages(ParseContext ctx, int s, int e) {
         var toRemove = ctx.matches.all()
-            .filter(m -> m.name().equals("language") || m.name().equals("subtitle_language"))
+            .filter(m -> m.name().equals(LANGUAGE) || m.name().equals(SUBTITLE_LANGUAGE))
             .filter(m -> m.start() < e && s < m.end())
             .toList();
         for (var m : toRemove) ctx.matches.remove(m);

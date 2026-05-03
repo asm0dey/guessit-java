@@ -6,6 +6,22 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code season} and {@code episode} from compound forms:
+ * {@code S01E02}, {@code 1x02}, {@code S01E02E03}, {@code S01-S03},
+ * {@code Cap0102}, and the various separator/range expansions.
+ *
+ * <p>Implementation hinges on {@link Chain}: a head pattern matches the
+ * first season+episode combo, then a star-repeated tail consumes any
+ * adjacent additional episodes / seasons. Each emitted episode match is
+ * tagged {@code "SxxExx"} so {@link AbsoluteEpisodeRule} can recognise the
+ * canonical form and rule out leading numerics as episode candidates.
+ *
+ * <p>Range expansion ({@code S01E02-E04} → episodes [2, 3, 4]) and
+ * separator-class classification ({@link #STRONG_SEPS} for additive,
+ * {@link #RANGE_SEPS} for ranged) are kept in helper sets so the matching
+ * code stays declarative.
+ */
 public final class SeasonEpisodeExtractor implements Extractor {
     private static final Pattern HEAD_S_E = Pattern.compile(
         "(?i)s(?<season>\\d+)@?(?<episodeMarker>e|ex|xe|ep|x|d)@?(?<episode>\\d+)");
@@ -25,9 +41,12 @@ public final class SeasonEpisodeExtractor implements Extractor {
         "(?i)(?<seasonSeparator>s|-|\\+|&|to|a|and|et|~)(?<season>\\d+)");
     private static final Pattern HEAD_CAP = Pattern.compile(
         "(?i)(?<seasonMarker>cap)[ ._-]?(?<season>\\d{1,2})(?<episode>\\d{2})");
+    public static final String SEASON = "season";
+    public static final String SXX_EXX = "SxxExx";
+    public static final String EPISODE = "episode";
+    public static final String COEXIST = "coexist";
 
-    @Override public String name() { return "season"; }
-    @Override public int priority() { return 1000; }
+    @Override public String name() { return SEASON; }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -42,12 +61,12 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         for (var run : chain.scan(input)) {
             var headMatch = new Match("seasonHead", null, run.start(), run.end(),
-                input.substring(run.start(), run.end()), 1000, Set.of("SxxExx"), false);
+                input.substring(run.start(), run.end()), 1000, Set.of(SXX_EXX), false);
             if (!seps.test(headMatch)) continue;
-            var seasonValues = run.captures("season");
-            var episodeValues = run.captures("episode");
-            var seasonSpans = run.spans("season");
-            var episodeSpans = run.spans("episode");
+            var seasonValues = run.captures(SEASON);
+            var episodeValues = run.captures(EPISODE);
+            var seasonSpans = run.spans(SEASON);
+            var episodeSpans = run.spans(EPISODE);
             var episodeSeparators = run.captures("episodeSeparator");
             var episodeMarkers = run.captures("episodeMarker");
             if (!isAscending(seasonValues) || !isAscending(episodeValues)) continue;
@@ -64,16 +83,16 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 || episodeSeparators.stream().anyMatch(s -> s.equalsIgnoreCase("d"));
             for (int i = 0; i < seasonValues.size(); i++) {
                 int[] sp = seasonSpans.get(i);
-                ctx.matches.add(new Match("season", Integer.valueOf(seasonValues.get(i)),
-                    sp[0], sp[1], input.substring(sp[0], sp[1]), 1000, Set.of("SxxExx", "coexist"), false));
+                ctx.matches.add(new Match(SEASON, Integer.valueOf(seasonValues.get(i)),
+                    sp[0], sp[1], input.substring(sp[0], sp[1]), 1000, Set.of(SXX_EXX, COEXIST), false));
             }
             if (withEpisode) {
                 var tags = discRun
-                    ? Set.of("SxxExx", "coexist", "disc-marker")
-                    : Set.of("SxxExx", "coexist");
+                    ? Set.of(SXX_EXX, COEXIST, "disc-marker")
+                    : Set.of(SXX_EXX, COEXIST);
                 for (int i = 0; i < episodeValues.size(); i++) {
                     int[] ep = episodeSpans.get(i);
-                    ctx.matches.add(new Match("episode", Integer.valueOf(episodeValues.get(i)),
+                    ctx.matches.add(new Match(EPISODE, Integer.valueOf(episodeValues.get(i)),
                         ep[0], ep[1], input.substring(ep[0], ep[1]), 1000, tags, false));
                 }
             }
@@ -106,17 +125,17 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var matcher = HEAD_CAP.matcher(input);
         while (matcher.find()) {
-            var head = new Match("season", null, matcher.start(), matcher.end(),
-                matcher.group(), 1000, Set.of("SxxExx", "see-pattern"), false);
+            var head = new Match(SEASON, null, matcher.start(), matcher.end(),
+                matcher.group(), 1000, Set.of(SXX_EXX, "see-pattern"), false);
             if (!seps.test(head)) continue;
-            int sStart = matcher.start("season");
-            int sEnd = matcher.end("season");
-            int eStart = matcher.start("episode");
-            int eEnd = matcher.end("episode");
-            ctx.matches.add(new Match("season", Integer.parseInt(matcher.group("season")),
-                sStart, sEnd, matcher.group("season"), 1000, Set.of("SxxExx", "coexist", "see-pattern"), false));
-            ctx.matches.add(new Match("episode", Integer.parseInt(matcher.group("episode")),
-                eStart, eEnd, matcher.group("episode"), 1000, Set.of("SxxExx", "coexist", "see-pattern"), false));
+            int sStart = matcher.start(SEASON);
+            int sEnd = matcher.end(SEASON);
+            int eStart = matcher.start(EPISODE);
+            int eEnd = matcher.end(EPISODE);
+            ctx.matches.add(new Match(SEASON, Integer.parseInt(matcher.group(SEASON)),
+                sStart, sEnd, matcher.group(SEASON), 1000, Set.of(SXX_EXX, COEXIST, "see-pattern"), false));
+            ctx.matches.add(new Match(EPISODE, Integer.parseInt(matcher.group(EPISODE)),
+                eStart, eEnd, matcher.group(EPISODE), 1000, Set.of(SXX_EXX, COEXIST, "see-pattern"), false));
         }
     }
 
@@ -133,14 +152,14 @@ public final class SeasonEpisodeExtractor implements Extractor {
     @Override
     public void postProcess(ParseContext ctx) {
         expandRanges(ctx);
-        removeInvalidSecondaryChain(ctx, "season");
-        removeInvalidSecondaryChain(ctx, "episode");
+        removeInvalidSecondaryChain(ctx, SEASON);
+        removeInvalidSecondaryChain(ctx, EPISODE);
     }
 
     private void expandRanges(ParseContext ctx) {
         var input = ctx.input;
-        var episodes = ctx.matches.named("episode")
-            .filter(m -> m.tags().contains("SxxExx"))
+        var episodes = ctx.matches.named(EPISODE)
+            .filter(m -> m.tags().contains(SXX_EXX))
             .sorted(java.util.Comparator.comparingInt(Match::start))
             .toList();
         for (int i = 0; i + 1 < episodes.size(); i++) {
@@ -151,12 +170,12 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 if (containsRange(gap)) {
                     boolean disc = prev.tags().contains("disc-marker") && next.tags().contains("disc-marker");
                     var fillTags = disc
-                        ? Set.of("SxxExx", "coexist", "range-fill", "disc-marker")
-                        : Set.of("SxxExx", "coexist", "range-fill");
+                        ? Set.of(SXX_EXX, COEXIST, "range-fill", "disc-marker")
+                        : Set.of(SXX_EXX, COEXIST, "range-fill");
                     int a = ((Integer) prev.value()) + 1;
                     int b = ((Integer) next.value()) - 1;
                     for (int v = a; v <= b; v++) {
-                        ctx.matches.add(new Match("episode", v, prev.end(), next.start(),
+                        ctx.matches.add(new Match(EPISODE, v, prev.end(), next.start(),
                             String.valueOf(v), 1000, fillTags, false));
                     }
                 }
@@ -173,11 +192,11 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var matches = ctx.matches.named(prop)
             .sorted(java.util.Comparator.comparingInt(Match::start)).toList();
         if (matches.size() <= 1) return;
-        boolean strongSeen = matches.stream().anyMatch(m -> m.tags().contains("SxxExx"));
+        boolean strongSeen = matches.stream().anyMatch(m -> m.tags().contains(SXX_EXX));
         if (!strongSeen) return;
         var toRemove = new ArrayList<Match>();
         for (var m : matches) {
-            if (!m.tags().contains("SxxExx")) toRemove.add(m);
+            if (!m.tags().contains(SXX_EXX)) toRemove.add(m);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }

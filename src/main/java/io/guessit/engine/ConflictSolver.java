@@ -2,12 +2,21 @@ package io.guessit.engine;
 
 import java.util.*;
 
+/**
+ * Overlap resolver invoked by {@link ConflictPhase}.
+ *
+ * <p>Mirrors Python guessit's {@code ConflictSolver} processor. Compared to a
+ * naive "longest wins" sweep, the shortest-first iteration order matters:
+ * removing a short match early can free up overlap groups that contained it,
+ * affecting later decisions. The {@code "coexist"} tag opts a match out of
+ * the comparison entirely (it stays even when something longer overlaps it).
+ */
 public final class ConflictSolver {
     private ConflictSolver() {}
 
     /**
      * Replicates Python's ConflictSolver processor with _default_conflict_solver.
-     *
+     * <p>
      * Python logic:
      * - Sort all non-private matches by span length ascending (shortest first).
      * - For each short match, find all conflicting matches (any position overlap).
@@ -26,7 +35,7 @@ public final class ConflictSolver {
 
         for (var match : publicMatches) {
             if (toRemove.contains(match)) continue;
-            var conflicting = findConflicting(matches, match, publicMatches, toRemove);
+            var conflicting = findConflicting(match, publicMatches, toRemove);
 
             // Sort conflicting by span length ascending (Python: conflicting_matches.sort(key=len))
             conflicting.sort(Comparator.comparingInt(Match::length));
@@ -69,8 +78,8 @@ public final class ConflictSolver {
     /**
      * Find matches that overlap with `match`, are not private, and are not already marked for removal.
      */
-    private static List<Match> findConflicting(MatchSet matches, Match match,
-                                                List<Match> publicMatches, Set<Match> toRemove) {
+    private static List<Match> findConflicting(Match match,
+                                               List<Match> publicMatches, Set<Match> toRemove) {
         var result = new ArrayList<Match>();
         for (var other : publicMatches) {
             if (other == match) continue;

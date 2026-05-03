@@ -1,16 +1,28 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.*;
+import io.guessit.engine.Extractor;
+import io.guessit.engine.Match;
+import io.guessit.engine.ParseContext;
+import io.guessit.engine.Validators;
 
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code disc} (multi-disc release indices: "Disc 1", "DVD 2",
+ * "BD3", …).
+ *
+ * <p>The post-pass also fixes up matches that {@link SeasonEpisodeExtractor}
+ * recognised via the {@code D} marker (e.g. "S01D02") — those get tagged
+ * {@code disc-marker} as episodes and are renamed here once the dust has
+ * settled. Doing the rename in this rule keeps disc-related logic in one
+ * place rather than scattered across the season/episode extractor.
+ */
 public final class DiscRule implements Extractor {
     private static final Pattern PATTERN = Pattern.compile("(?i)\\b(?:disc|dvd|vcd|bd|brd|bluray)[ ._-]*(\\d+)\\b");
 
     @Override public String name() { return "disc"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {

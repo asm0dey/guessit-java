@@ -5,6 +5,11 @@ import io.guessit.engine.*;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code week} from "Week 5"-style tokens. Validated against the
+ * 1–52 ISO week range via {@link DatePatterns#validWeek}; out-of-range
+ * candidates are dropped to avoid swallowing things like "Week 99".
+ */
 public final class WeekExtractor implements Extractor {
     private static final Pattern PATTERN = Pattern.compile("(?i)week[ ._-]*(\\d{1,2})");
 

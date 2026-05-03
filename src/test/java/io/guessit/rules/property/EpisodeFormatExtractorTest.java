@@ -3,7 +3,8 @@ package io.guessit.rules.property;
 import io.guessit.Guessit;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class EpisodeFormatExtractorTest {
     @Test void minisode() {

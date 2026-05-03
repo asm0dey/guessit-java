@@ -2,24 +2,43 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts the catch-all {@code other} property — the bag of release flags
+ * (PROPER, REPACK, INTERNAL, REMUX, HDRip, etc.) and other miscellaneous
+ * descriptors.
+ *
+ * <p>The full pattern catalogue is loaded from the {@code other} config
+ * section, not hardcoded. Each entry can be:
+ * <ul>
+ *   <li>a single string (literal or {@code re:}-prefixed regex),</li>
+ *   <li>a list of strings,</li>
+ *   <li>a map with {@code string}/{@code regex}/{@code tags}/{@code validator}/
+ *       {@code value}/{@code private_parent} keys.</li>
+ * </ul>
+ * {@link #emitSpec} flattens this shape into match emission calls. Tags drive
+ * the post-process validators ({@code has-neighbor}, {@code at-end},
+ * {@code other.validate.screener}, …) so most of the rules in this file are
+ * tag-conditional clean-up passes.
+ *
+ * <p>{@link #emitCompleteWords} is a special case: matching the bare word
+ * "Complete" produces too much noise, so it is only emitted when adjacent to
+ * a season/series word (or article).
+ */
 public final class OtherExtractor implements Extractor {
-    @Override public String name() { return "other"; }
-    @Override public int priority() { return 1000; }
+
+    public static final String OTHER = "other";
+
+    @Override public String name() { return OTHER; }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void extract(ParseContext ctx) {
-        var section = ctx.config.section("other");
-        var inner = section.get("other");
+        var section = ctx.config.section(OTHER);
+        var inner = section.get(OTHER);
         if (!(inner instanceof Map<?, ?> entries)) return;
 
         var input = ctx.input;
@@ -49,20 +68,18 @@ public final class OtherExtractor implements Extractor {
                 + "|(?:" + articleAlt + "-)?Complete(?:-" + seasonAlt + ")";
         Pattern p;
         try { p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE); }
-        catch (Exception ignore) { return; }
+        catch (Exception _) { return; }
         var input = ctx.input;
         var validator = Validators.sepsSurround(input);
         var matcher = p.matcher(input);
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var match = new Match("other", "Complete", s, e, input.substring(s, e),
-                1000, Set.of(), false);
+            var match = createMatch(input, "Complete", Set.of(), s, e);
             if (validator.test(match)) ctx.matches.add(match);
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static List<String> stringList(Object o, List<String> fallback) {
         if (o instanceof List<?> l) {
             var out = new java.util.ArrayList<String>(l.size());
@@ -74,25 +91,24 @@ public final class OtherExtractor implements Extractor {
 
     private static List<Object> asList(Object v) {
         if (v == null) return List.of();
-        if (v instanceof List<?> l) return List.copyOf((List<Object>) l);
+        if (v instanceof List<?> l) return List.copyOf(l);
         return List.of(v);
     }
 
     private static void emitSpec(ParseContext ctx, String input, String key, Object spec) {
         if (spec instanceof String s) {
             if (key.startsWith("_")) return; // private with no value override skipped
-            if (s.startsWith("re:")) emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags(), null, false, false);
+            if (s.startsWith("re:")) emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags(), null, false);
             else emitString(ctx, input, key, s, SENTINEL, defaultTags());
             return;
         }
         if (!(spec instanceof Map<?, ?> m)) return;
 
         Object valueOverride = m.get("value");
-        String defaultValue = key.startsWith("_") ? null : key;
-        String otherValue = defaultValue;
+        String otherValue = key.startsWith("_") ? null : key;
         String anotherValue = null;
         if (valueOverride instanceof Map<?, ?> vm) {
-            if (vm.get("other") != null) otherValue = vm.get("other").toString();
+            if (vm.get(OTHER) != null) otherValue = vm.get(OTHER).toString();
             if (vm.get("another") != null) anotherValue = vm.get("another").toString();
         }
         if (otherValue == null) return;
@@ -107,33 +123,46 @@ public final class OtherExtractor implements Extractor {
         if (stringList instanceof String s) emitString(ctx, input, otherValue, s, validatorSrc, tags);
         else if (stringList instanceof List<?> l) for (var p : l) emitString(ctx, input, otherValue, p.toString(), validatorSrc, tags);
 
-        if (regexList instanceof String s) emitRegex(ctx, input, otherValue, s, validatorSrc, tags, anotherValue, privateParent, false);
-        else if (regexList instanceof List<?> l) for (var p : l) emitRegex(ctx, input, otherValue, p.toString(), validatorSrc, tags, anotherValue, privateParent, false);
+        if (regexList instanceof String s) emitRegex(ctx, input, otherValue, s, validatorSrc, tags, anotherValue, privateParent);
+        else if (regexList instanceof List<?> l) for (var p : l) emitRegex(ctx, input, otherValue, p.toString(), validatorSrc, tags, anotherValue, privateParent);
     }
 
     private static final Object SENTINEL = new Object();
 
     private static Set<String> defaultTags() { return Set.of(); }
 
-    @SuppressWarnings("unchecked")
     private static Set<String> parseTags(Object t) {
-        if (t == null) return Set.of();
-        if (t instanceof String s) return Set.of(s);
-        if (t instanceof List<?> l) {
-            var out = new HashSet<String>();
-            for (var v : l) if (v != null) out.add(v.toString());
-            return Set.copyOf(out);
+        switch (t) {
+            case null -> {
+                return Set.of();
+            }
+            case String s -> {
+                return Set.of(s);
+            }
+            case List<?> l -> {
+                var out = new HashSet<String>();
+                for (var v : l) if (v != null) out.add(v.toString());
+                return Set.copyOf(out);
+            }
+            default -> {
+            }
         }
         return Set.of();
     }
 
+    /**
+     * Maps a config-side validator declaration to a {@link Predicate}.
+     *
+     * <p>The {@link #SENTINEL} object distinguishes "no key present in config"
+     * (default to seps-surround) from "key explicitly null" (no validator at
+     * all) — both round-trip through {@code Map.get} as null otherwise.
+     */
     private static Predicate<Match> resolveValidator(String input, Object validatorSrc) {
-        // Distinguish "key absent" (use default seps_surround) from "explicit null/None" (no validator).
         if (validatorSrc == SENTINEL) return Validators.sepsSurround(input);
-        if (validatorSrc == null) return m -> true; // explicit null → no validator
+        if (validatorSrc == null) return _ -> true; // explicit null → no validator
         if (validatorSrc instanceof String s) {
             return switch (s) {
-                case "null" -> m -> true;
+                case "null" -> _ -> true;
                 case "import:seps_after" -> Validators.sepsAfter(input);
                 case "import:seps_before" -> Validators.sepsBefore(input);
                 case "import:seps_surround" -> Validators.sepsSurround(input);
@@ -153,7 +182,7 @@ public final class OtherExtractor implements Extractor {
             int i = hay.indexOf(n, from);
             if (i < 0) break;
             int end = i + n.length();
-            var m = new Match("other", value, i, end, input.substring(i, end), 1000, tags, false);
+            var m = createMatch(input, value, tags, i, end);
             if (validator.test(m)) ctx.matches.add(m);
             from = i + 1;
         }
@@ -161,10 +190,10 @@ public final class OtherExtractor implements Extractor {
 
     private static void emitRegex(ParseContext ctx, String input, String value, String src,
                                    Object validatorSrc, Set<String> tags, String anotherValue,
-                                   boolean privateParent, boolean ignored) {
+                                   boolean privateParent) {
         Pattern p;
         try { p = Pattern.compile(Abbreviations.dash(toJavaRegex(src)), Pattern.CASE_INSENSITIVE); }
-        catch (Exception ignore) { return; }
+        catch (Exception _) { return; }
         var validator = resolveValidator(input, validatorSrc);
         var matcher = p.matcher(input);
         while (matcher.find()) {
@@ -172,33 +201,37 @@ public final class OtherExtractor implements Extractor {
             int e = matcher.end();
             int anotherS = -1, anotherE = -1;
             if (anotherValue != null) {
-                anotherS = groupStart(matcher, "another");
-                anotherE = groupEnd(matcher, "another");
+                anotherS = groupStart(matcher);
+                anotherE = groupEnd(matcher);
             }
-            // For private_parent (e.g., _HdRip), emit children only — no public parent match.
+            // For private_parent (e.g., _HdRip), the regex captures a wider span
+            // for separator-surround validation but only the inner named groups
+            // become public matches — the parent value would otherwise pollute
+            // the output with overly broad strings.
             if (privateParent) {
                 int hdGroupS = matcher.groupCount() >= 1 ? matcher.start(1) : s;
                 int hdGroupE = matcher.groupCount() >= 1 ? matcher.end(1) : e;
-                var parent = new Match("other", value, s, e, input.substring(s, e), 1000, tags, false);
+                var parent = createMatch(input, value, tags, s, e);
                 if (!validator.test(parent)) continue;
                 if (hdGroupS >= 0 && hdGroupE > hdGroupS) {
-                    ctx.matches.add(new Match("other", value, hdGroupS, hdGroupE,
-                        input.substring(hdGroupS, hdGroupE), 1000, tags, false));
+                    ctx.matches.add(createMatch(input, value, tags, hdGroupS, hdGroupE));
                 }
                 if (anotherValue != null && anotherS >= 0 && anotherE > anotherS) {
-                    ctx.matches.add(new Match("other", anotherValue, anotherS, anotherE,
-                        input.substring(anotherS, anotherE), 1000, tags, false));
+                    ctx.matches.add(createMatch(input, anotherValue, tags, anotherS, anotherE));
                 }
                 continue;
             }
-            var m = new Match("other", value, s, e, input.substring(s, e), 1000, tags, false);
+            var m = createMatch(input, value, tags, s, e);
             if (!validator.test(m)) continue;
             ctx.matches.add(m);
             if (anotherValue != null && anotherS >= 0 && anotherE > anotherS) {
-                ctx.matches.add(new Match("other", anotherValue, anotherS, anotherE,
-                    input.substring(anotherS, anotherE), 1000, tags, false));
+                ctx.matches.add(createMatch(input, anotherValue, tags, anotherS, anotherE));
             }
         }
+    }
+
+    private static Match createMatch(String input, String value, Set<String> tags, int s, int e) {
+        return new Match(OTHER, value, s, e, input.substring(s, e), 1000, tags, false);
     }
 
     private static String toJavaRegex(String src) {
@@ -206,11 +239,11 @@ public final class OtherExtractor implements Extractor {
         return src.replace("(?P<", "(?<");
     }
 
-    private static int groupStart(Matcher m, String name) {
-        try { return m.start(name); } catch (IllegalArgumentException | IllegalStateException e) { return -1; }
+    private static int groupStart(Matcher m) {
+        try { return m.start("another"); } catch (IllegalArgumentException | IllegalStateException _) { return -1; }
     }
-    private static int groupEnd(Matcher m, String name) {
-        try { return m.end(name); } catch (IllegalArgumentException | IllegalStateException e) { return -1; }
+    private static int groupEnd(Matcher m) {
+        try { return m.end("another"); } catch (IllegalArgumentException | IllegalStateException _) { return -1; }
     }
 
     @Override
@@ -221,7 +254,7 @@ public final class OtherExtractor implements Extractor {
         validateScreener(ctx);
         validateMux(ctx);
         validateAtEnd(ctx);
-        renameAnother(ctx);
+        renameAnother();
         dedupSameSpan(ctx);
     }
 
@@ -240,16 +273,22 @@ public final class OtherExtractor implements Extractor {
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();
         var all = ctx.matches.all().filter(m -> !m.isPrivate()).toList();
-        var others = ctx.matches.named("other").filter(m -> m.tags().contains(tag)).toList();
+        var others = ctx.matches.named(OTHER).filter(m -> m.tags().contains(tag)).toList();
         for (var m : others) {
             boolean ok = false;
-            if (checkBefore) ok = ok || hasAdjacentBefore(input, m, all, ctx.markers);
+            if (checkBefore) ok = hasAdjacentBefore(input, m, all, ctx.markers);
             if (checkAfter) ok = ok || hasAdjacentAfter(input, m, all, ctx.markers);
             if (!ok) toRemove.add(m);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
+    /**
+     * "Adjacent" means the closest preceding non-private match (or group
+     * marker close) is separated from {@code m} only by separator characters.
+     * Group ends are considered alongside matches because release notes often
+     * sit right after a closing bracket and should count as a neighbour.
+     */
     private static boolean hasAdjacentBefore(String input, Match m, List<Match> all, List<Marker> markers) {
         Match prev = null;
         for (var o : all) if (o != m && o.end() <= m.start() && (prev == null || o.end() > prev.end())) prev = o;
@@ -282,7 +321,7 @@ public final class OtherExtractor implements Extractor {
 
     private static void validateScreener(ParseContext ctx) {
         var input = ctx.input;
-        var screeners = ctx.matches.named("other")
+        var screeners = ctx.matches.named(OTHER)
             .filter(m -> m.tags().contains("other.validate.screener"))
             .toList();
         var sources = ctx.matches.named("source").toList();
@@ -290,7 +329,7 @@ public final class OtherExtractor implements Extractor {
         for (var sc : screeners) {
             var src = sources.stream()
                 .filter(s -> s.end() <= sc.start())
-                .max((a, b) -> Integer.compare(a.end(), b.end()))
+                .max(Comparator.comparingInt(Match::end))
                 .orElse(null);
             if (src == null) { toRemove.add(sc); continue; }
             if (!between(input, src.end(), sc.start())) toRemove.add(sc);
@@ -299,7 +338,7 @@ public final class OtherExtractor implements Extractor {
     }
 
     private static void validateMux(ParseContext ctx) {
-        var muxes = ctx.matches.named("other")
+        var muxes = ctx.matches.named(OTHER)
             .filter(m -> m.tags().contains("other.validate.mux"))
             .toList();
         var sources = ctx.matches.named("source").toList();
@@ -313,7 +352,7 @@ public final class OtherExtractor implements Extractor {
 
     private static void validateAtEnd(ParseContext ctx) {
         var input = ctx.input;
-        var atEnds = ctx.matches.named("other")
+        var atEnds = ctx.matches.named(OTHER)
             .filter(m -> m.tags().contains("at-end"))
             .toList();
         var toRemove = new ArrayList<Match>();
@@ -325,7 +364,7 @@ public final class OtherExtractor implements Extractor {
                 boolean nonOtherAfter = ctx.matches.all()
                     .filter(x -> !x.isPrivate())
                     .filter(x -> x.start() >= m.end() && x.end() <= filepart.end())
-                    .anyMatch(x -> !x.name().equals("other") && !x.name().equals("container"));
+                    .anyMatch(x -> !x.name().equals(OTHER) && !x.name().equals("container"));
                 if (nonOtherAfter) { toRemove.add(m); continue; }
                 // Hole filled with non-sep content after match → remove
                 if (!between(input, m.end(), filepart.end())) toRemove.add(m);
@@ -334,7 +373,7 @@ public final class OtherExtractor implements Extractor {
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
-    private static void renameAnother(ParseContext ctx) {
+    private static void renameAnother() {
         // Currently we already emit `another` capture as `other` directly; nothing to rename.
     }
 
@@ -342,7 +381,7 @@ public final class OtherExtractor implements Extractor {
         // Drop duplicate "other" matches with same span and same value (can happen across patterns).
         var seen = new HashSet<String>();
         var toRemove = new ArrayList<Match>();
-        for (var m : ctx.matches.named("other").toList()) {
+        for (var m : ctx.matches.named(OTHER).toList()) {
             var key = m.start() + ":" + m.end() + ":" + m.value();
             if (!seen.add(key)) toRemove.add(m);
         }

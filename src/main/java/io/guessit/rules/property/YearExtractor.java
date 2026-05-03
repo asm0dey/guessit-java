@@ -5,6 +5,15 @@ import io.guessit.engine.*;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts release {@code year} as a 4-digit integer in [1920, 2030).
+ *
+ * <p>The extractor is intentionally permissive — any 4-digit run that is
+ * separator-surrounded and falls in the year range becomes a candidate.
+ * Resolution between multiple candidates in the same filepart happens in
+ * {@link #postProcess}, not at extract time, because year resolution
+ * depends on which other markers (groups) survived.
+ */
 public final class YearExtractor implements Extractor {
     private static final Pattern PATTERN = Pattern.compile("\\d{4}");
 
@@ -30,6 +39,17 @@ public final class YearExtractor implements Extractor {
 
     /**
      * Replicates Python rules/properties/date.py:KeepMarkedYearInFilepart.
+     *
+     * <p>Per filepart, partition surviving year matches by whether they sit
+     * inside a bracketed group:
+     * <ul>
+     *   <li>If both grouped and ungrouped years exist → drop all ungrouped
+     *       (the releaser's explicit grouping wins) and keep only the first
+     *       grouped year.</li>
+     *   <li>If only ungrouped years exist and there are more than two → keep
+     *       the first two and drop the rest. Two is the empirical guessit
+     *       cap; more than that is almost always noise.</li>
+     * </ul>
      */
     @Override
     public void postProcess(ParseContext ctx) {

@@ -1,5 +1,14 @@
 package io.guessit.engine;
 
+/**
+ * Token-separator character set.
+ *
+ * <p>Defines what counts as "between tokens" throughout the parser —
+ * separator-surround validation in {@link Validators}, the small whitelist of
+ * inter-tail characters in {@link Chain}, and any rule that needs to test
+ * adjacency. The character set is a verbatim copy of Python guessit's
+ * {@code seps}; keep them in lockstep to preserve YML parity.
+ */
 public final class Seps {
     private Seps() {}
 

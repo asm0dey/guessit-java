@@ -3,6 +3,15 @@ package io.guessit.engine;
 import java.util.List;
 import java.util.regex.Pattern;
 
+/**
+ * Numeral parsing and regex sources for digits, Roman numerals, and English /
+ * French number words.
+ *
+ * <p>Supports episode/season parsers that must accept "Episode V" or
+ * "Episode three" alongside "Episode 5". {@link #NUMERAL} composes the three
+ * sub-patterns into a single alternation suitable for embedding in larger
+ * regexes; {@link #parse} converts any of the three forms to {@code int}.
+ */
 public final class Numerals {
     private Numerals() {}
 
@@ -27,20 +36,26 @@ public final class Numerals {
     public static final String WORD = buildWordSource();
     public static final String NUMERAL = "(?:" + DIGITAL + "|" + ROMAN + "|" + WORD + ")";
 
+    /** Parse digits, Roman, or word numerals — whichever matches first. */
     public static int parse(String value) { return parse(value, true, true, true); }
 
+    /**
+     * Parse {@code value} as a numeral, trying enabled forms in order:
+     * decimal digits → Roman → number words. Throws {@link IllegalArgumentException}
+     * when no enabled form matches.
+     */
     public static int parse(String value, boolean intEnabled, boolean romanEnabled, boolean wordEnabled) {
         if (intEnabled) {
             try {
                 var m = CLEAN.matcher(value);
                 if (m.matches()) return Integer.parseInt(m.group(1));
                 return Integer.parseInt(value);
-            } catch (NumberFormatException ignore) {}
+            } catch (NumberFormatException _) {}
         }
         if (romanEnabled) {
             for (var word : value.split("\\s+")) {
                 try { return parseRoman(word.toUpperCase(java.util.Locale.ROOT)); }
-                catch (IllegalArgumentException ignore) {}
+                catch (IllegalArgumentException _) {}
             }
         }
         if (wordEnabled) {
@@ -61,6 +76,11 @@ public final class Numerals {
         return -1;
     }
 
+    /**
+     * Standard left-to-right Roman parser: tokens are sorted by descending
+     * value with subtractive pairs (CM, CD, XC, …) listed before their base
+     * letters, so "IX" is consumed as 9 before "I" can match.
+     */
     private static int parseRoman(String value) {
         if (!ROMAN_FULL.matcher(value).matches()) throw new IllegalArgumentException("Not roman: " + value);
         String[] tokens = {"M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"};

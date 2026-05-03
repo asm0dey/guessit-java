@@ -70,4 +70,17 @@ class ConfigLoaderTest {
         assertEquals(3, nested.get("y"));
         assertEquals(4, nested.get("z"));
     }
+    
+    @Test
+    void mergeNullValue(@TempDir Path tmp) throws IOException {
+        var a = tmp.resolve("a.json");
+        var b = tmp.resolve("b.json");
+        Files.writeString(a, "{\"key\": \"original\"}");
+        Files.writeString(b, "{\"key\": null}");
+        var opts = Options.builder()
+            .noDefaultConfig(true).noUserConfig(true)
+            .configPaths(java.util.List.of(a, b)).build();
+        var cfg = ConfigLoader.load(opts);
+        assertNull(cfg.raw().get("key"));
+    }
 }

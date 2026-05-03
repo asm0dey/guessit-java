@@ -1,13 +1,21 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Marker;
-import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
 import java.util.Comparator;
 import java.util.HashSet;
 
+/**
+ * When multiple path segments produced matches of the same name, drop the
+ * matches in earlier (parent-directory) segments and keep only those in the
+ * last segment.
+ *
+ * <p>Rationale: parent directories often contain hints (year, source, codec)
+ * that are also encoded in the filename. The filename is the authoritative
+ * source for the work itself, so let it win whenever it spoke up.
+ */
 public final class PreferLastPath implements PostProcessor {
     @Override
     public void process(ParseContext ctx) {
@@ -16,7 +24,10 @@ public final class PreferLastPath implements PostProcessor {
             .sorted(Comparator.comparingInt(Marker::start))
             .toList();
         if (paths.size() < 2) return;
-        var last = paths.get(paths.size() - 1);
+        var last = paths.getLast();
+        // Collect the set of property names actually present in the last
+        // filepart. Only those names are eligible for parent-segment pruning;
+        // everything else (e.g. a year only present in a parent dir) stays.
         var inLast = new HashSet<String>();
         ctx.matches.all()
             .filter(m -> !m.isPrivate())

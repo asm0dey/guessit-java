@@ -104,13 +104,13 @@ public record GuessResult(
     }
 
     private static void putSeasonOrEpisode(Map<String, Object> m, String k, Integer single, List<Integer> list) {
-        if (list != null && !list.isEmpty()) m.put(k, list.size() == 1 ? list.get(0) : list);
+        if (list != null && !list.isEmpty()) m.put(k, list.size() == 1 ? list.getFirst() : list);
         else if (single != null) m.put(k, single);
     }
 
     private static void putList(Map<String, Object> m, String k, List<?> list) {
         if (list == null || list.isEmpty()) return;
-        m.put(k, list.size() == 1 ? list.get(0) : list);
+        m.put(k, list.size() == 1 ? list.getFirst() : list);
     }
 
     public String toJson() {

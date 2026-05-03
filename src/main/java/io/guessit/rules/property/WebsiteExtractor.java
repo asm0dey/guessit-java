@@ -1,6 +1,9 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.*;
+import io.guessit.engine.Extractor;
+import io.guessit.engine.Match;
+import io.guessit.engine.ParseContext;
+import io.guessit.engine.Validators;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -10,8 +13,29 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Extracts {@code website} (domain-shaped substrings).
+ *
+ * <p>Three URL patterns, all built from the IANA TLD list bundled at
+ * {@code /io/guessit/data/tlds-alpha-by-domain.txt}:
+ * <ul>
+ *   <li><strong>pattern1</strong> — known safe subdomain ({@code www}) + any TLD.</li>
+ *   <li><strong>pattern2</strong> — any host + a small whitelist of safe TLDs.
+ *       Restricting the TLD here is what keeps random "{@code title.foo}" tokens
+ *       from being read as a URL.</li>
+ *   <li><strong>pattern3</strong> — known safe prefix (e.g. {@code .co.uk}) + any TLD.</li>
+ * </ul>
+ *
+ * <p>Priority is 100 (well below default 1000) so an overlapping title or
+ * other property always wins. The {@code website.prefix} feature emits a
+ * private match for prefix words like "from"; {@link #postProcess} drops
+ * those when no website actually follows them.
+ */
 public final class WebsiteExtractor implements Extractor {
-    @Override public String name() { return "website"; }
+
+    public static final String WEBSITE = "website";
+
+    @Override public String name() { return WEBSITE; }
     @Override public int priority() { return 100; }
 
     private static final String TLD_PATH = "/io/guessit/data/tlds-alpha-by-domain.txt";
@@ -19,23 +43,19 @@ public final class WebsiteExtractor implements Extractor {
     private final Pattern pattern1;  // safe subdomain + TLD
     private final Pattern pattern2;  // safe TLD
     private final Pattern pattern3;  // safe prefix + TLD
-    private final List<String> safeSubdomains;
-    private final List<String> safePrefixes;
     private final List<String> websitePrefixes;
 
     @SuppressWarnings("unchecked")
     public WebsiteExtractor() {
         var cfg = ConfigHolder.websiteConfig();
-        this.safeSubdomains = (List<String>) cfg.getOrDefault("safe_subdomains", List.of("www"));
         var safeTlds = (List<String>) cfg.getOrDefault("safe_tlds", List.of("com", "net", "org"));
-        this.safePrefixes = (List<String>) cfg.getOrDefault("safe_prefixes", List.of("co", "com", "net", "org"));
+        List<String> safePrefixes = (List<String>) cfg.getOrDefault("safe_prefixes", List.of("co", "com", "net", "org"));
         this.websitePrefixes = (List<String>) cfg.getOrDefault("prefixes", List.of("from"));
 
         var tlds = loadTlds();
 
         var tldOr = buildOrPattern(tlds);
         var safeTldOr = buildOrPattern(safeTlds);
-        var safeSubOr = buildOrPattern(safeSubdomains);
         var safePrefixOr = buildOrPattern(safePrefixes);
 
         // Pattern 1: safe subdomain + any TLD
@@ -65,7 +85,7 @@ public final class WebsiteExtractor implements Extractor {
                 int i = hay.indexOf(needle, idxFrom);
                 if (i < 0) break;
                 int end = i + needle.length();
-                var m = new Match("website", prefix, i, end, input.substring(i, end), 0, Set.of("website.prefix"), true);
+                var m = new Match(WEBSITE, prefix, i, end, input.substring(i, end), 0, Set.of("website.prefix"), true);
                 if (validator.test(m)) ctx.matches.add(m);
                 idxFrom = i + 1;
             }
@@ -85,11 +105,11 @@ public final class WebsiteExtractor implements Extractor {
             if (s < 0) continue;
             var raw = input.substring(s, e);
             // check the full match (group 0) for surrounding separators
-            var fullMatch = new Match("website", raw, matcher.start(0), matcher.end(0), input.substring(matcher.start(0), matcher.end(0)), 100, Set.of(), false);
+            var fullMatch = new Match(WEBSITE, raw, matcher.start(0), matcher.end(0), input.substring(matcher.start(0), matcher.end(0)), 100, Set.of(), false);
             if (!validator.test(fullMatch)) continue;
             // check inner match has valid chars
             if (!isValidDomainChars(raw)) continue;
-            var m = new Match("website", raw, s, e, raw, 100, Set.of(), false);
+            var m = new Match(WEBSITE, raw, s, e, raw, 100, Set.of(), false);
             ctx.matches.add(m);
         }
     }
@@ -108,7 +128,7 @@ public final class WebsiteExtractor implements Extractor {
         // a website match following them without holes
         var toRemove = new ArrayList<Match>();
         for (var m : ctx.matches.all().filter(m -> m.tags().contains("website.prefix")).toList()) {
-            var websiteMatch = ctx.matches.named("website")
+            var websiteMatch = ctx.matches.named(WEBSITE)
                 .filter(w -> w.start() > m.end())
                 .findFirst().orElse(null);
             if (websiteMatch == null) {
@@ -156,7 +176,7 @@ public final class WebsiteExtractor implements Extractor {
     private static class ConfigHolder {
         private static java.util.Map<String, Object> websiteConfig() {
             var config = io.guessit.config.ConfigLoader.load(io.guessit.Options.defaults());
-            return config.section("website");
+            return config.section(WEBSITE);
         }
     }
 }

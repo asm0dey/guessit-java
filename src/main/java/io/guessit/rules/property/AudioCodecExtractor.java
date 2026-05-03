@@ -5,17 +5,33 @@ import io.guessit.engine.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code audio_codec}, {@code audio_profile}, and {@code audio_channels}.
+ *
+ * <p>Pattern definitions are not hardcoded — they are loaded from the
+ * {@code audio_codec} section of the config so additions ride on options
+ * updates rather than code changes. {@link #flattenPatterns} accepts a
+ * flexible YAML/JSON shape (string, list, or map with {@code string} /
+ * {@code regex} / {@code tags} keys) so config can express weighting and
+ * tagging without inventing new schemas.
+ *
+ * <p>Edge validation is deferred to {@link #postProcess} rather than enforced
+ * by per-match validators, because audio matches frequently sit flush against
+ * each other (e.g. {@code "True-HD51"}, {@code "AAC2.0"}). The post-pass
+ * accepts a non-separator on either side as long as another audio match is
+ * abutted there.
+ */
 public final class AudioCodecExtractor implements Extractor {
 
-    private static final Set<String> AUDIO_PROPS = Set.of("audio_codec", "audio_profile", "audio_channels");
+    public static final String AUDIO_CODEC = "audio_codec";
+    private static final Set<String> AUDIO_PROPS = Set.of(AUDIO_CODEC, "audio_profile", "audio_channels");
 
-    @Override public String name() { return "audio_codec"; }
-    @Override public int priority() { return 1000; }
+    @Override public String name() { return AUDIO_CODEC; }
 
     @Override
     public void extract(ParseContext ctx) {
-        var section = ctx.config.section("audio_codec");
-        loadGroup(ctx, "audio_codec", asMap(section.get("audio_codec")));
+        var section = ctx.config.section(AUDIO_CODEC);
+        loadGroup(ctx, AUDIO_CODEC, asMap(section.get(AUDIO_CODEC)));
         loadGroup(ctx, "audio_profile", asMap(section.get("audio_profile")));
         loadGroup(ctx, "audio_channels", asMap(section.get("audio_channels")));
     }
@@ -42,19 +58,21 @@ public final class AudioCodecExtractor implements Extractor {
             .toList();
         for (var wc : weakChannels) {
             boolean hasCodecBefore = audio.stream().anyMatch(o ->
-                o.name().equals("audio_codec") && o.end() == wc.start());
+                o.name().equals(AUDIO_CODEC) && o.end() == wc.start());
             if (!hasCodecBefore) ctx.matches.remove(wc);
         }
 
         // AudioProfileRule: drop audio_profile matches tagged audio_profile.rule when there's
         // no matching audio_codec (specified in the same tag set) anywhere in the input.
+        // AudioProfileRule: profiles like "Master Audio" only make sense alongside their
+        // declared parent codec (e.g. DTS-HD). The config tags such matches with
+        // both "audio_profile.rule" and the required codec name; remove the
+        // profile when the parent codec didn't survive.
         var profilesWithRule = ctx.matches.named("audio_profile")
             .filter(m -> m.tags().contains("audio_profile.rule"))
             .toList();
-        var codecValues = ctx.matches.named("audio_codec").map(m -> m.value().toString()).collect(java.util.stream.Collectors.toSet());
+        var codecValues = ctx.matches.named(AUDIO_CODEC).map(m -> m.value().toString()).collect(java.util.stream.Collectors.toSet());
         for (var prof : profilesWithRule) {
-            // The required codec is encoded as another tag (e.g. "DTS-HD"). Find the first
-            // tag that names a codec and verify the codec is present.
             String requiredCodec = null;
             for (var t : prof.tags()) {
                 if ("audio_profile.rule".equals(t)) continue;
@@ -86,7 +104,7 @@ public final class AudioCodecExtractor implements Extractor {
                     ? new HashSet<>(pattern.tags()) : new HashSet<>();
                 if (pattern.regex()) {
                     var p = Pattern.compile(Abbreviations.dash(pattern.source()), Pattern.CASE_INSENSITIVE);
-                    var opts = RegexOpts.defaults().withValue(s -> value).withPriority(priority);
+                    var opts = RegexOpts.defaults().withValue(_ -> value).withPriority(priority);
                     if (!tags.isEmpty()) opts = opts.withTags(tags);
                     for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
                 } else {
@@ -111,7 +129,7 @@ public final class AudioCodecExtractor implements Extractor {
 
     @SuppressWarnings("unchecked")
     private static boolean entryHasConflictSolver(Object def) {
-        if (def instanceof Map<?, ?> m) return ((Map<String, Object>) m).containsKey("conflict_solver");
+        if (def instanceof Map<?, ?> m) return m.containsKey("conflict_solver");
         if (def instanceof List<?> l) return l.stream().anyMatch(AudioCodecExtractor::entryHasConflictSolver);
         return false;
     }

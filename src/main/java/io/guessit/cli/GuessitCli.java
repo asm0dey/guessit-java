@@ -110,7 +110,7 @@ public final class GuessitCli implements Callable<Integer> {
         return 0;
     }
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         System.exit(new CommandLine(new GuessitCli()).execute(args));
     }
 

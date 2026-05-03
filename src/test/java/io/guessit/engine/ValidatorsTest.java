@@ -1,8 +1,11 @@
 package io.guessit.engine;
 
 import org.junit.jupiter.api.Test;
+
 import java.util.function.Predicate;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ValidatorsTest {
     private static Match m(int s, int e, String input) {

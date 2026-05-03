@@ -4,15 +4,38 @@ import io.guessit.engine.*;
 import io.guessit.lang.Language;
 import io.guessit.lang.LanguageRegistry;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
+/**
+ * Extracts {@code language} and {@code subtitle_language}.
+ *
+ * <p>Pipeline within this extractor:
+ * <ol>
+ *   <li>Word-level scan ({@link #extract}). For each non-numeric word: try a
+ *       direct {@link LanguageRegistry} lookup; otherwise try stripping a
+ *       configured subtitle/language prefix or suffix and lookup the rest.
+ *       Matches start out as {@code language}.</li>
+ *   <li>Standalone affixes (e.g. "subs", "vostfr") are emitted as private
+ *       {@code subtitle_language.prefix} markers; {@link #renameStandaloneAffixes}
+ *       finds the adjacent {@code language} match (in either direction, with
+ *       group-marker awareness) and renames it to {@code subtitle_language}.</li>
+ *   <li>Other post-passes drop common-word false positives, drop
+ *       {@code Undetermined} when a real language is also present, rename
+ *       languages that sit immediately before a subtitle extension, and
+ *       remove a release-group match that has been shadowed by a subtitle
+ *       language found inside it.</li>
+ * </ol>
+ *
+ * <p>Filtering by {@code allowed_languages} happens at extract time so that
+ * configuring a smaller language set genuinely shrinks the candidate space
+ * (and thus the conflict graph).
+ */
 public final class LanguageExtractor implements Extractor {
-    @Override public String name() { return "language"; }
-    @Override public int priority() { return 1000; }
+
+    public static final String SUBTITLE_LANGUAGE = "subtitle_language";
+    public static final String LANGUAGE = "language";
+
+    @Override public String name() { return LANGUAGE; }
 
     private static final String UND_NAME = "Undetermined";
     private static final String MUL_NAME = "Multiple languages";
@@ -26,7 +49,7 @@ public final class LanguageExtractor implements Extractor {
         var registry = LanguageRegistry.instance();
         var input = ctx.input;
 
-        var section = ctx.config.section("language");
+        var section = ctx.config.section(LANGUAGE);
         var subtitleAffixes = stringList(section.get("subtitle_affixes"));
         var subtitlePrefixes = combine(subtitleAffixes, stringList(section.get("subtitle_prefixes")));
         var subtitleSuffixes = combine(subtitleAffixes, stringList(section.get("subtitle_suffixes")));
@@ -35,31 +58,32 @@ public final class LanguageExtractor implements Extractor {
         var languageSuffixes = combine(languageAffixes, stringList(section.get("language_suffixes")));
 
         var words = Words.iter(input);
-        for (int wi = 0; wi < words.size(); wi++) {
-            var word = words.get(wi);
+        for (Words.Word word : words) {
             var lower = word.value().toLowerCase(Locale.ROOT);
             if (lower.chars().allMatch(Character::isDigit)) continue;
 
             // 1. Standalone-word affix → emit a private prefix marker; rename happens in postprocess.
             if (matchesAny(lower, subtitlePrefixes) || matchesAny(lower, subtitleSuffixes)) {
                 ctx.matches.add(new Match(MARKER_PREFIX, word.value(),
-                    word.start(), word.end(), word.value(), 1000, Set.of(), true));
+                        word.start(), word.end(), word.value(), 1000, Set.of(), true));
                 continue;
             }
 
             // 2. Direct match on the whole word.
             var lang = registry.find(lower).orElse(null);
             if (lang != null && isAllowed(lang, allowed)) {
-                ctx.matches.add(new Match("language", lang, word.start(), word.end(),
-                    word.value(), 1000, Set.of(), false));
+                ctx.matches.add(new Match(LANGUAGE, lang, word.start(), word.end(),
+                        word.value(), 1000, Set.of(), false));
                 continue;
             }
 
             // 3. In-word prefix / suffix strip → emit at the whole-word span (raw includes affix).
-            if (tryStripAffix(ctx, word, lower, subtitlePrefixes, true, allowed, registry, "subtitle_language")) continue;
-            if (tryStripAffix(ctx, word, lower, languagePrefixes, true, allowed, registry, "language")) continue;
-            if (tryStripAffix(ctx, word, lower, subtitleSuffixes, false, allowed, registry, "subtitle_language")) continue;
-            if (tryStripAffix(ctx, word, lower, languageSuffixes, false, allowed, registry, "language")) continue;
+            if (tryStripAffix(ctx, word, lower, subtitlePrefixes, true, allowed, registry, SUBTITLE_LANGUAGE))
+                continue;
+            if (tryStripAffix(ctx, word, lower, languagePrefixes, true, allowed, registry, LANGUAGE)) continue;
+            if (tryStripAffix(ctx, word, lower, subtitleSuffixes, false, allowed, registry, SUBTITLE_LANGUAGE))
+                continue;
+            tryStripAffix(ctx, word, lower, languageSuffixes, false, allowed, registry, LANGUAGE);
         }
     }
 
@@ -99,15 +123,13 @@ public final class LanguageExtractor implements Extractor {
     }
 
     private static boolean isAllowed(Language lang, List<String> allowed) {
-        var lc = new HashSet<String>(allowed.size());
+        var lc = HashSet.newHashSet(allowed.size());
         for (var s : allowed) lc.add(s.toLowerCase(Locale.ROOT));
         if (lang.alpha2() != null && lc.contains(lang.alpha2().toLowerCase(Locale.ROOT))) return true;
         if (lang.alpha3() != null && lc.contains(lang.alpha3().toLowerCase(Locale.ROOT))) return true;
-        if (lang.name() != null && lc.contains(lang.name().toLowerCase(Locale.ROOT))) return true;
-        return false;
+        return lang.name() != null && lc.contains(lang.name().toLowerCase(Locale.ROOT));
     }
 
-    @SuppressWarnings("unchecked")
     private static List<String> stringList(Object o) {
         if (o instanceof List<?> l) {
             var out = new ArrayList<String>(l.size());
@@ -138,7 +160,7 @@ public final class LanguageExtractor implements Extractor {
     private void cleanupReleaseGroups(ParseContext ctx) {
         var groups = ctx.matches.named("release_group").toList();
         for (var g : groups) {
-            var langs = ctx.matches.named("subtitle_language")
+            var langs = ctx.matches.named(SUBTITLE_LANGUAGE)
                 .filter(m -> m.start() >= g.start() && m.end() <= g.end())
                 .toList();
             if (!langs.isEmpty()) {
@@ -156,7 +178,7 @@ public final class LanguageExtractor implements Extractor {
         var lc = new HashSet<String>();
         for (var s : l) lc.add(s.toString().toLowerCase(Locale.ROOT));
         var toRemove = new ArrayList<Match>();
-        for (var name : List.of("language", "subtitle_language")) {
+        for (var name : List.of(LANGUAGE, SUBTITLE_LANGUAGE)) {
             for (var match : ctx.matches.named(name).toList()) {
                 if (lc.contains(match.raw().toLowerCase(Locale.ROOT))) toRemove.add(match);
             }
@@ -179,9 +201,12 @@ public final class LanguageExtractor implements Extractor {
     private static boolean renameAdjacentLanguagesAfter(ParseContext ctx, Match marker) {
         // Find languages immediately after the marker.
         var input = ctx.input;
-        var langs = ctx.matches.named("language").toList();
+        var langs = ctx.matches.named(LANGUAGE).toList();
 
-        // Group-aware: if the next group starts adjacent to the marker, rename ALL languages in it.
+        // Group-aware: when the marker abuts a bracketed group, the releaser
+        // intended every language inside that group to be a subtitle language
+        // (e.g. "VOSTFR [EN.FR.DE]"), so promote them all rather than just the
+        // first one.
         Marker nextGroup = null;
         for (var g : ctx.markers) {
             if (!"group".equals(g.name())) continue;
@@ -201,7 +226,7 @@ public final class LanguageExtractor implements Extractor {
 
         var next = langs.stream()
             .filter(l -> l.start() >= marker.end())
-            .min((a, b) -> Integer.compare(a.start(), b.start()))
+            .min(Comparator.comparingInt(Match::start))
             .orElse(null);
         if (next == null) return false;
         if (!betweenIsSeps(input, marker.end(), next.start())) return false;
@@ -211,9 +236,9 @@ public final class LanguageExtractor implements Extractor {
 
     private static boolean renameAdjacentLanguagesBefore(ParseContext ctx, Match marker) {
         var input = ctx.input;
-        var prev = ctx.matches.named("language")
+        var prev = ctx.matches.named(LANGUAGE)
             .filter(l -> l.end() <= marker.start())
-            .max((a, b) -> Integer.compare(a.end(), b.end()))
+            .max(Comparator.comparingInt(Match::end))
             .orElse(null);
         if (prev == null) return false;
         if (!betweenIsSeps(input, prev.end(), marker.start())) return false;
@@ -222,7 +247,7 @@ public final class LanguageExtractor implements Extractor {
     }
 
     private static void renameToSubtitle(ParseContext ctx, Match lang) {
-        ctx.matches.replace(lang, new Match("subtitle_language", lang.value(),
+        ctx.matches.replace(lang, new Match(SUBTITLE_LANGUAGE, lang.value(),
             lang.start(), lang.end(), lang.raw(), lang.priority() + 1, lang.tags(), false));
     }
 
@@ -232,16 +257,16 @@ public final class LanguageExtractor implements Extractor {
             .findFirst()
             .orElse(null);
         if (subtitleExt == null) return;
-        var lang = ctx.matches.named("language")
+        var lang = ctx.matches.named(LANGUAGE)
             .filter(l -> l.end() <= subtitleExt.start())
-            .max((a, b) -> Integer.compare(a.end(), b.end()))
+            .max(Comparator.comparingInt(Match::end))
             .orElse(null);
         if (lang == null) return;
         renameToSubtitle(ctx, lang);
     }
 
     private void dropUndeterminedWhenRealLangPresent(ParseContext ctx) {
-        for (var prop : List.of("language", "subtitle_language")) {
+        for (var prop : List.of(LANGUAGE, SUBTITLE_LANGUAGE)) {
             var matches = ctx.matches.named(prop).toList();
             boolean hasReal = matches.stream().anyMatch(m -> m.value() instanceof Language l
                 && !UND_NAME.equals(l.name()) && !MUL_NAME.equals(l.name()));

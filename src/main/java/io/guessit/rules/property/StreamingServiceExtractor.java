@@ -2,20 +2,32 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code streaming_service} (NF, AMZN, HULU, …).
+ *
+ * <p>Pattern catalogue is loaded from the {@code streaming_service} config
+ * section, using the same flexible string/list/map shape as
+ * {@link AudioCodecExtractor}.
+ *
+ * <p>Streaming-service tokens are short (often 2-4 letters) and would
+ * generate huge numbers of false positives if accepted alone. {@link #postProcess}
+ * keeps a candidate only if a {@code source} match (BluRay, WEB-DL, …) abuts
+ * it within one character — releasers spell these adjacent ({@code "AMZN.WEB-DL"}),
+ * and the source neighbour is what disambiguates the service token from a
+ * coincidental short word.
+ */
 public final class StreamingServiceExtractor implements Extractor {
-    @Override public String name() { return "streaming_service"; }
-    @Override public int priority() { return 1000; }
+
+    public static final String STREAMING_SERVICE = "streaming_service";
+
+    @Override public String name() { return STREAMING_SERVICE; }
 
     @Override
     public void extract(ParseContext ctx) {
-        var section = ctx.config.section("streaming_service");
+        var section = ctx.config.section(STREAMING_SERVICE);
         if (section.isEmpty()) return;
 
         var input = ctx.input;
@@ -25,10 +37,9 @@ public final class StreamingServiceExtractor implements Extractor {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static List<Object> flatten(Object v) {
         if (v == null) return List.of();
-        if (v instanceof List<?> l) return List.copyOf((List<Object>) l);
+        if (v instanceof List<?> l) return List.copyOf(l);
         return List.of(v);
     }
 
@@ -55,7 +66,7 @@ public final class StreamingServiceExtractor implements Extractor {
             int i = hay.indexOf(n, from);
             if (i < 0) break;
             int e = i + n.length();
-            var m = new Match("streaming_service", value, i, e, input.substring(i, e),
+            var m = new Match(STREAMING_SERVICE, value, i, e, input.substring(i, e),
                 1000, Set.of("source-prefix"), false);
             if (validator.test(m)) ctx.matches.add(m);
             from = i + 1;
@@ -65,13 +76,13 @@ public final class StreamingServiceExtractor implements Extractor {
     private static void emitRegex(ParseContext ctx, String input, String value, String src) {
         Pattern p;
         try { p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE); }
-        catch (Exception ex) { return; }
+        catch (Exception _) { return; }
         var validator = Validators.sepsSurround(input);
         var matcher = p.matcher(input);
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var m = new Match("streaming_service", value, s, e, input.substring(s, e),
+            var m = new Match(STREAMING_SERVICE, value, s, e, input.substring(s, e),
                 1000, Set.of("source-prefix"), false);
             if (validator.test(m)) ctx.matches.add(m);
         }
@@ -80,7 +91,7 @@ public final class StreamingServiceExtractor implements Extractor {
     /** Replicates Python ValidateStreamingService — service must abut a source-tagged neighbor. */
     @Override
     public void postProcess(ParseContext ctx) {
-        var services = ctx.matches.named("streaming_service").toList();
+        var services = ctx.matches.named(STREAMING_SERVICE).toList();
         if (services.isEmpty()) return;
         var toRemove = new ArrayList<Match>();
         for (var s : services) {

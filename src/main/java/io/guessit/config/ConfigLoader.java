@@ -9,16 +9,13 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public final class ConfigLoader {
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private ConfigLoader() {}
+    private ConfigLoader() {
+    }
 
     public static OptionsConfig load(Options options) {
         Map<String, Object> merged = new LinkedHashMap<>();
@@ -71,8 +68,9 @@ public final class ConfigLoader {
                     return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
                 }
                 var content = Files.readString(p, StandardCharsets.UTF_8);
-                try { return JSON.readValue(content, Map.class); }
-                catch (IOException ignored) {
+                try {
+                    return JSON.readValue(content, Map.class);
+                } catch (IOException ignored) {
                     Object v = new Yaml().load(content);
                     return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
                 }
@@ -87,8 +85,8 @@ public final class ConfigLoader {
         var xdg = System.getenv("XDG_CONFIG_HOME");
         var home = System.getProperty("user.home");
         Path xdgBase = xdg != null && !xdg.isBlank()
-            ? Path.of(xdg)
-            : Path.of(home, ".config");
+                ? Path.of(xdg)
+                : Path.of(home, ".config");
         for (var ext : List.of(".json", ".yml", ".yaml")) {
             paths.add(xdgBase.resolve("guessit").resolve("options" + ext));
         }

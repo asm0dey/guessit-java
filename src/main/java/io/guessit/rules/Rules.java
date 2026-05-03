@@ -11,9 +11,24 @@ import io.guessit.rules.property.*;
 
 import java.util.List;
 
+/**
+ * Composition layer: wires {@link io.guessit.engine.Phase}s and
+ * {@link Extractor}s into a working parser.
+ *
+ * <p>The order in {@link #allInOrder()} is part of the contract — extractors
+ * routinely depend on tags or matches added by earlier ones (e.g.
+ * {@code AbsoluteEpisodeRule} reads the {@code "SxxExx"} tag set by
+ * {@code SeasonEpisodeExtractor}). A flat ordered list keeps that dependency
+ * visible at the call site instead of hidden in metadata.
+ */
 public final class Rules {
     private Rules() {}
 
+    /**
+     * The default six-phase pipeline used by {@code Guessit.parse}. Both
+     * {@link ExtractorPhase} and {@link ExtractorPostPhase} are fed from the
+     * same {@link #allInOrder()} list, so registration order is single-sourced.
+     */
     public static List<Phase> defaultPipeline() {
         var extractors = allInOrder();
         return List.of(
@@ -30,6 +45,14 @@ public final class Rules {
         );
     }
 
+    /**
+     * Canonical extractor registration order. Strong, unambiguous extractors
+     * run first so their matches are present when later, weaker ones make
+     * scoping decisions; weak fallback rules ({@code WeakEpisode},
+     * {@code WeakDuplicate}) run after the strong episode rules so they yield
+     * to anything more specific. {@code ReleaseGroup} runs last because it
+     * needs every other extractor's matches to identify the trailing group.
+     */
     public static List<Extractor> allInOrder() {
         return List.of(
             new YearExtractor(),

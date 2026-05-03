@@ -4,7 +4,8 @@ import io.guessit.Guessit;
 import io.guessit.Options;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class WeakDuplicateExtractorTest {
     @Test void weakSeasonEpisodeFromFourDigits() {

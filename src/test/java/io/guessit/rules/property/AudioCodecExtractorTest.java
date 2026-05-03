@@ -6,7 +6,8 @@ import io.guessit.engine.ConflictSolver;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AudioCodecExtractorTest {
     private static ParseContext run(String input) {

@@ -5,12 +5,13 @@ import java.util.List;
 import java.util.Map;
 
 public record OptionsConfig(Map<String, Object> raw) {
-    public OptionsConfig { raw = raw == null ? Map.of() : Map.copyOf(raw); }
+    public OptionsConfig { raw = raw == null ? Map.of() : Collections.unmodifiableMap(raw); }
     public static OptionsConfig empty() { return new OptionsConfig(Map.of()); }
 
     /** Returns the inner advanced_config map for property lookups, or empty. */
     private Map<String, Object> advancedConfig() {
         var ac = raw.get("advanced_config");
+        //noinspection unchecked
         return ac instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
     }
 

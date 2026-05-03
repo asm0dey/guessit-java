@@ -7,10 +7,38 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts weak {@code episode} candidates from bare numerics. Priority 800
+ * means anything stronger wins overlap.
+ *
+ * <p>Three numeric shapes are scanned: 2-digit, 3-or-4-digit, and (only when
+ * the input is hinted as an {@code episode}) single-digit. Single digits are
+ * gated because they overlap heavily with chapter numbers, version suffixes,
+ * and movie sequel numbers.
+ *
+ * <p>Weak matches that overlap an existing {@code SxxExx} episode are
+ * skipped at extract time — the conflict solver would drop the wrong one
+ * because the weak match's wider span would beat the canonical episode's
+ * shorter span.
+ *
+ * <p>Post-pass enforces three additional removals:
+ * <ul>
+ *   <li>If a {@code year} match exists and the input isn't episode-typed,
+ *       drop every weak episode (movie context).</li>
+ *   <li>If the input is movie-typed, drop every weak episode unconditionally.</li>
+ *   <li>Drop weak episodes that follow an audio_codec/source/screen_size
+ *       within a few separator characters — releasers don't put episode
+ *       numbers there; the digits are part of a codec or resolution token.</li>
+ *   <li>If a strong {@code SxxExx} episode survived, drop every weak episode
+ *       that isn't at position 0 of its filepart (those leading weaks become
+ *       absolute episodes via {@link AbsoluteEpisodeRule}).</li>
+ * </ul>
+ */
 public final class WeakEpisodeExtractor implements Extractor {
     private static final Pattern TWO_DIGIT = Pattern.compile("(?<!\\d)(\\d{2})(?!\\d)");
     private static final Pattern THREE_OR_FOUR = Pattern.compile("(?<!\\d)(\\d{3,4})(?!\\d)");
     private static final Pattern SINGLE = Pattern.compile("(?<!\\d)(\\d)(?!\\d)");
+    public static final String EPISODE = "episode";
 
     @Override public String name() { return "weak_episode"; }
     @Override public int priority() { return 800; }
@@ -22,41 +50,48 @@ public final class WeakEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
 
         // Pre-compute SxxExx episodes; skip weak matches that overlap them.
-        var protectedEpisodes = ctx.matches.named("episode")
+        var protectedEpisodes = ctx.matches.named(EPISODE)
             .filter(m -> m.tags().contains("SxxExx"))
             .toList();
 
         emit(ctx, input, TWO_DIGIT, seps, protectedEpisodes);
         emit(ctx, input, THREE_OR_FOUR, seps, protectedEpisodes);
-        if ("episode".equals(ctx.options.type())) {
+        if (EPISODE.equals(ctx.options.type())) {
             emit(ctx, input, SINGLE, seps, protectedEpisodes);
         }
     }
 
     private void emit(ParseContext ctx, String input, Pattern p, java.util.function.Predicate<Match> seps,
-                      java.util.List<Match> protectedEpisodes) {
+                      List<Match> protectedEpisodes) {
         var m = p.matcher(input);
-        outer:
         while (m.find()) {
             int ms = m.start(1);
             int me = m.end(1);
             // Skip weak matches that overlap any SxxExx episode — they would steal
             // the shorter SxxExx span's priority in conflict resolution.
-            for (var pe : protectedEpisodes) {
-                if (ms < pe.end() && me > pe.start()) continue outer;
-            }
-            var head = new Match("episode", null, ms, me, m.group(1), 800, Set.of("weak-episode"), false);
+            if (overlapsAnyProtected(ms, me, protectedEpisodes)) continue;
+
+            var head = new Match(EPISODE, null, ms, me, m.group(1), 800, Set.of("weak-episode"), false);
             if (!seps.test(head)) continue;
             int v = Integer.parseInt(m.group(1));
-            ctx.matches.add(new Match("episode", v, ms, me,
-                m.group(1), 800, Set.of("weak-episode"), false));
+            ctx.matches.add(new Match(EPISODE, v, ms, me,
+                    m.group(1), 800, Set.of("weak-episode"), false));
         }
+    }
+
+    private boolean overlapsAnyProtected(int start, int end, List<Match> protectedEpisodes) {
+        for (var pe : protectedEpisodes) {
+            if (start < pe.end() && end > pe.start()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Replicates RemoveWeakIfMovie + RemoveWeak (drop weak-episode after audio/video/source). */
     @Override
     public void postProcess(ParseContext ctx) {
-        if (ctx.matches.named("year").findAny().isPresent() && !"episode".equals(ctx.options.type())) {
+        if (ctx.matches.named("year").findAny().isPresent() && !EPISODE.equals(ctx.options.type())) {
             removeAllWeak(ctx);
             return;
         }
@@ -69,7 +104,7 @@ public final class WeakEpisodeExtractor implements Extractor {
         var blockingNames = Set.of("audio_codec", "screen_size", "streaming_service",
             "source", "video_profile", "audio_channels", "audio_profile");
         var blocking = ctx.matches.all().filter(m -> blockingNames.contains(m.name())).toList();
-        var weaks = ctx.matches.named("episode").filter(m -> m.tags().contains("weak-episode")).toList();
+        var weaks = ctx.matches.named(EPISODE).filter(m -> m.tags().contains("weak-episode")).toList();
         var toRemove = new ArrayList<Match>();
         for (var weak : weaks) {
             for (var b : blocking) {
@@ -83,7 +118,7 @@ public final class WeakEpisodeExtractor implements Extractor {
             }
         }
         // Drop weaks if a SxxExx-tagged episode exists in the same filepart (RemoveWeakIfSxxExx).
-        boolean strongPresent = ctx.matches.named("episode").anyMatch(m -> m.tags().contains("SxxExx"));
+        boolean strongPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx"));
         if (strongPresent) {
             for (var weak : weaks) {
                 if (weak.start() != 0) toRemove.add(weak);
@@ -93,7 +128,7 @@ public final class WeakEpisodeExtractor implements Extractor {
     }
 
     private static void removeAllWeak(ParseContext ctx) {
-        var weaks = ctx.matches.named("episode").filter(m -> m.tags().contains("weak-episode")).toList();
+        var weaks = ctx.matches.named(EPISODE).filter(m -> m.tags().contains("weak-episode")).toList();
         for (var m : weaks) ctx.matches.remove(m);
     }
 }

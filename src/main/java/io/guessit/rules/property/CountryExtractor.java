@@ -1,25 +1,32 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.*;
+import io.guessit.engine.Extractor;
+import io.guessit.engine.Match;
+import io.guessit.engine.ParseContext;
+import io.guessit.engine.Words;
 import io.guessit.lang.Country;
 import io.guessit.lang.LanguageRegistry;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
+/**
+ * Extracts {@code country} via {@link LanguageRegistry}'s country lookup.
+ *
+ * <p>Filtered against {@code allowed_countries} at extract time. The
+ * post-pass resolves the common ambiguity where a token (e.g. "US", "JP")
+ * matches both a country code and a language: keep the language unless the
+ * country is US or GB, where the country reading is overwhelmingly the
+ * intended one in release names.
+ */
 public final class CountryExtractor implements Extractor {
     @Override public String name() { return "country"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {
         var allowed = allowedCountries(ctx);
         if (allowed.isEmpty()) return;
 
-        var allowedLc = new HashSet<String>(allowed.size());
+        var allowedLc = HashSet.newHashSet(allowed.size());
         for (var s : allowed) allowedLc.add(s.toLowerCase(Locale.ROOT));
 
         var registry = LanguageRegistry.instance();

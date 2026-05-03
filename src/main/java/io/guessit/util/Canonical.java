@@ -55,25 +55,31 @@ public final class Canonical {
     }
 
     private static String rawKey(Object o) {
-        if (o == null) return "null";
-        if (o instanceof LocalDate ld) {
-            return ld.format(DateTimeFormatter.ISO_LOCAL_DATE);
-        }
-        if (o instanceof java.util.Date d) {
-            return d.toInstant().atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_LOCAL_DATE);
-        }
-        if (o instanceof String s) {
-            var lower = s.toLowerCase(Locale.ROOT);
-            // Prefer country resolution for 2-letter codes that overlap with obscure language
-            // alpha-3 codes (e.g. "au" is country Australia, not language Awadhi).
-            if (lower.length() == 2) {
+        switch (o) {
+            case null -> {
+                return "null";
+            }
+            case LocalDate ld -> {
+                return ld.format(DateTimeFormatter.ISO_LOCAL_DATE);
+            }
+            case java.util.Date d -> {
+                return d.toInstant().atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ISO_LOCAL_DATE);
+            }
+            case String s -> {
+                var lower = s.toLowerCase(Locale.ROOT);
+                // Prefer country resolution for 2-letter codes that overlap with obscure language
+                // alpha-3 codes (e.g. "au" is country Australia, not language Awadhi).
+                if (lower.length() == 2) {
+                    var country = LanguageRegistry.instance().findCountry(lower).orElse(null);
+                    if (country != null) return country.toString();
+                }
+                var lang = LanguageRegistry.instance().find(lower).orElse(null);
+                if (lang != null) return lang.toString();
                 var country = LanguageRegistry.instance().findCountry(lower).orElse(null);
                 if (country != null) return country.toString();
             }
-            var lang = LanguageRegistry.instance().find(lower).orElse(null);
-            if (lang != null) return lang.toString();
-            var country = LanguageRegistry.instance().findCountry(lower).orElse(null);
-            if (country != null) return country.toString();
+            default -> {
+            }
         }
         return o.toString();
     }

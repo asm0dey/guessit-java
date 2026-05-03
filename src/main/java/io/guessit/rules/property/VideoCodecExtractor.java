@@ -2,13 +2,28 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.*;
+import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * Extracts {@code video_codec} (H.264, H.265, MPEG-2, …) and the related
+ * {@code video_profile}, {@code video_api}, and {@code color_depth} properties.
+ *
+ * <p>Codec aliases are listed as a small table of {regex, canonical name}
+ * pairs. {@link Abbreviations#dash} expands the literal {@code -} in each
+ * source so {@code "x264"}, {@code "x.264"}, and {@code "x-264"} all match
+ * the same pattern.
+ *
+ * <p>The {@code hevc10} compound is special-cased: it must produce
+ * <em>both</em> a {@code video_codec=H.265} match and a
+ * {@code color_depth=10-bit} match on adjacent sub-spans, otherwise the
+ * conflict solver would drop one for overlapping the other.
+ */
 public final class VideoCodecExtractor implements Extractor {
 
+    public static final String VIDEO_PROFILE = "video_profile";
+
     @Override public String name() { return "video_codec"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -49,13 +64,13 @@ public final class VideoCodecExtractor implements Extractor {
         }
 
         // video_profile (validated, validators enforce seps_surround)
-        addStr(ctx, "video_profile", "Baseline",                            Set.of("BP"),  v);
-        addStr(ctx, "video_profile", "Extended",                            Set.of("XP","EP"), v);
-        addStr(ctx, "video_profile", "Main",                                Set.of("MP"),  v);
-        addStr(ctx, "video_profile", "High",                                Set.of("HP","HiP"), v);
-        addStr(ctx, "video_profile", "Scalable Video Coding",               Set.of("SC","SVC"), v);
+        addStr(ctx, VIDEO_PROFILE, "Baseline",                            Set.of("BP"),  v);
+        addStr(ctx, VIDEO_PROFILE, "Extended",                            Set.of("XP","EP"), v);
+        addStr(ctx, VIDEO_PROFILE, "Main",                                Set.of("MP"),  v);
+        addStr(ctx, VIDEO_PROFILE, "High",                                Set.of("HP","HiP"), v);
+        addStr(ctx, VIDEO_PROFILE, "Scalable Video Coding",               Set.of("SC","SVC"), v);
         addRegexProfile(ctx, "AVC(?:HD)?",                                  "Advanced Video Codec High Definition", v);
-        addStr(ctx, "video_profile", "High Efficiency Video Coding",        Set.of("HEVC"), v);
+        addStr(ctx, VIDEO_PROFILE, "High Efficiency Video Coding",        Set.of("HEVC"), v);
         addRegexProfile(ctx, "Hi422P",                                      "High 4:2:2", v);
         addRegexProfile(ctx, "Hi444PP",                                     "High 4:4:4 Predictive", v);
         addRegexProfile(ctx, "Hi10P?",                                      "High 10", v);
@@ -79,15 +94,15 @@ public final class VideoCodecExtractor implements Extractor {
 
     private void addCodec(ParseContext ctx, String src, String value, java.util.function.Predicate<Match> v) {
         var p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE);
-        var opts = RegexOpts.defaults().withValidator(v).withValue(s -> value);
+        var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
         for (var m : PatternMatcher.regex(ctx.input, p, "video_codec", opts)) ctx.matches.add(m);
     }
     private void addRegexProfile(ParseContext ctx, String src, String value, java.util.function.Predicate<Match> v) {
-        addRegexNamed(ctx, "video_profile", src, value, v);
+        addRegexNamed(ctx, VIDEO_PROFILE, src, value, v);
     }
     private void addRegexNamed(ParseContext ctx, String name, String src, String value, java.util.function.Predicate<Match> v) {
         var p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE);
-        var opts = RegexOpts.defaults().withValidator(v).withValue(s -> value);
+        var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
         for (var m : PatternMatcher.regex(ctx.input, p, name, opts)) ctx.matches.add(m);
     }
     private void addStr(ParseContext ctx, String name, String value, Set<String> needles,

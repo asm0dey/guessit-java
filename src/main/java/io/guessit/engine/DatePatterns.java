@@ -6,24 +6,36 @@ import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-/** Port of guessit/rules/common/date.py. */
+/**
+ * Port of guessit/rules/common/date.py — date detection and parsing.
+ *
+ * <p>{@link #search} scans the input with a battery of regexes covering the
+ * usual filename-date shapes (YYYYMMDD, YY-MM-DD, DD-MM-YYYY, "5 Sep 2020",
+ * etc.) and resolves the ambiguous numeric forms via dateutil-style
+ * day/year-first heuristics implemented in {@link #guessDayFirst} and
+ * {@link #tryParseNumeric}.
+ *
+ * <p>Each regex captures the date span in group 1 and the individual numeric
+ * components in groups 2..N. Trailing optional ordinal suffixes ("st", "nd",
+ * "rd", "th") on the day part are accepted but stripped before parsing.
+ */
 public final class DatePatterns {
     private DatePatterns() {}
 
     public record Result(int start, int end, LocalDate date) {}
 
-    private static final String DSEP = "[-/ \\.]";
-    private static final String DSEP_BIS = "[-/ \\.x]";
+    private static final String DSEP = "[-/ .]";
+    private static final String DSEP_BIS = "[-/ .x]";
 
     /** Each regex captures group 1 = the date span. */
     public static final List<Pattern> REGEXPS = List.of(
-        Pattern.compile(DSEP + "((\\d{8}))" + DSEP, Pattern.CASE_INSENSITIVE),
-        Pattern.compile(DSEP + "((\\d{6}))" + DSEP, Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|[^\\d])((\\d{2})" + DSEP + "(\\d{1,2})" + DSEP + "(\\d{1,2}))(?:$|[^\\d])", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|[^\\d])((\\d{1,2})" + DSEP + "(\\d{1,2})" + DSEP + "(\\d{2}))(?:$|[^\\d])", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|[^\\d])((\\d{4})" + DSEP_BIS + "(\\d{1,2})" + DSEP + "(\\d{1,2}))(?:$|[^\\d])", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|[^\\d])((\\d{1,2})" + DSEP + "(\\d{1,2})" + DSEP_BIS + "(\\d{4}))(?:$|[^\\d])", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|[^\\d])((\\d{1,2}(?:st|nd|rd|th)?" + DSEP + "(?:[a-z]{3,10})" + DSEP + "\\d{4}))(?:$|[^\\d])", Pattern.CASE_INSENSITIVE)
+        Pattern.compile("[-/ .](\\d{8})[-/ .]", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("[-/ .](\\d{6})[-/ .]", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)((\\d{2})" + DSEP + "(\\d{1,2})" + DSEP + "(\\d{1,2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)((\\d{1,2})" + DSEP + "(\\d{1,2})" + DSEP + "(\\d{2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)((\\d{4})" + DSEP_BIS + "(\\d{1,2})" + DSEP + "(\\d{1,2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)((\\d{1,2})" + DSEP + "(\\d{1,2})" + DSEP_BIS + "(\\d{4}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)(\\d{1,2}(?:st|nd|rd|th)?[-/ .][a-z]{3,10}[-/ .]\\d{4})(?:$|\\D)", Pattern.CASE_INSENSITIVE)
     );
 
     public static boolean validYear(int year) { return 1920 <= year && year < 2030; }
@@ -63,6 +75,23 @@ public final class DatePatterns {
         return before && after;
     }
 
+    /**
+     * Heuristically resolves day-first vs. month-first when neither is forced.
+     *
+     * <p>Order of evidence:
+     * <ol>
+     *   <li>If the first component looks like a 4-digit year → year-first
+     *       (so the second component is the month, not the day).</li>
+     *   <li>If the last component looks like a 4-digit year → day-first is
+     *       likely (matches European DD-MM-YYYY convention).</li>
+     *   <li>If the first component {@code > 31} → it can't be a day, so
+     *       it must be the year (year-first).</li>
+     *   <li>If the last component {@code > 31} → it must be the year, and
+     *       the first component is most often a day (day-first).</li>
+     * </ol>
+     * Returns {@code null} when none of the heuristics fires; callers then
+     * fall back to dateutil's combinatorial try-everything approach.
+     */
     private static Boolean guessDayFirst(String[] parts) {
         if (parts.length == 0) return null;
         var first = parts[0];
@@ -93,21 +122,21 @@ public final class DatePatterns {
     private static Optional<LocalDate> tryParse(String raw, Boolean yearFirst, Boolean dayFirst) {
         if (raw.matches("\\d{8}")) {
             try { return Optional.of(LocalDate.parse(raw, DateTimeFormatter.BASIC_ISO_DATE)); }
-            catch (Exception ignore) {}
+            catch (Exception _) {}
         }
         if (raw.matches("\\d{6}")) {
             int y = 2000 + Integer.parseInt(raw.substring(0, 2));
             int mo = Integer.parseInt(raw.substring(2, 4));
             int d = Integer.parseInt(raw.substring(4, 6));
-            try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception ignore) {}
+            try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception _) {}
         }
-        var monthPattern = Pattern.compile("^(\\d{1,2})(?:st|nd|rd|th)?-([A-Za-z]{3,10})-(\\d{4})$", Pattern.CASE_INSENSITIVE);
+        var monthPattern = Pattern.compile("^(\\d{1,2})(?:st|nd|rd|th)?-([A-Z]{3,10})-(\\d{4})$", Pattern.CASE_INSENSITIVE);
         var mm = monthPattern.matcher(raw);
         if (mm.matches()) {
             int d = Integer.parseInt(mm.group(1));
             int mo = monthIndex(mm.group(2));
             int y = Integer.parseInt(mm.group(3));
-            if (mo > 0) try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception ignore) {}
+            if (mo > 0) try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception _) {}
         }
         var numPattern = Pattern.compile("^(\\d{1,4})-(\\d{1,2})-(\\d{1,4})$");
         var nm = numPattern.matcher(raw);
@@ -135,19 +164,12 @@ public final class DatePatterns {
     private static Optional<LocalDate> tryParseNumeric(int a, int b, int c, Boolean yearFirst, Boolean dayFirst) {
         if (Boolean.TRUE.equals(yearFirst)) {
             int y = a >= 100 ? a : 2000 + a;
-            try { return Optional.of(LocalDate.of(y, b, c)); } catch (Exception ignore) {}
+            try { return Optional.of(LocalDate.of(y, b, c)); } catch (Exception _) {}
         }
-        if (c >= 100) {
-            int y = c;
-            if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
-            try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception ignore) {}
-            if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
-        } else {
-            int y = 2000 + c;
-            if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
-            try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception ignore) {}
-            if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception ignore) {}
-        }
+        int y = c >= 100 ? c : 2000 + c;
+        if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception _) {}
+        try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception _) {}
+        if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception _) {}
         return Optional.empty();
     }
 
