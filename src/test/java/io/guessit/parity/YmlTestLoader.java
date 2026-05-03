@@ -147,12 +147,14 @@ public final class YmlTestLoader {
         var o = expected.get("options");
         if (o == null) return Options.defaults();
         var acc = new OptionsAccum();
-        if (o instanceof String s) {
-            applyArgString(acc, s);
-        } else if (o instanceof Map<?, ?> m) {
-            m.forEach((k, v) -> applyKv(acc, k.toString(), v));
-        } else if (o instanceof List<?> l) {
-            for (var item : l) applyArgString(acc, item.toString());
+        switch (o) {
+            case String s -> applyArgString(acc, s);
+            case Map<?, ?> m -> m.forEach((k, v) -> applyKv(acc, k.toString(), v));
+            case List<?> l -> {
+                for (var item : l) applyArgString(acc, item.toString());
+            }
+            default -> {
+            }
         }
         return acc.build();
     }

@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AbbreviationsTest {
     @Test void dashExpandsToSepClass() {
+        // Python rebulk's dash abbreviation maps `-` to a single separator char (not zero-or-more),
+        // so "H-264" requires at least one separator between H and 264 — "H264" alone does not match.
         var src = Abbreviations.dash("H-264");
         var p = Pattern.compile(src, Pattern.CASE_INSENSITIVE);
-        assertTrue(p.matcher("H264").find());
+        assertFalse(p.matcher("H264").find());
         assertTrue(p.matcher("H-264").find());
         assertTrue(p.matcher("H.264").find());
         assertTrue(p.matcher("H_264").find());
