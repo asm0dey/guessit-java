@@ -96,6 +96,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
             int end = ext != null ? ext.start() : filepart.end();
+            end = trimNotARgTail(ctx, filepart, end);
             int dash = input.lastIndexOf('-', end - 1);
             if (dash > filepart.start() && dash < end - 1) {
                 int s = dash + 1;
@@ -160,7 +161,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             var ext = ctx.matches.named("container")
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
-            int rangeEnd = ext != null ? ext.start() : filepart.end();
+            final int rangeEnd = trimNotARgTail(ctx, filepart, ext != null ? ext.start() : filepart.end());
 
             var prev = ctx.matches.all()
                 .filter(m -> SCENE_PREV.contains(m.name()))
@@ -227,6 +228,35 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     /**
+     * Walks back over trailing {@code other} matches tagged
+     * {@code not-a-release-group} (Sample, Proof, Obfuscated, Repost suffixes)
+     * so they don't block release-group detection. Mirrors Python guessit's
+     * predicate filter in {@code release_group.detect}.
+     */
+    private static int trimNotARgTail(ParseContext ctx, Marker filepart, int rangeEnd) {
+        var input = ctx.input;
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            while (rangeEnd > filepart.start() && isGroupSep(input.charAt(rangeEnd - 1))) {
+                rangeEnd--;
+                changed = true;
+            }
+            final int fe = rangeEnd;
+            var notRg = ctx.matches.named(OtherExtractor.OTHER)
+                .filter(m -> m.tags().contains("not-a-release-group"))
+                .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
+                .filter(m -> m.end() == fe)
+                .findFirst().orElse(null);
+            if (notRg != null) {
+                rangeEnd = notRg.start();
+                changed = true;
+            }
+        }
+        return rangeEnd;
+    }
+
+    /**
      * Drop {@code other="HD"} matches fully contained in {@code [s, e]} so a trailing
      * "...HD" suffix on a scene group ("CtrlHD", "HDClub") doesn't block group detection.
      * "HD" alone has no seps_surround validator (it can fire inside any word), so the
@@ -251,8 +281,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     /** Group-aware separator: standard seps minus {@link #IGNORED_SEPS} (brackets/parens). */
     private static boolean isGroupSep(char c) {
-        if (IGNORED_SEPS.indexOf(c) >= 0) return false;
-        return Seps.isSep(c);
+        return IGNORED_SEPS.indexOf(c) < 0 && Seps.isSep(c);
     }
 
     /**
@@ -330,6 +359,6 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     private static boolean isProbableLanguagePrefix(String candidate) {
         var lower = candidate.toLowerCase();
-        return lower.startsWith("sub") || lower.startsWith("st") || lower.endsWith("sub");
+        return lower.startsWith("sub") || lower.endsWith("sub");
     }
 }

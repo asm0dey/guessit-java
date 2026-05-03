@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Locale.ROOT;
+
 public final class YmlTestLoader {
 
     private YmlTestLoader() {}
@@ -27,7 +29,7 @@ public final class YmlTestLoader {
             var rootPath = Path.of(url.toURI());
             return Files.walk(rootPath)
                 .filter(p -> {
-                    var n = p.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+                    var n = p.getFileName().toString().toLowerCase(ROOT);
                     return n.endsWith(".yml") || n.endsWith(".yaml");
                 })
                 .flatMap(p -> {
