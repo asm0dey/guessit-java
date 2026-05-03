@@ -122,6 +122,13 @@ public final class EpisodeWordExtractor implements Extractor {
                 dm.group(1), 1000, Set.of("episode-word"), false));
             ctx.matches.add(new Match("episode_count", c, dm.start(2), dm.end(2),
                 dm.group(2), 1000, Set.of(), false));
+            // Private span covering the entire "N of M" so the connector "of"
+            // doesn't surface as the first hole and steal episode_title.
+            // Title/EpisodeTitle hole compute treats non-language non-country
+            // private matches as hole-blockers; OutputBuilder drops unknown
+            // names; ConflictSolver skips private matches.
+            ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
+                raw, 1000, Set.of(), true));
         }
     }
 
