@@ -7,21 +7,7 @@ import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.TitleMarkerSelector;
-import io.guessit.rules.property.AudioCodecExtractor;
-import io.guessit.rules.property.ContainerExtractor;
-import io.guessit.rules.property.CountryExtractor;
-import io.guessit.rules.property.EpisodeDetailsExtractor;
-import io.guessit.rules.property.EpisodeFormatExtractor;
-import io.guessit.rules.property.VersionExtractor;
-import io.guessit.rules.property.LanguageExtractor;
-import io.guessit.rules.property.OtherExtractor;
-import io.guessit.rules.property.ReleaseGroupExtractor;
-import io.guessit.rules.property.ScreenSizeExtractor;
-import io.guessit.rules.property.SourceExtractor;
-import io.guessit.rules.property.StreamingServiceExtractor;
-import io.guessit.rules.property.VideoCodecExtractor;
-import io.guessit.rules.property.WebsiteExtractor;
-import io.guessit.rules.property.YearExtractor;
+import io.guessit.rules.property.*;
 
 import java.util.List;
 
@@ -60,6 +46,14 @@ public final class Rules {
             new EpisodeDetailsExtractor(),
             new EpisodeFormatExtractor(),
             new VersionExtractor(),
+            new AbsoluteEpisodeRule(),
+            new SeasonEpisodeExtractor(),
+            new EpisodeWordExtractor(),
+            new WeakEpisodeExtractor(),
+            new WeakDuplicateExtractor(),
+            new DiscRule(),
+            new DateExtractor(),
+            new WeekExtractor(),
             new ReleaseGroupExtractor()
         );
     }
