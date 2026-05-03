@@ -128,8 +128,9 @@ public final class ReleaseGroupExtractor implements Extractor {
                 int absDashEnd = filepart.start() + firstDash;
                 int firstMatchAfter = ctx.matches.all()
                     .filter(m -> !m.isPrivate())
-                    .filter(m -> m.start() >= absDashEnd && m.end() <= filepart.end())
+                    .filter(m -> m.start() > absDashEnd && m.end() <= filepart.end())
                     .mapToInt(Match::start).min().orElse(filepart.end());
+                if (firstMatchAfter < absDashEnd + 1) firstMatchAfter = absDashEnd + 1;
                 var restToFirstMatch = ctx.input.substring(absDashEnd + 1, firstMatchAfter);
                 if (validGroupName(candidate, false)
                     && restToFirstMatch.contains(".")
