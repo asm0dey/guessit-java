@@ -52,7 +52,12 @@ public final class Chain {
                     if (step.rep == Repeater.QMARK && taken >= 1) break;
                     var tm = step.pattern.matcher(input).region(cursor, input.length()).useAnchoringBounds(true);
                     tm.useTransparentBounds(false);
-                    if (!tm.lookingAt()) break;
+                    if (!tm.find()) break;
+                    // Allow separator characters between head and tail
+                    if (tm.start() > cursor) {
+                        var gap = input.substring(cursor, tm.start());
+                        if (!gap.isEmpty() && !gap.matches("[ ._\\-~]+")) break;
+                    }
                     collectNamed(tm, caps, spans);
                     cursor = tm.end();
                     taken++;

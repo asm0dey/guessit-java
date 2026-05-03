@@ -16,14 +16,15 @@ public final class Abbreviations {
         return sb.toString();
     }
 
-    /** Replace every unescaped, non-class `-` in the source with `[<seps_no_fs>]*`. */
+    /** Replace every unescaped, non-class `-` in the source with `[<seps_no_fs>]`.
+     *  Mirrors Python rebulk's dash abbreviation: a single separator character (not zero-or-more). */
     public static String dash(String src) {
-        return rewriteLiteral(src, '-', "[" + SEPS_NO_FS_CLASS + "]*");
+        return rewriteLiteral(src, '-', "[" + SEPS_NO_FS_CLASS + "]");
     }
 
-    /** Replace every unescaped, non-class `@` in the source with `[<seps_no_fs>]*`. */
+    /** Replace every unescaped, non-class `@` in the source with `[<seps_no_fs>]`. */
     public static String altDash(String src) {
-        return rewriteLiteral(src, '@', "[" + SEPS_NO_FS_CLASS + "]*");
+        return rewriteLiteral(src, '@', "[" + SEPS_NO_FS_CLASS + "]");
     }
 
     private static String rewriteLiteral(String src, char target, String replacement) {

@@ -25,6 +25,7 @@ public final class ConflictSolver {
         var toRemove = new HashSet<Match>();
 
         for (var match : publicMatches) {
+            if (toRemove.contains(match)) continue;
             var conflicting = findConflicting(matches, match, publicMatches, toRemove);
 
             // Sort conflicting by span length ascending (Python: conflicting_matches.sort(key=len))
