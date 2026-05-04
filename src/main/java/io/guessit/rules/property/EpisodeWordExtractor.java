@@ -26,6 +26,10 @@ public final class EpisodeWordExtractor implements Extractor {
     public static final String EPISODE = "episode";
     private static final int MAX_RANGE_GAP = 1;
     private static final List<String> EPISODE_WORDS = List.of(EPISODE, "episodes", "ep", "eps", "episodio", "episodios", "capitulo", "capitulos", "part", "parts", "ch", "chapter", "chapters", "e");
+    /** Episode words that may be matched as a single character — these must be
+     *  followed by digits with NO separator between, otherwise titles with
+     *  trailing latinised vowels ("Fumetsu no Anata e - 03") get clipped. */
+    private static final java.util.Set<String> SHORT_EPISODE_WORDS = java.util.Set.of("e");
     public static final String SEASON = "season";
     // Mirrors python's `season_words` config — note "serie"/"series" are
     // intentionally excluded; they're too common in show titles ("Date Series",
@@ -145,6 +149,14 @@ public final class EpisodeWordExtractor implements Extractor {
             var raw = epMatcher.group();
             var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
             if (!seps.test(headMatch)) continue;
+            // Short episode markers (single char like "e") are only valid when
+            // the digit follows with no separator. Otherwise "Fumetsu no Anata
+            // e - 03" matches and clips title.
+            String marker = epMatcher.group(1);
+            if (marker != null && SHORT_EPISODE_WORDS.contains(marker.toLowerCase())) {
+                int afterMarker = epMatcher.start(1) + marker.length();
+                if (afterMarker != epMatcher.start(2)) continue;
+            }
             int epStart = epMatcher.start(2);
             int epEnd = epMatcher.end(2);
             String epToken = epMatcher.group(2);
