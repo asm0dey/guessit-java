@@ -61,6 +61,24 @@ public final class ReleaseGroupExtractor implements Extractor {
         var input = ctx.input;
         var validator = Validators.sepsSurround(input);
         for (var name : expected) {
+            if (name.startsWith("re:")) {
+                // Regex entry: case-insensitive scan; raw is the matched span.
+                var rxSrc = name.substring(3);
+                java.util.regex.Pattern pat;
+                try {
+                    pat = java.util.regex.Pattern.compile(rxSrc, java.util.regex.Pattern.CASE_INSENSITIVE);
+                } catch (Exception _) { continue; }
+                var matcher = pat.matcher(input);
+                while (matcher.find()) {
+                    int s = matcher.start();
+                    int e = matcher.end();
+                    if (e <= s) continue;
+                    var raw = input.substring(s, e);
+                    var m = new Match(RELEASE_GROUP, raw, s, e, raw, 2000, Set.of("expected"), false);
+                    if (validator.test(m)) ctx.matches.add(m);
+                }
+                continue;
+            }
             int from = 0;
             var hay = input.toLowerCase();
             var n = name.toLowerCase();
