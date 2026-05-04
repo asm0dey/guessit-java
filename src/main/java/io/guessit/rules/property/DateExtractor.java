@@ -45,6 +45,14 @@ public final class DateExtractor implements Extractor {
         var dateMatch = ctx.matches.named("date").findFirst();
         if (dateMatch.isEmpty()) return;
         var dm = dateMatch.get();
+        // Honor excludes/includes: when date is filtered out, keep the
+        // overlapping year/season/episode candidates so they survive into
+        // the output (e.g. "2015.01.31" with excludes=date emits year=2015).
+        var excludes = ctx.options.excludes();
+        var includes = ctx.options.includes();
+        boolean dateFiltered = (!excludes.isEmpty() && excludes.contains("date"))
+                || (!includes.isEmpty() && !includes.contains("date"));
+        if (dateFiltered) return;
         var toRemove = new ArrayList<Match>();
         for (var m : ctx.matches.all().toList()) {
             if (m.equals(dm)) continue;

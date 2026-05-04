@@ -481,13 +481,24 @@ public final class OtherExtractor implements Extractor {
     }
 
     private static void dedupSameSpan(ParseContext ctx) {
-        // Drop duplicate "other" matches with same span and same value (can happen across patterns).
-        var seen = new HashSet<String>();
-        var toRemove = new ArrayList<Match>();
+        // Drop duplicate "other" matches with same span and same value (can happen
+        // across patterns). When duplicates carry distinct tag sets, keep the one
+        // with the richer set so flag tags like source-prefix / source-suffix /
+        // other.validate.screener survive to drive downstream validators.
+        var groups = new java.util.LinkedHashMap<String, List<Match>>();
         for (var m : ctx.matches.named(OTHER).toList()) {
             var key = m.start() + ":" + m.end() + ":" + m.value();
-            if (!seen.add(key)) toRemove.add(m);
+            groups.computeIfAbsent(key, _ -> new ArrayList<>()).add(m);
         }
-        for (var m : toRemove) ctx.matches.remove(m);
+        for (var grp : groups.values()) {
+            if (grp.size() <= 1) continue;
+            // Pick survivor: the largest tag set wins.
+            var survivor = grp.stream()
+                .max(java.util.Comparator.comparingInt(m -> m.tags().size()))
+                .orElse(grp.getFirst());
+            for (var m : grp) {
+                if (m != survivor) ctx.matches.remove(m);
+            }
+        }
     }
 }
