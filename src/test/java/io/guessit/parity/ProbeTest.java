@@ -45,6 +45,23 @@ class ProbeTest {
     }
 
     @Test
+    void sxxAll_yieldsSeasonAndCompleteOther() {
+        var r = Guessit.parse("Something.1xAll-FlexGet").toMap();
+        assertThat(r.get("season")).isEqualTo(1);
+        assertThat(r.get("other")).isEqualTo("Complete");
+        assertThat(r.get("release_group")).isEqualTo("FlexGet");
+    }
+
+    @Test
+    void rangeFiller_acrossSxxExxPair() {
+        var r = Guessit.parse("My.Name.Is.Earl.S01E01-S01E21.SWE-SUB").toMap();
+        @SuppressWarnings("unchecked")
+        var ep = (java.util.List<Integer>) r.get("episode");
+        assertThat(ep).containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+            11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21);
+    }
+
+    @Test
     void s01e01e07_fooBarGroup_uuidNotSwallowsEpisodeTitle() {
         var r = Guessit.parse("Test.S01E01E07-FooBar-Group.avi").toMap();
         assertThat(r.get("episode_title")).isEqualTo("FooBar-Group");

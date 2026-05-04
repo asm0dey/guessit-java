@@ -20,6 +20,12 @@ import java.util.Set;
 public final class RangeFiller implements PostProcessor {
 
     private static final int MAX_GAP = 6;
+    /** Wider cap for the "S01E01-S01E21" shape: gap is "-Sxx" plus the "E"
+     *  marker right before the next episode digit, easily up to ~6 chars but
+     *  the second matcher is at the digit so MAX_GAP captures it; a separate
+     *  cap is unnecessary, the regex below validates the shape. */
+    private static final java.util.regex.Pattern RANGE_SE_GAP = java.util.regex.Pattern.compile(
+        "(?i)[-~]s\\d{1,3}e?");
     /** Cap value-jump to avoid runaway fills when the second match is a long-digit
      *  artefact (e.g. {@code s8e6-768660} should not yield 768654 episodes). */
     private static final int MAX_JUMP = 20;
@@ -76,6 +82,9 @@ public final class RangeFiller implements PostProcessor {
         if (s == e) return false; // only separators, no keyword - not a range
         var core = lc.substring(s, e);
         if (RANGE_KEYWORDS.contains(core)) return true;
+        // Range across two SxxExx markers: "E01-S01E21" gap text trims to
+        // "S01" or "S01E"; accept when prefix is dash/tilde + Sxx (+ optional E).
+        if (RANGE_SE_GAP.matcher(lc).matches()) return true;
         // Tolerate trailing season/episode marker on the next match: ".to.s", ".to.e".
         if (core.length() > 1) {
             char last = core.charAt(core.length() - 1);

@@ -69,6 +69,37 @@ public final class SeasonEpisodeExtractor implements Extractor {
         runChain(ctx, new Chain(HEAD_E).tail(TAIL_E_ONLY, Chain.Repeater.STAR), input, true, false, true);
         runChain(ctx, new Chain(HEAD_S).tail(TAIL_S, Chain.Repeater.STAR), input, false, false, false);
         runCap(ctx, input);
+        runSxxAll(ctx, input);
+    }
+
+    /**
+     * "1xAll" / "S01EAll" form: digit + season-episode marker + "All".
+     * Mirrors python's <code>S?(\d+)-?(?:xE|Ex|E|x)-?All</code> rule (line 262
+     * of episodes.py) — yields season=N and other=Complete with the SxxExx
+     * tag. Without this, "Something.1xAll-FlexGet" parses no season.
+     */
+    private static final Pattern SXX_ALL = Pattern.compile(
+        "(?i)S?(?<season>\\d+)-?(?:xE|Ex|E|x)-?(?<all>All)");
+
+    private void runSxxAll(ParseContext ctx, String input) {
+        var seps = Validators.sepsSurround(input);
+        var m = SXX_ALL.matcher(input);
+        while (m.find()) {
+            var head = new Match(SEASON, null, m.start(), m.end(),
+                m.group(), 1000, Set.of(SXX_EXX), false);
+            if (!seps.test(head)) continue;
+            String cg = ctx.nextCoexistGroupTag();
+            int sStart = m.start("season");
+            int sEnd = m.end("season");
+            int aStart = m.start("all");
+            int aEnd = m.end("all");
+            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group("season")),
+                sStart, sEnd, m.group("season"), 1000,
+                Set.of(SXX_EXX, COEXIST, cg), false));
+            ctx.matches.add(new Match("other", "Complete",
+                aStart, aEnd, m.group("all"), 1000,
+                Set.of(SXX_EXX, COEXIST, cg), false));
+        }
     }
 
     private void runChain(ParseContext ctx, Chain chain, String input, boolean withEpisode, boolean skipScreenSize, boolean isWeakEChain) {
