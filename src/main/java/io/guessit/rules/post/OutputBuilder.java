@@ -27,20 +27,73 @@ import java.util.function.Consumer;
  * the extractors that produced the values.
  */
 public final class OutputBuilder implements Consumer<ParseContext> {
+    /**
+     * Properties that are "coupled" by span position: when one is excluded, the other
+     * at the same span should also be excluded. Mirrors Python guessit behaviour where
+     * disabling {@code season} or {@code episode} disables the combined SxxExx extractor.
+     */
+    private static final java.util.Map<String, String> COUPLED_EXCLUSION = java.util.Map.of(
+            "season", "episode",
+            "episode", "season"
+    );
+
+    /**
+     * Properties that always cascade: excluding the parent always excludes the child
+     * (regardless of span), mirroring Python's child-match behaviour.
+     */
+    private static final java.util.Map<String, java.util.List<String>> CHILD_EXCLUSION = java.util.Map.of(
+            "bonus", java.util.List.of("bonus_title"),
+            "film", java.util.List.of("film_title"),
+            "cd", java.util.List.of("cd_count")
+    );
+
     @Override
     public void accept(ParseContext ctx) {
         var b = ctx.resultBuilder;
+        var rawExcludes = new java.util.HashSet<>(ctx.options.excludes());
+        var includes = ctx.options.includes();
+
+        // Expand child exclusions (bonus → bonus_title, etc.)
+        var childExpand = new java.util.HashSet<String>();
+        for (var ex : rawExcludes) {
+            var children = CHILD_EXCLUSION.get(ex);
+            if (children != null) childExpand.addAll(children);
+        }
+        rawExcludes.addAll(childExpand);
+
+        // Collect spans of excluded matches for coupled exclusion (e.g., season ↔ episode).
+        var excludedSpans = new java.util.HashSet<String>(); // "start:end"
+        var excludes = rawExcludes;
+        if (!excludes.isEmpty()) {
+            ctx.matches.all().forEach(m -> {
+                if (excludes.contains(m.name())) {
+                    var coupled = COUPLED_EXCLUSION.get(m.name());
+                    if (coupled != null) excludedSpans.add(m.start() + ":" + m.end());
+                }
+            });
+        }
+
         // LinkedHashMap preserves the first-seen name order, which makes the
         // order in `extras` deterministic when matches contribute unknown keys.
         var grouped = new LinkedHashMap<String, List<Match>>();
-        ctx.matches.all().sorted(java.util.Comparator.comparingInt(Match::start)).forEach(m ->
-            grouped.computeIfAbsent(m.name(), _ -> new ArrayList<>()).add(m));
+        ctx.matches.all().sorted(java.util.Comparator.comparingInt(Match::start)).forEach(m -> {
+            var name = m.name();
+            // Respect --exclude / --include options from the caller.
+            if (!excludes.isEmpty() && excludes.contains(name)) return;
+            // Coupled span exclusion: if a coupled partner was excluded at this span, skip too.
+            if (!excludedSpans.isEmpty()) {
+                var coupled = COUPLED_EXCLUSION.get(name);
+                if (coupled != null && excludedSpans.contains(m.start() + ":" + m.end())) return;
+            }
+            if (!includes.isEmpty() && !includes.contains(name)) return;
+            grouped.computeIfAbsent(name, _ -> new ArrayList<>()).add(m);
+        });
 
         var extras = new LinkedHashMap<String, Object>();
         for (var e : grouped.entrySet()) {
             switch (e.getKey()) {
                 case "title" -> b.title(asString(e.getValue().getFirst()));
-                case "alternative_title" -> b.alternativeTitleList(e.getValue().stream().map(OutputBuilder::asString).collect(java.util.stream.Collectors.toList()));
+                case "alternative_title" -> b.alternativeTitleList(e.getValue().stream().map(OutputBuilder::asString).toList());
                 case "year" -> b.year(asInt(e.getValue().getFirst()));
                 case "date" -> b.date((LocalDate) e.getValue().getFirst().value());
                 case "season" -> applyIntList(e.getValue(), b::season, b::seasonList);
@@ -65,6 +118,8 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "aspect_ratio" -> b.aspectRatio(asDouble(e.getValue().getFirst()));
                 case "frame_rate" -> b.frameRate(asFrameRate(e.getValue().getFirst()));
                 case "bit_rate" -> b.bitRate((Quantity) e.getValue().getFirst().value());
+                case "audio_bit_rate" -> b.audioBitRate((Quantity) e.getValue().getFirst().value());
+                case "video_bit_rate" -> b.videoBitRate((Quantity) e.getValue().getFirst().value());
                 case "size" -> b.size((Quantity) e.getValue().getFirst().value());
                 case "container" -> b.container(asString(e.getValue().getFirst()));
                 case "mimetype" -> b.mimetype(asString(e.getValue().getFirst()));

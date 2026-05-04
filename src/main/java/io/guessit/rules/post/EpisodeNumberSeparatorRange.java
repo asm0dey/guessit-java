@@ -38,11 +38,12 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
      * Group 1 = the integer digits.
      */
     private static final Pattern RANGE_THEN_NUM = Pattern.compile(
-        "(?i)[\\s._]*[-~][\\s._]*([0-9]+)|[\\s._]+to[\\s._]+([0-9]+)");
+        "(?i)[\\s._]*[-~][\\s._]*(\\d+)|[\\s._]+to[\\s._]+(\\d+)");
+    public static final String EPISODE = "episode";
 
     @Override
     public void process(ParseContext ctx) {
-        var eps = ctx.matches.named("episode")
+        var eps = ctx.matches.named(EPISODE)
             .filter(m -> !m.isPrivate() && m.value() instanceof Integer)
             .sorted(Comparator.comparingInt(Match::start))
             .toList();
@@ -64,7 +65,7 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
             String numStr = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
             int vb;
             try { vb = Integer.parseInt(numStr); }
-            catch (NumberFormatException e) { continue; }
+            catch (NumberFormatException _) { continue; }
 
             if (vb <= va || vb - va > MAX_JUMP) continue;
 
@@ -74,24 +75,24 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
 
             // Check whether vb is already an episode match at that position —
             // if so, RangeFiller already handled this (or will handle it).
-            boolean vbAlreadyPresent = ctx.matches.named("episode")
+            boolean vbAlreadyPresent = ctx.matches.named(EPISODE)
                 .anyMatch(m -> m.value() instanceof Integer iv && iv == vb
                     && m.start() >= numStart && m.end() <= numEnd);
             if (vbAlreadyPresent) continue;
 
             // Check that there is no existing episode range-fill covering the gap.
-            boolean alreadyFilled = ctx.matches.named("episode")
+            boolean alreadyFilled = ctx.matches.named(EPISODE)
                 .anyMatch(m -> m.tags().contains("range-fill")
                     && m.start() >= a.end() && m.end() <= numEnd);
             if (alreadyFilled) continue;
 
             // Add vb itself as an episode match.
-            fills.add(new Match("episode", vb, numStart, numEnd,
+            fills.add(new Match(EPISODE, vb, numStart, numEnd,
                 ctx.input.substring(numStart, numEnd), 1000, Set.of("range-fill"), false));
 
             // Add intermediate values va+1 .. vb-1 (zero-width, anchored at numStart).
             for (int v = va + 1; v < vb; v++) {
-                fills.add(new Match("episode", v, numStart, numStart,
+                fills.add(new Match(EPISODE, v, numStart, numStart,
                     "", 1000, Set.of("range-fill"), false));
             }
         }

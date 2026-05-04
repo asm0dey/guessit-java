@@ -5,14 +5,7 @@ import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -28,7 +21,7 @@ public class RemoveAmbiguous implements PostProcessor {
     protected final Comparator<Match> tieBreak;
 
     public RemoveAmbiguous() {
-        this(m -> true, false, (a, b) -> 0);
+        this(_ -> true, false, (_, _) -> 0);
     }
 
     public RemoveAmbiguous(Predicate<Match> predicate, boolean reverseFileparts, Comparator<Match> tieBreak) {
@@ -59,7 +52,7 @@ public class RemoveAmbiguous implements PostProcessor {
             var fpNames = new HashSet<String>();
             for (var m : inFp) {
                 fpNames.add(m.name());
-                var bucket = values.computeIfAbsent(m.name(), k -> new LinkedHashSet<>());
+                var bucket = values.computeIfAbsent(m.name(), _ -> new LinkedHashSet<>());
                 if (seenNames.contains(m.name())) {
                     if (!bucket.contains(m.value())) toRemove.add(m);
                 } else {

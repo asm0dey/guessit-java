@@ -3,7 +3,6 @@ package io.guessit.engine;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -15,7 +14,7 @@ class ConflictSolverTest {
         s.add(Match.of("year", 2020, 0, 4, "2020").withPriority(2000));
         s.add(Match.of("season", 20, 0, 2, "20").withPriority(1000));
         ConflictSolver.solve(s);
-        var names = s.all().map(Match::name).collect(Collectors.toList());
+        var names = s.all().map(Match::name).toList();
         assertEquals(List.of("year"), names);
     }
 
@@ -25,7 +24,7 @@ class ConflictSolverTest {
         s.add(Match.of("a", 1, 0, 4, "abcd"));
         s.add(Match.of("b", 2, 0, 2, "ab"));
         ConflictSolver.solve(s);
-        assertEquals(List.of("a"), s.all().map(Match::name).collect(Collectors.toList()));
+        assertEquals(List.of("a"), s.all().map(Match::name).toList());
     }
 
     @Test

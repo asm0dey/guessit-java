@@ -11,7 +11,6 @@ public final class SizeExtractor implements Extractor {
         "(?i)(\\d+(?:\\.\\d+)?-?[mgt]b)");
 
     @Override public String name() { return "size"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {

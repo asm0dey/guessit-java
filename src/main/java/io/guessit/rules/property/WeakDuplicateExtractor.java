@@ -29,6 +29,7 @@ public final class WeakDuplicateExtractor implements Extractor {
     public static final String WEAK_DUPLICATE = "weak-duplicate";
     public static final String SEASON = "season";
     public static final String EPISODE = "episode";
+    public static final String WEAK_EPISODE = "weak-episode";
 
     @Override
     public String name() {
@@ -73,9 +74,9 @@ public final class WeakDuplicateExtractor implements Extractor {
             int s = Integer.parseInt(m.group(1));
             int e = Integer.parseInt(m.group(2));
             ctx.matches.add(new Match(SEASON, s, m.start(1), m.end(1),
-                    m.group(1), 700, Set.of("weak-episode", WEAK_DUPLICATE, "coexist"), false));
+                    m.group(1), 700, Set.of(WEAK_EPISODE, WEAK_DUPLICATE, "coexist"), false));
             ctx.matches.add(new Match(EPISODE, e, m.start(2), m.end(2),
-                    m.group(2), 700, Set.of("weak-episode", WEAK_DUPLICATE, "coexist"), false));
+                    m.group(2), 700, Set.of(WEAK_EPISODE, WEAK_DUPLICATE, "coexist"), false));
         }
     }
 
@@ -133,7 +134,7 @@ public final class WeakDuplicateExtractor implements Extractor {
         // survive as episode list members.
         if (!hasSxxExx) {
             var weakEpisodes = ctx.matches.named(EPISODE)
-                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                     .filter(m -> m.raw() != null && m.raw().length() >= 3)
                     .sorted(java.util.Comparator.comparingInt(Match::start))
                     .toList();
@@ -144,7 +145,7 @@ public final class WeakDuplicateExtractor implements Extractor {
                 if (!(a.value() instanceof Integer va) || !(b.value() instanceof Integer vb)) continue;
                 if (vb <= va) continue;
                 String gap = ctx.input.substring(a.end(), b.start());
-                if (gap.length() < 1 || gap.length() > 5) continue;
+                if (gap.isEmpty() || gap.length() > 5) continue;
                 boolean isRangeSep = gap.matches("[ ._]*[-~][ ._]*");
                 if (!isRangeSep) continue;
                 // Drop weak-duplicate season/episode matches inside [a.start, b.end].
@@ -165,7 +166,7 @@ public final class WeakDuplicateExtractor implements Extractor {
         // second number as a plain weak-episode match.
         if (!hasSxxExx) {
             var leadingWeak = ctx.matches.named(EPISODE)
-                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                     .filter(m -> m.value() instanceof Integer i && i >= 100)
                     .sorted(java.util.Comparator.comparingInt(Match::start))
                     .toList();
@@ -179,7 +180,7 @@ public final class WeakDuplicateExtractor implements Extractor {
                 for (var dupS : dupSeasons) {
                     if (dupS.start() < lead.end()) continue;
                     String gap = ctx.input.substring(lead.end(), dupS.start());
-                    if (gap.length() < 1 || gap.length() > 5) continue;
+                    if (gap.isEmpty() || gap.length() > 5) continue;
                     if (!gap.matches("[ ._]*[-~][ ._]*")) continue;
                     // Pair end = matching weak-duplicate episode.
                     var dupE = ctx.matches.named(EPISODE)
@@ -193,7 +194,7 @@ public final class WeakDuplicateExtractor implements Extractor {
                     toRemove.add(dupE);
                     toAdd.add(new Match(EPISODE, combined, spanStart, spanEnd,
                             ctx.input.substring(spanStart, spanEnd), 800,
-                            Set.of("weak-episode"), false));
+                            Set.of(WEAK_EPISODE), false));
                     break;
                 }
             }
@@ -299,8 +300,6 @@ public final class WeakDuplicateExtractor implements Extractor {
         // and not SxxExx: to_remove.extend(weak_matches)"). Java's
         // WeakEpisodeExtractor doesn't chain weak-episodes with separators,
         // so the "episodes_in_range" branch is empty.
-        boolean sxxExxPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
-                || ctx.matches.named(SEASON).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
         var fileparts = io.guessit.engine.Markers.named(ctx.markers, "path").toList();
         for (var fp : fileparts) {
             var localDup = ctx.matches.all()
@@ -313,7 +312,7 @@ public final class WeakDuplicateExtractor implements Extractor {
                     .anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word") || m.tags().contains("season-word"));
             if (localSxxExx) continue;
             var dropWeakEp = ctx.matches.all()
-                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                     .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
                     .toList();
             for (var m : dropWeakEp) ctx.matches.remove(m);
@@ -354,7 +353,7 @@ public final class WeakDuplicateExtractor implements Extractor {
         if (!expectedTitles.isEmpty()) {
             var insideExpected = ctx.matches.all()
                     .filter(m -> SEASON.equals(m.name()) || EPISODE.equals(m.name()))
-                    .filter(m -> m.tags().contains("weak-episode") || m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.tags().contains(WEAK_EPISODE) || m.tags().contains(WEAK_DUPLICATE))
                     .filter(m -> expectedTitles.stream().anyMatch(t -> t.start() <= m.start() && m.end() <= t.end()))
                     .toList();
             for (var m : insideExpected) ctx.matches.remove(m);

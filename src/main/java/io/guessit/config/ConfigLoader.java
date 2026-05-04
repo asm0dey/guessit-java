@@ -68,15 +68,20 @@ public final class ConfigLoader {
                     return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
                 }
                 var content = Files.readString(p, StandardCharsets.UTF_8);
-                try {
-                    return JSON.readValue(content, Map.class);
-                } catch (IOException ignored) {
-                    Object v = new Yaml().load(content);
-                    return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
-                }
+                return loadConfigFromString(content);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to read config: " + p, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> loadConfigFromString(String content) {
+        try {
+            return JSON.readValue(content, Map.class);
+        } catch (IOException _) {
+            Object v = new Yaml().load(content);
+            return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
         }
     }
 

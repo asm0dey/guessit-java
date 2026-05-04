@@ -1123,7 +1123,7 @@ public final class TitleExtractor implements Extractor {
             if (hole == null) continue;
             var toRemove = new ArrayList<Match>();
             var toKeep = new ArrayList<Match>();
-            var ignoredInHole = ctx.matches.range(hole.start, hole.end, this::isIgnored).toList();
+            var ignoredInHole = ctx.matches.range(hole.start, hole.end, TitleExtractor::isIgnored).toList();
             if (!ignoredInHole.isEmpty()) {
                 var reversed = new ArrayList<>(ignoredInHole);
                 java.util.Collections.reverse(reversed);
@@ -1204,7 +1204,7 @@ public final class TitleExtractor implements Extractor {
                 x -> x.name().equals(m.name()) && !toKeep.contains(x)
                     && !NON_SPECIFIC_LANGUAGES.contains(String.valueOf(x.value()))
                     && (x.end() <= hole.start || x.start() >= hole.end));
-            if (others.findAny().isEmpty() && (!starting || m.raw().length() <= 3)) return true;
+            return others.findAny().isEmpty() && (!starting || m.raw().length() <= 3);
         }
         return false;
     }
@@ -1216,9 +1216,7 @@ public final class TitleExtractor implements Extractor {
                 return m.start() >= hole.start && m.end() <= hole.end;
             }
         }
-        return true;
-    }
-}
+        return tru
 ```
 
 - [ ] **Step 4: Run tests**
@@ -1342,7 +1340,7 @@ public final class EpisodeTitleExtractor implements Extractor {
                 if (after == null || !NEXT_NAMES.contains(after.name())) continue;
                 var group = Markers.atMatch(ctx.markers, m, mk -> "group".equals(mk.name())).orElse(null);
                 java.util.function.Predicate<Match> sameGroup = c ->
-                    c.value() != null && !c.raw().strip().isEmpty()
+                    c.value() != null && !c.raw().isBlank()
                         && java.util.Objects.equals(group,
                             Markers.atMatch(ctx.markers, c, mk -> "group".equals(mk.name())).orElse(null));
 

@@ -5,6 +5,8 @@ import io.guessit.engine.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -26,7 +28,8 @@ public final class EpisodeWordExtractor implements Extractor {
     public static final String EPISODE = "episode";
     private static final int MAX_RANGE_GAP = 1;
     private static final List<String> EPISODE_WORDS = List.of(EPISODE, "episodes", "ep", "eps", "episodio", "episodios", "capitulo", "capitulos", "part", "parts", "ch", "chapter", "chapters", "e");
-    private static final List<String> SEASON_WORDS = List.of("season", "seasons", "saison", "saisons", "seizoen", "serie", "series", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
+    public static final String SEASON = "season";
+    private static final List<String> SEASON_WORDS = List.of(SEASON, "seasons", "saison", "saisons", "seizoen", "serie", "series", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
     private static final List<String> OF_WORDS = List.of("of", "sur", "de");
 
     @Override public String name() { return "episode_word"; }
@@ -64,14 +67,14 @@ public final class EpisodeWordExtractor implements Extractor {
         var seasonMatcher = seasonRe.matcher(input);
         while (seasonMatcher.find()) {
             var raw = seasonMatcher.group();
-            var headMatch = new Match("season", null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
+            var headMatch = new Match(SEASON, null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
             if (!seasonHeadValidator.test(headMatch)) continue;
             ctx.matches.add(headMatch);
             int valStart = seasonMatcher.start(2);
             int valEnd = seasonMatcher.end(2);
             int n = parseSafe(seasonMatcher.group(2));
             if (n < 0) continue;
-            ctx.matches.add(new Match("season", n, valStart, valEnd,
+            ctx.matches.add(new Match(SEASON, n, valStart, valEnd,
                 input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
             // "Season N of M" → season_count=M.
             if (seasonMatcher.group(3) != null) {
@@ -114,20 +117,17 @@ public final class EpisodeWordExtractor implements Extractor {
                 if (v < 0 || v <= prevVal) break;
                 int tStart = tail.start(2);
                 int tEnd = tail.end(2);
-                final int ts = tStart, te = tEnd;
-                if (blockSpans.stream().anyMatch(sp -> sp[0] < te && ts < sp[1])) break;
-                if (!strong && !range) {
-                    // weak: must be near-consecutive
-                    if (v - prevVal > MAX_RANGE_GAP + 1) break;
-                }
+                if (blockSpans.stream().anyMatch(sp -> sp[0] < tEnd && tStart < sp[1])) break;
+                if (!strong && !range && v - prevVal > MAX_RANGE_GAP + 1) break;
+
                 if (range) {
                     // expand intermediate values privately so seasonList captures full range
                     for (int x = prevVal + 1; x < v; x++) {
-                        ctx.matches.add(new Match("season", x, tStart, tStart, "",
+                        ctx.matches.add(new Match(SEASON, x, tStart, tStart, "",
                             1000, Set.of("season-word"), false));
                     }
                 }
-                ctx.matches.add(new Match("season", v, tStart, tEnd,
+                ctx.matches.add(new Match(SEASON, v, tStart, tEnd,
                     input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
                 prevVal = v;
                 scanFrom = tail.end();
@@ -140,28 +140,22 @@ public final class EpisodeWordExtractor implements Extractor {
             + numToken + "(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
         var epMatcher = epRe.matcher(input);
         while (epMatcher.find()) {
-            var raw = epMatcher.group();
-            var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
-            if (!seps.test(headMatch)) {
-                continue;
-            }
-            ctx.matches.add(headMatch);
-            int epStart = epMatcher.start(2);
-            int epEnd = epMatcher.end(2);
+            EpStartEnd result = getEpStartEnd(ctx, epMatcher, seps);
+            if (result == null) continue;
             String epToken = epMatcher.group(2);
             int ep;
             if (episodeType) {
                 ep = parseSafe(epToken);
                 if (ep < 0) continue;
                 if (!isPureDigits(epToken)) {
-                    var token = new Match(EPISODE, ep, epStart, epEnd, epToken, 1000, Set.of(), false);
+                    var token = new Match(EPISODE, ep, result.epStart(), result.epEnd(), epToken, 1000, Set.of(), false);
                     if (!seps.test(token)) continue;
                 }
             } else {
                 ep = Integer.parseInt(epToken);
             }
-            ctx.matches.add(new Match(EPISODE, ep, epStart, epEnd,
-                input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
+            ctx.matches.add(new Match(EPISODE, ep, result.epStart(), result.epEnd(),
+                input.substring(result.epStart(), result.epEnd()), 1000, Set.of("episode-word"), false));
             if (epMatcher.group(3) != null) {
                 int v = Integer.parseInt(epMatcher.group(3));
                 ctx.matches.add(new Match("version", v, epMatcher.start(3), epMatcher.end(3),
@@ -195,6 +189,21 @@ public final class EpisodeWordExtractor implements Extractor {
             ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
                 raw, 1000, Set.of(), true));
         }
+    }
+
+    private static EpStartEnd getEpStartEnd(ParseContext ctx, Matcher epMatcher, Predicate<Match> seps) {
+        var raw = epMatcher.group();
+        var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
+        if (!seps.test(headMatch)) {
+            return null;
+        }
+        ctx.matches.add(headMatch);
+        int epStart = epMatcher.start(2);
+        int epEnd = epMatcher.end(2);
+        return new EpStartEnd(epStart, epEnd);
+    }
+
+    private record EpStartEnd(int epStart, int epEnd) {
     }
 
     private static int parseSafe(String token) {

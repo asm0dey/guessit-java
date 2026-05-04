@@ -3,6 +3,7 @@ package io.guessit.rules;
 import io.guessit.engine.*;
 import io.guessit.rules.markers.GroupMarker;
 import io.guessit.rules.markers.PathMarker;
+import io.guessit.rules.post.BitRateTypeRule;
 import io.guessit.rules.post.EnlargeGroupMatches;
 import io.guessit.rules.post.EquivalentHoles;
 import io.guessit.rules.post.LanguageCountryAttach;
@@ -10,6 +11,7 @@ import io.guessit.rules.post.MimetypeProcessor;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
+import io.guessit.rules.post.AbsoluteEpisodePromoter;
 import io.guessit.rules.post.EpisodeNumberSeparatorRange;
 import io.guessit.rules.post.RangeFiller;
 import io.guessit.rules.post.RemoveAmbiguous;
@@ -50,11 +52,13 @@ public final class Rules {
             new ExtractorPostPhase(extractors),
             new PostPhase(List.of(
                 new EnlargeGroupMatches(),
+                new BitRateTypeRule(),
                 new LanguageCountryAttach(),
                 new EquivalentHoles(),
                 new PreferLastPath(),
                 new RangeFiller(),
                 new EpisodeNumberSeparatorRange(),
+                new AbsoluteEpisodePromoter(),
                 new SeasonYearLink(),
                 new SeasonYear(),
                 new YearSeason(),

@@ -173,8 +173,8 @@ public final class YmlTestLoader {
                 case "--expected-group", "-G" -> { if (i + 1 < tokens.length) a.expectedGroup.add(tokens[++i]); }
                 case "--allowed-language", "-L" -> { if (i + 1 < tokens.length) a.allowedLanguages.add(tokens[++i]); }
                 case "--allowed-country", "-C" -> { if (i + 1 < tokens.length) a.allowedCountries.add(tokens[++i]); }
-                case "--excludes" -> { if (i + 1 < tokens.length) a.excludes.add(tokens[++i]); }
-                case "--includes" -> { if (i + 1 < tokens.length) a.includes.add(tokens[++i]); }
+                case "--excludes", "--exclude" -> { if (i + 1 < tokens.length) a.excludes.add(tokens[++i]); }
+                case "--includes", "--include" -> { if (i + 1 < tokens.length) a.includes.add(tokens[++i]); }
                 default -> { /* ignore unknown for now */ }
             }
         }

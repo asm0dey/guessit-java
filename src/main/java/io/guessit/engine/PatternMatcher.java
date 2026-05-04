@@ -94,7 +94,7 @@ public final class PatternMatcher {
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private static boolean hasGroup(Matcher m) {
-        try { m.group("value"); return true; } catch (IllegalArgumentException e) { return false; }
+        try { m.group("value"); return true; } catch (IllegalArgumentException _) { return false; }
     }
 
     /**

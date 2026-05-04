@@ -37,7 +37,7 @@ public record GuessResult(
     @Opt List<String> audioChannels, @Opt List<String> audioProfile,
     @Opt List<String> videoProfile, @Opt List<String> videoApi,
     @Opt String screenSize, @Opt Double aspectRatio, @Opt String frameRate,
-    @Opt Quantity bitRate, @Opt Quantity size,
+    @Opt Quantity bitRate, @Opt Quantity audioBitRate, @Opt Quantity videoBitRate, @Opt Quantity size,
     @Opt String container, @Opt String mimetype,
     @Opt String releaseGroup, @Opt String streamingService, @Opt String website,
     @Opt List<String> edition, @Opt Integer cd, @Opt Integer cdCount,
@@ -47,7 +47,7 @@ public record GuessResult(
 ) {
     private static final ObjectMapper JSON = new ObjectMapper()
         .registerModule(new JavaTimeModule())
-        .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+        .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
         .enable(SerializationFeature.INDENT_OUTPUT)
         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
@@ -79,6 +79,8 @@ public record GuessResult(
         putIfNotNull(m, "aspect_ratio", aspectRatio);
         putIfNotNull(m, "frame_rate", frameRate);
         if (bitRate != null) m.put("bit_rate", bitRate.format());
+        if (audioBitRate != null) m.put("audio_bit_rate", audioBitRate.format());
+        if (videoBitRate != null) m.put("video_bit_rate", videoBitRate.format());
         if (size != null) m.put("size", size.format());
         putIfNotNull(m, "container", container);
         putIfNotNull(m, "mimetype", mimetype);
@@ -150,6 +152,8 @@ public record GuessResult(
             case "aspect_ratio" -> aspectRatio;
             case "frame_rate" -> frameRate;
             case "bit_rate" -> bitRate == null ? null : bitRate.format();
+            case "audio_bit_rate" -> audioBitRate == null ? null : audioBitRate.format();
+            case "video_bit_rate" -> videoBitRate == null ? null : videoBitRate.format();
             case "size" -> size == null ? null : size.format();
             case "container" -> container;
             case "mimetype" -> mimetype;

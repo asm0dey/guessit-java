@@ -16,7 +16,13 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:central.sonatype.com)",
       "WebFetch(domain:www.endoflineblog.com)",
-      "Bash(mvn *)"
+      "Bash(mvn *)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(xargs ls *)",
+      "Bash(python3 *)"
     ]
   }
 }

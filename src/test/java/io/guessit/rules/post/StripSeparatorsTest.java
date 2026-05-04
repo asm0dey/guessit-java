@@ -31,7 +31,7 @@ class StripSeparatorsTest {
         ctx.matches.add(Match.of("title", "Show", 0, 5, "Show."));
         new StripSeparators().process(ctx);
         var m = ctx.matches.named("title").findFirst().orElseThrow();
-        assertThat(m.start()).isEqualTo(0);
+        assertThat(m.start()).isZero();
         assertThat(m.end()).isEqualTo(4);
     }
 
@@ -41,7 +41,7 @@ class StripSeparatorsTest {
         ctx.matches.add(Match.of("title", "S", 0, 1, "S"));
         new StripSeparators().process(ctx);
         var m = ctx.matches.named("title").findFirst().orElseThrow();
-        assertThat(m.start()).isEqualTo(0);
+        assertThat(m.start()).isZero();
         assertThat(m.end()).isEqualTo(1);
     }
 
@@ -50,7 +50,7 @@ class StripSeparatorsTest {
         ctx.matches.add(Match.of("title", "ShowName", 0, 8, "ShowName"));
         new StripSeparators().process(ctx);
         var m = ctx.matches.named("title").findFirst().orElseThrow();
-        assertThat(m.start()).isEqualTo(0);
+        assertThat(m.start()).isZero();
         assertThat(m.end()).isEqualTo(8);
     }
 

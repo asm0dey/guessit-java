@@ -1549,8 +1549,7 @@ public final class PatternMatcher {
 
     private static boolean isWordBoundary(String s, int start, int end) {
         if (start > 0 && Character.isLetterOrDigit(s.charAt(start - 1))) return false;
-        if (end < s.length() && Character.isLetterOrDigit(s.charAt(end))) return false;
-        return true;
+        return end >= s.length() || !Character.isLetterOrDigit(s.charAt(end));
     }
 }
 ```
@@ -3281,7 +3280,7 @@ public final class GuessitCli implements Callable<Integer> {
         return 0;
     }
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         System.exit(new CommandLine(new GuessitCli()).execute(args));
     }
 

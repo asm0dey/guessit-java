@@ -20,31 +20,6 @@ class YmlParityTest {
     }
 
     /**
-     * Properties shipped through Phases 1 + 2 + 3 + 4. Only cases whose expected output is entirely
-     * within this set are tested.
-     */
-    private static final Set<String> PHASE_PROPS = Set.of(
-            // Phase 1
-            "year", "container", "screen_size", "aspect_ratio", "frame_rate",
-            "video_codec", "video_profile", "color_depth", "video_api",
-            "audio_codec", "audio_profile", "audio_channels",
-            // Phase 2
-            "source", "other",
-            "language", "subtitle_language",
-            "country",
-            "release_group",
-            "website", "streaming_service",
-            // Phase 3
-            "date", "week", "absolute_episode", "disc",
-            "episode_details", "episode_format", "version",
-            "season", "episode", "season_count", "episode_count",
-            // Phase 4
-            "title", "alternative_title", "episode_title", "type",
-            // Phase 5 (long-tail properties)
-            "edition"
-    );
-
-    /**
      * Maps each YAML/JSON property key to the matching {@code GuessResult} Java
      * field name(s). Most keys are 1:1 snake → camel; {@code season}/{@code episode}
      * widen to both the scalar and list field, since the parser/expected builder
@@ -79,13 +54,24 @@ class YmlParityTest {
             Map.entry("aspect_ratio", new String[]{"aspectRatio"}),
             Map.entry("frame_rate", new String[]{"frameRate"}),
             Map.entry("bit_rate", new String[]{"bitRate"}),
+            Map.entry("audio_bit_rate", new String[]{"audioBitRate"}),
+            Map.entry("video_bit_rate", new String[]{"videoBitRate"}),
             Map.entry("size", new String[]{"size"}),
             Map.entry("container", new String[]{"container"}),
             Map.entry("mimetype", new String[]{"mimetype"}),
             Map.entry("release_group", new String[]{"releaseGroup"}),
             Map.entry("streaming_service", new String[]{"streamingService"}),
             Map.entry("website", new String[]{"website"}),
-            Map.entry("edition", new String[]{"edition"})
+            Map.entry("edition", new String[]{"edition"}),
+            Map.entry("cd", new String[]{"cd"}),
+            Map.entry("cd_count", new String[]{"cdCount"}),
+            Map.entry("part", new String[]{"part"}),
+            Map.entry("version", new String[]{"version"}),
+            Map.entry("film", new String[]{"film"}),
+            Map.entry("film_title", new String[]{"filmTitle"}),
+            Map.entry("bonus", new String[]{"bonus"}),
+            Map.entry("bonus_title", new String[]{"bonusTitle"}),
+            Map.entry("crc32", new String[]{"crc32"})
     );
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -93,10 +79,26 @@ class YmlParityTest {
     void ymlParity(YmlCase c) {
         // Build expected GuessResult (typed: "fr" → Language, list scalars → List).
         var actual = Guessit.parse(c.input(), c.options());
-        var expected = YmlExpected.build(c.expected());
-        var expectedKeys = c.expected().keySet();
+
+        // Separate positive keys from per-key negative keys (Python semantics: a key
+        // starting with "-" in the expected map means "this field must NOT have this value").
+        var positiveExpected = new java.util.LinkedHashMap<String, Object>();
+        var negativeExpected = new java.util.LinkedHashMap<String, Object>(); // stripped key → value
+        for (var e : c.expected().entrySet()) {
+            String k = e.getKey();
+            if (k.startsWith("-")) {
+                negativeExpected.put(k.substring(1), e.getValue());
+            } else {
+                positiveExpected.put(k, e.getValue());
+            }
+        }
+
+        var expected = YmlExpected.build(positiveExpected);
+        var expectedKeys = positiveExpected.keySet();
 
         if (c.negative()) {
+            // Input-level negation: the whole test case is negated; the expected properties
+            // must NOT all match simultaneously.
             boolean allMatch = true;
             for (String k : expectedKeys) {
                 if (!Canonical.equivalent(actual.field(k), expected.field(k))) {
@@ -110,7 +112,7 @@ class YmlParityTest {
             return;
         }
 
-        // Split keys into typed (have a GuessResult field) vs extras-bucket.
+        // Split positive keys into typed (have a GuessResult field) vs extras-bucket.
         var typedFields = new ArrayList<String>();
         var extrasKeys = new ArrayList<String>();
         for (String k : expectedKeys) {
@@ -139,11 +141,21 @@ class YmlParityTest {
                     .as(c + " field=" + k + " expected " + expectedValue + " in result " + actualValue)
                     .isEqualTo(Canonical.keySet(expectedValue));
         }
+
+        // Per-key negative assertions: fields that must NOT have the specified value.
+        for (var e : negativeExpected.entrySet()) {
+            String k = e.getKey();
+            var negExpected = YmlExpected.build(Map.of(k, e.getValue()));
+            Object actualValue = actual.field(k);
+            Object negExpectedValue = negExpected.field(k);
+            assertThat(Canonical.equivalent(actualValue, negExpectedValue))
+                    .as(c + " field=-" + k + " expected " + negExpectedValue + " in result " + actualValue)
+                    .isFalse();
+        }
     }
 
     static Stream<YmlCase> allYmlCases() {
         return YmlTestLoader.discoverAll("yml/")
-                .filter(c -> !c.expected().isEmpty())
-                .filter(c -> PHASE_PROPS.containsAll(c.expected().keySet()));
+                .filter(c -> !c.expected().isEmpty());
     }
 }

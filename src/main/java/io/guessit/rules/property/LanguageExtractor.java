@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.lang.Country;
 import io.guessit.lang.Language;
 import io.guessit.lang.LanguageRegistry;
 

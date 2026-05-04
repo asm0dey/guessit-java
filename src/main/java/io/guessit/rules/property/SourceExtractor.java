@@ -55,7 +55,6 @@ public final class SourceExtractor implements Extractor {
         var ripPrefix = String.valueOf(section.getOrDefault("rip_prefix", "(?<other>Rip)-?"));
         var ripSuffix = String.valueOf(section.getOrDefault("rip_suffix", "-?(?<other>Rip)"));
         var optRipSuffix = "(?:" + ripSuffix + ")?";
-        var optRipPrefix = "(?:" + ripPrefix + ")?";
 
         var rules = buildRules(ripPrefix, ripSuffix, optRipSuffix);
 

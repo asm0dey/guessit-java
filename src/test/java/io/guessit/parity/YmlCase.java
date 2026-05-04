@@ -34,11 +34,11 @@ public record YmlCase(
         if (o.dateDayFirst() != null) append(sb, "dateDayFirst", o.dateDayFirst());
         if (o.episodePreferNumber() != null) append(sb, "episodePreferNumber", o.episodePreferNumber());
         if (o.enforceListWhenSingle() != null) append(sb, "enforceListWhenSingle", o.enforceListWhenSingle());
-        return sb.length() == 0 ? "" : "{" + sb + "}";
+        return sb.isEmpty() ? "" : "{" + sb + "}";
     }
 
     private static void append(StringBuilder sb, String key, Object value) {
-        if (sb.length() > 0) sb.append(", ");
+        if (!sb.isEmpty()) sb.append(", ");
         sb.append(key).append('=').append(value);
     }
 }

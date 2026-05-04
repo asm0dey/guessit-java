@@ -24,7 +24,8 @@ import java.util.regex.Pattern;
 public final class AudioCodecExtractor implements Extractor {
 
     public static final String AUDIO_CODEC = "audio_codec";
-    private static final Set<String> AUDIO_PROPS = Set.of(AUDIO_CODEC, "audio_profile", "audio_channels");
+    public static final String AUDIO_PROFILE = "audio_profile";
+    private static final Set<String> AUDIO_PROPS = Set.of(AUDIO_CODEC, AUDIO_PROFILE, "audio_channels");
 
     @Override public String name() { return AUDIO_CODEC; }
 
@@ -32,7 +33,7 @@ public final class AudioCodecExtractor implements Extractor {
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(AUDIO_CODEC);
         loadGroup(ctx, AUDIO_CODEC, asMap(section.get(AUDIO_CODEC)));
-        loadGroup(ctx, "audio_profile", asMap(section.get("audio_profile")));
+        loadGroup(ctx, AUDIO_PROFILE, asMap(section.get(AUDIO_PROFILE)));
         loadGroup(ctx, "audio_channels", asMap(section.get("audio_channels")));
     }
 
@@ -68,7 +69,7 @@ public final class AudioCodecExtractor implements Extractor {
         // declared parent codec (e.g. DTS-HD). The config tags such matches with
         // both "audio_profile.rule" and the required codec name; remove the
         // profile when the parent codec didn't survive.
-        var profilesWithRule = ctx.matches.named("audio_profile")
+        var profilesWithRule = ctx.matches.named(AUDIO_PROFILE)
             .filter(m -> m.tags().contains("audio_profile.rule"))
             .toList();
         var codecValues = ctx.matches.named(AUDIO_CODEC).map(m -> m.value().toString()).collect(java.util.stream.Collectors.toSet());
@@ -88,7 +89,7 @@ public final class AudioCodecExtractor implements Extractor {
         // surviving audio_profile=High Quality (e.g. AC3.HQ has both "other"
         // and audio_profile candidates over the same "HQ" — the audio profile
         // wins).
-        var hqProfileSpans = ctx.matches.named("audio_profile")
+        var hqProfileSpans = ctx.matches.named(AUDIO_PROFILE)
             .filter(m -> "High Quality".equals(m.value()))
             .map(m -> new int[]{m.start(), m.end()})
             .toList();
@@ -144,7 +145,6 @@ public final class AudioCodecExtractor implements Extractor {
         return merged;
     }
 
-    @SuppressWarnings("unchecked")
     private static boolean entryHasConflictSolver(Object def) {
         if (def instanceof Map<?, ?> m) return m.containsKey("conflict_solver");
         if (def instanceof List<?> l) return l.stream().anyMatch(AudioCodecExtractor::entryHasConflictSolver);

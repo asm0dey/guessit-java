@@ -4,7 +4,6 @@ import io.guessit.engine.*;
 
 import java.util.*;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -28,9 +27,6 @@ public final class EditionExtractor implements Extractor {
 
     @Override
     public String name() { return EDITION; }
-
-    @Override
-    public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -60,7 +56,7 @@ public final class EditionExtractor implements Extractor {
             // A plain string entry: the string is both the pattern and the value
             // (e.g. "Director's Definitive Cut": "ddc")
             if (s.startsWith("re:")) {
-                emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags(), null);
+                emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags());
             } else {
                 emitString(ctx, input, key, s, SENTINEL, defaultTags());
             }
@@ -77,9 +73,9 @@ public final class EditionExtractor implements Extractor {
             Object regexList = m.get("regex");
             for (var val : multiValues) {
                 var v = val.toString();
-                if (regexList instanceof String s) emitRegex(ctx, input, v, s, SENTINEL, tags, null);
+                if (regexList instanceof String s) emitRegex(ctx, input, v, s, SENTINEL, tags);
                 else if (regexList instanceof List<?> l)
-                    for (var p : l) emitRegex(ctx, input, v, p.toString(), SENTINEL, tags, null);
+                    for (var p : l) emitRegex(ctx, input, v, p.toString(), SENTINEL, tags);
             }
             return;
         }
@@ -98,9 +94,9 @@ public final class EditionExtractor implements Extractor {
         else if (stringList instanceof List<?> l)
             for (var p : l) emitString(ctx, input, editionValue, p.toString(), validatorSrc, tags);
 
-        if (regexList instanceof String s) emitRegex(ctx, input, editionValue, s, validatorSrc, tags, null);
+        if (regexList instanceof String s) emitRegex(ctx, input, editionValue, s, validatorSrc, tags);
         else if (regexList instanceof List<?> l)
-            for (var p : l) emitRegex(ctx, input, editionValue, p.toString(), validatorSrc, tags, null);
+            for (var p : l) emitRegex(ctx, input, editionValue, p.toString(), validatorSrc, tags);
     }
 
     private static final Object SENTINEL = new Object();
@@ -152,7 +148,7 @@ public final class EditionExtractor implements Extractor {
     }
 
     private static void emitRegex(ParseContext ctx, String input, String value, String src,
-                                   Object validatorSrc, Set<String> tags, @SuppressWarnings("unused") String ignored) {
+                                   Object validatorSrc, Set<String> tags) {
         Pattern p;
         try { p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE); }
         catch (Exception _) { return; }

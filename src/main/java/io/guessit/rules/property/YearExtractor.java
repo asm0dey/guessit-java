@@ -95,7 +95,7 @@ public final class YearExtractor implements Extractor {
             var weakDups = ctx.matches.all()
                     .filter(m -> m.tags().contains("weak-duplicate"))
                     .filter(m -> "season".equals(m.name()) || "episode".equals(m.name()))
-                    .filter(m -> dropped.overlaps(m))
+                    .filter(dropped::overlaps)
                     .toList();
             for (var m : weakDups) ctx.matches.remove(m);
         }

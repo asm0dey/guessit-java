@@ -365,7 +365,7 @@ public final class OtherExtractor implements Extractor {
 
     private static List<Object> flatten(Object v) {
         if (v == null) return List.of();
-        if (v instanceof List<?> l) return List.copyOf((List<Object>) l);
+        if (v instanceof List<?> l) return List.copyOf(l);
         return List.of(v);
     }
 
@@ -1076,7 +1076,7 @@ public final class StreamingServiceExtractor implements Extractor {
 
     private static List<Object> flatten(Object v) {
         if (v == null) return List.of();
-        if (v instanceof List<?> l) return List.copyOf((List<Object>) l);
+        if (v instanceof List<?> l) return List.copyOf(l);
         return List.of(v);
     }
 
@@ -1290,8 +1290,7 @@ public final class LanguageExtractor implements Extractor {
         for (var s : allowed) lc.add(s.toLowerCase(Locale.ROOT));
         if (lang.alpha2() != null && lc.contains(lang.alpha2().toLowerCase(Locale.ROOT))) return true;
         if (lang.alpha3() != null && lc.contains(lang.alpha3().toLowerCase(Locale.ROOT))) return true;
-        if (lang.name() != null && lc.contains(lang.name().toLowerCase(Locale.ROOT))) return true;
-        return false;
+        return lang.name() != null && lc.contains(lang.name().toLowerCase(Locale.ROOT));
     }
 
     private static void emitAffixes(ParseContext ctx) {
@@ -1862,8 +1861,7 @@ public final class ReleaseGroupExtractor implements Extractor {
         var t = s.trim();
         if (t.length() < 2) return false;
         if (t.contains(" ")) return false;
-        if (t.chars().allMatch(Character::isDigit)) return false;
-        return true;
+        return !t.chars().allMatch(Character::isDigit);
     }
 }
 ```

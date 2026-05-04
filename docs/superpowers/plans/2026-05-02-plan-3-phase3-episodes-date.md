@@ -2204,7 +2204,8 @@ Helpful sub-fix snippet for date-vs-SxxExx:
     @Override
     public void extract(ParseContext ctx) {
         // Skip date scan when a strong SxxExx season exists in the input.
-        if (ctx.matches.named("season").anyMatch(m -> m.tags().contains("SxxExx"))) return;
+        if (ctx.matches.named("season").anyMatch(m -> m.tags().contains("SxxExx"))) {
+        }
         // ... rest unchanged
     }
 ```

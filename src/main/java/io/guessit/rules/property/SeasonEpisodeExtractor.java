@@ -238,16 +238,6 @@ public final class SeasonEpisodeExtractor implements Extractor {
         return false;
     }
 
-    private static boolean isDescending(List<String> values) {
-        int prev = Integer.MIN_VALUE;
-        for (var v : values) {
-            int n = Integer.parseInt(v);
-            if (n < prev) return true;
-            prev = n;
-        }
-        return false;
-    }
-
     @Override
     public void postProcess(ParseContext ctx) {
         dropTailOverCodec(ctx);
@@ -348,7 +338,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var toRemove = new ArrayList<Match>();
         for (var m : matches) {
             if (m.tags().contains(SXX_EXX)) continue;
-            // weak-duplicate matches are paired (s+e from compact NNNN/NNN);
+            // weak-duplicate matches are paired (s+e from compact NNNN/NNN)
             // breaking the pair via this rule corrupts the pair logic in
             // WeakDuplicateExtractor.postProcess. Let that pass decide.
             if (m.tags().contains("weak-duplicate")) continue;

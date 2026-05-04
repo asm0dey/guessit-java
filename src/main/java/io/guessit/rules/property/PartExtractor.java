@@ -31,7 +31,7 @@ public final class PartExtractor implements Extractor {
             int v;
             try {
                 v = Numerals.parse(raw, true, true, false);
-            } catch (IllegalArgumentException ex) {
+            } catch (IllegalArgumentException _) {
                 continue;
             }
             if (v <= 0 || v >= 100) continue;

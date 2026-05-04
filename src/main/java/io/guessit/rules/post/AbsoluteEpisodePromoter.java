@@ -87,7 +87,6 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
      * one range-marker ({@code -}, {@code ~}, {@code to}).
      */
     private static boolean isSepRange(String gap) {
-        var stripped = gap;
         // Allow pure-sep padding around the range marker.
         // Pattern: [seps]* ('-' or '~' or 'to') [seps]*
         var lower = gap.strip().toLowerCase(java.util.Locale.ROOT);
@@ -150,7 +149,7 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
                 } else if (e.tags().contains("range-fill")) {
                     // Range-fill: always coalesce into the most-recently-opened group.
                     key = groups.keySet().stream()
-                        .reduce((a, b) -> b).orElse("noenc-" + e.start());
+                        .reduce((_, b) -> b).orElse("noenc-" + e.start());
                     if (key.toString().startsWith("noenc-")) lastNonEncKey = key;
                 } else {
                     // Regular non-enc episode: coalesce with the previous non-enc run

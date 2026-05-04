@@ -5,6 +5,8 @@ import io.guessit.GuessResultBuilder;
 import io.guessit.lang.Country;
 import io.guessit.lang.Language;
 import io.guessit.lang.LanguageRegistry;
+import io.guessit.util.BitRate;
+import io.guessit.util.Size;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -74,6 +76,10 @@ final class YmlExpected {
             case "bonus" -> b.bonus(asInt(v));
             case "bonus_title" -> b.bonusTitle(asString(v));
             case "crc32" -> b.crc32(asString(v));
+            case "bit_rate" -> b.bitRate(BitRate.fromString(asString(v)));
+            case "audio_bit_rate" -> b.audioBitRate(BitRate.fromString(asString(v)));
+            case "video_bit_rate" -> b.videoBitRate(BitRate.fromString(asString(v)));
+            case "size" -> b.size(Size.fromString(asString(v)));
             default -> { return false; }
         }
         return true;

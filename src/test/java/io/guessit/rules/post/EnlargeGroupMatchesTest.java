@@ -28,7 +28,7 @@ class EnlargeGroupMatchesTest {
         new EnlargeGroupMatches().process(ctx);
 
         var result = ctx.matches.named("title").findFirst().orElseThrow();
-        assertThat(result.start()).isEqualTo(0);
+        assertThat(result.start()).isZero();
         assertThat(result.end()).isEqualTo(4);
     }
 
@@ -62,7 +62,7 @@ class EnlargeGroupMatchesTest {
         new EnlargeGroupMatches().process(ctx);
 
         var result = ctx.matches.named("title").findFirst().orElseThrow();
-        assertThat(result.start()).isEqualTo(0);
+        assertThat(result.start()).isZero();
         assertThat(result.end()).isEqualTo(7);
     }
 
