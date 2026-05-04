@@ -1,66 +1,86 @@
 package io.guessit.rules.property;
 
+import io.guessit.GuessResult;
 import io.guessit.Guessit;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import java.util.List;
+
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 class SourceExtractorTest {
     @Test void bluRayRip() {
-        var r = Guessit.parse("Movie.2015.BDRip.mkv").toMap();
-        assertEquals("Blu-ray", r.get("source"));
-        assertEquals("Rip", r.get("other"));
+        GuessResult r = Guessit.parse("Movie.2015.BDRip.mkv");
+        assertThat(r.source()).isEqualTo("Blu-ray");
+        assertThat(r.other()).isEqualTo(List.of("Rip"));
     }
     @Test void webDl() {
-        var r = Guessit.parse("Movie.2015.WEB-DL.mkv").toMap();
-        assertEquals("Web", r.get("source"));
-        assertNull(r.get("other"));
+        GuessResult r = Guessit.parse("Movie.2015.WEB-DL.mkv");
+        assertThat(r.source()).isEqualTo("Web");
+        assertThat(r.other()).isNull();
     }
     @Test void webRip() {
-        var r = Guessit.parse("Movie.2015.WEBRip.mkv").toMap();
-        assertEquals("Web", r.get("source"));
-        assertEquals("Rip", r.get("other"));
+        GuessResult r = Guessit.parse("Movie.2015.WEBRip.mkv");
+        assertThat(r.source()).isEqualTo("Web");
+        assertThat("Rip").isIn(r.other());
     }
     @Test void hdtv() {
-        var r = Guessit.parse("Show.S01E02.HDTV.mkv").toMap();
-        assertEquals("HDTV", r.get("source"));
+        GuessResult r = Guessit.parse("Show.S01E02.HDTV.mkv");
+        assertThat(r.source()).isEqualTo("HDTV");
     }
     @Test void dvdRip() {
-        var r = Guessit.parse("Movie.2015.DVDRip.mkv").toMap();
-        assertEquals("DVD", r.get("source"));
-        assertEquals("Rip", r.get("other"));
+        GuessResult r = Guessit.parse("Movie.2015.DVDRip.mkv");
+        assertThat(r.source()).isEqualTo("DVD");
+        assertThat(r.other()).isEqualTo(List.of("Rip"));
     }
     @Test void blurayWordSpelling() {
-        var r = Guessit.parse("Movie.2015.BluRay.mkv").toMap();
-        assertEquals("Blu-ray", r.get("source"));
+        GuessResult r = Guessit.parse("Movie.2015.BluRay.mkv");
+        assertThat(r.source()).isEqualTo("Blu-ray");
     }
     @Test void plainTvIsNotMatched() {
-        var r = Guessit.parse("Some.Title.TV.mkv").toMap();
-        assertNull(r.get("source"), "raw TV without rip context must not match");
+        GuessResult r = Guessit.parse("Some.Title.TV.mkv");
+        assertThat(r.source()).as("raw TV without rip context must not match").isNull();
     }
     @Test void brripBecomesBluray() {
-        var r = Guessit.parse("Movie.2015.BRRip.mkv").toMap();
-        assertEquals("Blu-ray", r.get("source"));
+        GuessResult r = Guessit.parse("Movie.2015.BRRip.mkv");
+        assertThat(r.source()).isEqualTo("Blu-ray");
     }
     @Test void hdcam() {
-        var r = Guessit.parse("Movie.2015.HDCAM.mkv").toMap();
-        assertEquals("HD Camera", r.get("source"));
+        GuessResult r = Guessit.parse("Movie.2015.HDCAM.mkv");
+        assertThat(r.source()).isEqualTo("HD Camera");
     }
 
     @Test void weakWebRemovedWhenStrongSourceFollows() {
-        var r = Guessit.parse("Some.WEB.Title.2015.BluRay.mkv").toMap();
-        assertEquals("Blu-ray", r.get("source"));
+        GuessResult r = Guessit.parse("Some.WEB.Title.2015.BluRay.mkv");
+        assertThat(r.source()).isEqualTo("Blu-ray");
     }
 
     @Test void weakWebKeptWhenAlone() {
-        var r = Guessit.parse("Movie.2015.WEB.mkv").toMap();
-        assertEquals("Web", r.get("source"));
+        GuessResult r = Guessit.parse("Movie.2015.WEB.mkv");
+        assertThat(r.source()).isEqualTo("Web");
     }
 
     @Test void ultraHdBluray2160p() {
-        var r = Guessit.parse("Movie.2015.2160p.BluRay.mkv").toMap();
-        assertEquals("Ultra HD Blu-ray", r.get("source"));
-        assertEquals("2160p", r.get("screen_size"));
+        GuessResult r = Guessit.parse("Movie.2015.2160p.BluRay.mkv");
+        assertThat(r.source()).isEqualTo("Ultra HD Blu-ray");
+        assertThat(r.screenSize()).isEqualTo("2160p");
+    }
+
+    @Test void hdTsExtensionNotSource() {
+        GuessResult parse = Guessit.parse("Hd.Ts");
+        assertThat(parse.container()).isEqualTo("ts");
+        assertThat(parse.source()).isNull();
+    }
+
+    @Test void editionCcDroppedWhenStreamingServiceConsumesIt() {
+        GuessResult r = Guessit.parse(
+                "Show.Name.2016.09.28.Nice.Title.Extended.1080p.CC.WEBRip.AAC2.0.x264-monkee");
+        assertThat(r.edition()).isEqualTo(List.of("Extended"));
+        assertThat(r.streamingService()).isEqualTo("Comedy Central");
+    }
+
+    @Test void editionCcKeptWhenStandalone() {
+        GuessResult r = Guessit.parse("CC");
+        assertThat(r.edition()).isEqualTo(List.of("Criterion"));
     }
 }

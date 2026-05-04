@@ -174,7 +174,52 @@ public final class EditionExtractor implements Extractor {
         validateHasNeighbor(ctx);
         validateHasNeighborBefore(ctx);
         validateHasNeighborAfter(ctx);
+        dropOverlappingStreamingService(ctx);
         dedupSameSpan(ctx);
+    }
+
+    private static void dropOverlappingStreamingService(ParseContext ctx) {
+        var services = ctx.matches.named("streaming_service").toList();
+        if (services.isEmpty()) return;
+        var input = ctx.input;
+        var toRemove = new ArrayList<Match>();
+        for (var ed : ctx.matches.named(EDITION).toList()) {
+            for (var svc : services) {
+                if (svc.start() != ed.start() || svc.end() != ed.end()) continue;
+                if (!streamingServiceWillSurvive(ctx, input, svc)) continue;
+                toRemove.add(ed);
+                break;
+            }
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    /**
+     * Mirror of {@link StreamingServiceExtractor}'s post-pass: a streaming-service
+     * match survives only when an adjacent source (suffix) or other (prefix)
+     * neighbour with the right tag is separated by sep chars. We replicate the
+     * check here because the edition pass runs before the streaming-service
+     * pass — without it we would drop a CC-edition match in standalone "CC"
+     * input where the streaming-service ends up dropped too.
+     */
+    private static boolean streamingServiceWillSurvive(ParseContext ctx, String input, Match s) {
+        boolean nextOk = ctx.matches.all()
+            .filter(m -> !m.isPrivate())
+            .filter(m -> m.tags().contains("streaming_service.suffix"))
+            .filter(m -> m.start() >= s.end())
+            .min(java.util.Comparator.comparingInt(Match::start))
+            .map(n -> betweenIsSeps(input, s.end(), n.start())
+                    && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1))))
+            .orElse(false);
+        if (nextOk) return true;
+        return ctx.matches.all()
+            .filter(m -> !m.isPrivate())
+            .filter(m -> m.tags().contains("streaming_service.prefix"))
+            .filter(m -> m.end() <= s.start())
+            .max(java.util.Comparator.comparingInt(Match::end))
+            .map(p -> betweenIsSeps(input, p.end(), s.start())
+                    && (s.end() >= input.length() || Seps.isSep(input.charAt(s.end()))))
+            .orElse(false);
     }
 
     private static void validateHasNeighbor(ParseContext ctx) {

@@ -146,6 +146,7 @@ public final class SourceExtractor implements Extractor {
             var sourceMatch = new Match(SOURCE, rule.source(), s, e,
                     input.substring(s, e), 1000, rule.tags(), false);
             if (!validator.test(sourceMatch)) continue;
+            if (overlapsExtension(ctx, s, e)) continue;
             ctx.matches.add(sourceMatch);
             if (rule.otherValue() != null) {
                 int os = groupStart(matcher, OTHER);
@@ -164,6 +165,12 @@ public final class SourceExtractor implements Extractor {
                 }
             }
         }
+    }
+
+    private static boolean overlapsExtension(ParseContext ctx, int s, int e) {
+        return ctx.matches.named("container")
+                .anyMatch(m -> m.tags().contains("extension")
+                        && m.start() < e && s < m.end());
     }
 
     private static int groupStart(Matcher m, String name) {

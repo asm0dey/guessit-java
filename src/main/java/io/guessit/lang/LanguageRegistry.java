@@ -39,7 +39,19 @@ public final class LanguageRegistry {
         var key = token.trim().toLowerCase(Locale.ROOT);
         var override = langAliasOverrides.get(key);
         if (override != null) return Optional.of(override);
-        return Optional.ofNullable(langByKey.get(key));
+        var direct = langByKey.get(key);
+        if (direct != null) return Optional.of(direct);
+        // babelfish-style "lang-COUNTRY" form (e.g. "pt-BR"): resolve language part
+        // and attach the country qualifier so equality survives "pt" vs "pt-BR".
+        int dash = key.indexOf('-');
+        if (dash > 0) {
+            var base = langByKey.get(key.substring(0, dash));
+            if (base == null) return Optional.empty();
+            var country = countryByKey.get(key.substring(dash + 1));
+            return country == null ? Optional.of(base)
+                    : Optional.of(new Language(base.alpha2(), base.alpha3(), base.name(), country));
+        }
+        return Optional.empty();
     }
 
     public Optional<Country> findCountry(String token) {
