@@ -106,7 +106,8 @@ public final class ReleaseGroupExtractor implements Extractor {
                     var raw = input.substring(s, e);
                     var candidate = cleanGroupName(raw);
                     if (validGroupName(candidate, false) && !overlapsNonLanguageExceptHd(ctx, s, e)
-                        && !overlapsSubtitleLanguage(ctx, s, e)) {
+                        && !overlapsSubtitleLanguage(ctx, s, e)
+                        && hasDotSeparatedPredecessors(ctx, filepart.start(), s)) {
                         if (isProbableLanguagePrefix(candidate)) continue;
                         dropHdInsideCandidate(ctx, s, e);
                         removeOverlappingLanguages(ctx, s, e);
@@ -155,6 +156,41 @@ public final class ReleaseGroupExtractor implements Extractor {
             }
         }
         return false;
+    }
+
+    /**
+     * Mirror python's DashSeparatedReleaseGroup.is_valid for at_end=True:
+     * walking left from the candidate's start, the immediately preceding
+     * non-private match must be `-`-separated from the candidate, and any
+     * earlier matches must be `.`-separated from the next-rightward match.
+     * Rejects "Title-s03-e02-EpName" where the chain uses dashes throughout
+     * (the trailing word is episode_title, not a release_group).
+     */
+    private static boolean hasDotSeparatedPredecessors(ParseContext ctx, int filepartStart, int candidateStart) {
+        int boundary = candidateStart;
+        int count = 0;
+        while (true) {
+            int curBoundary = boundary;
+            var prev = ctx.matches.all()
+                    .filter(m -> !m.isPrivate())
+                    .filter(m -> !m.tags().contains("expected"))
+                    .filter(m -> m.start() >= filepartStart && m.end() <= curBoundary)
+                    .reduce((a, b) -> a.end() >= b.end() ? a : b)
+                    .orElse(null);
+            if (prev == null) return false;
+            String sep = ctx.input.substring(prev.end(), boundary);
+            // Strip nothing; python checks raw separator literal.
+            if (count == 0) {
+                if (!"-".equals(sep)) return false;
+                count++;
+                boundary = prev.start();
+                continue;
+            }
+            if (".".equals(sep)) return true;
+            // Otherwise keep walking — but python breaks here. Match python:
+            // any non-`.` separator after the first chain step disqualifies.
+            return false;
+        }
     }
 
     private static boolean overlapsSubtitleLanguage(ParseContext ctx, int s, int e) {
