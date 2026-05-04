@@ -64,7 +64,7 @@ final class YmlExpected {
             case "release_group" -> b.releaseGroup(asString(v));
             case "streaming_service" -> b.streamingService(asString(v));
             case "website" -> b.website(asString(v));
-            case "edition" -> b.edition(asString(v));
+            case "edition" -> b.edition(asStrings(v));
             case "cd" -> b.cd(asInt(v));
             case "cd_count" -> b.cdCount(asInt(v));
             case "part" -> b.part(asInt(v));

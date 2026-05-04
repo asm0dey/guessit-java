@@ -39,7 +39,9 @@ class YmlParityTest {
             "episode_details", "episode_format", "version",
             "season", "episode", "season_count", "episode_count",
             // Phase 4
-            "title", "alternative_title", "episode_title", "type"
+            "title", "alternative_title", "episode_title", "type",
+            // Phase 5 (long-tail properties)
+            "edition"
     );
 
     /**

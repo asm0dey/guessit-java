@@ -69,6 +69,7 @@ public final class Rules {
             new SizeExtractor(),
             new BitRateExtractor(),
             new OtherExtractor(),
+            new EditionExtractor(),
             new LanguageExtractor(),
             new CountryExtractor(),
             new StreamingServiceExtractor(),

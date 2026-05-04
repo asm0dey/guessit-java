@@ -71,7 +71,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "release_group" -> b.releaseGroup(asString(e.getValue().getFirst()));
                 case "streaming_service" -> b.streamingService(asString(e.getValue().getFirst()));
                 case "website" -> b.website(asString(e.getValue().getFirst()));
-                case "edition" -> b.edition(asString(e.getValue().getFirst()));
+                case "edition" -> b.edition(dedupedStringList(e.getValue()));
                 case "cd" -> b.cd(asInt(e.getValue().getFirst()));
                 case "cd_count" -> b.cdCount(asInt(e.getValue().getFirst()));
                 case "part" -> b.part(asInt(e.getValue().getFirst()));

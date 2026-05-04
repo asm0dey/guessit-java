@@ -40,7 +40,7 @@ public record GuessResult(
     @Opt Quantity bitRate, @Opt Quantity size,
     @Opt String container, @Opt String mimetype,
     @Opt String releaseGroup, @Opt String streamingService, @Opt String website,
-    @Opt String edition, @Opt Integer cd, @Opt Integer cdCount,
+    @Opt List<String> edition, @Opt Integer cd, @Opt Integer cdCount,
     @Opt Integer part, @Opt Integer version, @Opt Integer film, @Opt String filmTitle,
     @Opt Integer bonus, @Opt String bonusTitle, @Opt String crc32,
     @Opt Map<String, Object> extras
@@ -85,7 +85,7 @@ public record GuessResult(
         putIfNotNull(m, "release_group", releaseGroup);
         putIfNotNull(m, "streaming_service", streamingService);
         putIfNotNull(m, "website", website);
-        putIfNotNull(m, "edition", edition);
+        putList(m, "edition", edition);
         putIfNotNull(m, "cd", cd);
         putIfNotNull(m, "cd_count", cdCount);
         putIfNotNull(m, "part", part);
@@ -156,7 +156,7 @@ public record GuessResult(
             case "release_group" -> releaseGroup;
             case "streaming_service" -> streamingService;
             case "website" -> website;
-            case "edition" -> edition;
+            case "edition" -> singleOrList(edition);
             case "cd" -> cd;
             case "cd_count" -> cdCount;
             case "part" -> part;
