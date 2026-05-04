@@ -83,7 +83,10 @@ public final class SourceExtractor implements Extractor {
         rules.add(new Rule(List.of("SD-?TV"), "", optRipSuffix, "TV", "Rip", null, common, false));
         rules.add(new Rule(List.of("TV"), "", ripSuffix, "TV", "Rip", null, common, false));
         rules.add(new Rule(List.of("TV", "SD-?TV"), ripPrefix, "", "TV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("TV-?(?=Dub)"), "", "", "TV", null, null, common, false));
+        // Consume "Dub" so the match end lands on a separator-bound boundary
+        // (validatePrefixSuffix drops a match whose suffix sits flush against
+        // a non-separator character).
+        rules.add(new Rule(List.of("TV-?Dub"), "", "", "TV", null, null, common, false));
         rules.add(new Rule(List.of("DVB", "PD-?TV"), "", optRipSuffix, "Digital TV", "Rip", null, common, false));
         rules.add(new Rule(List.of("DVD"), "", optRipSuffix, "DVD", "Rip", null, common, false));
         rules.add(new Rule(List.of("DM"), "", optRipSuffix, "Digital Master", "Rip", null, common, false));
@@ -100,9 +103,18 @@ public final class SourceExtractor implements Extractor {
                 "", "", "Web", null, null, common, false));
         rules.add(new Rule(List.of("WEB"), "", "", "Web", null, null, Set.of("weak.source"), true));
         rules.add(new Rule(List.of("HD-?DVD"), "", optRipSuffix, "HD-DVD", "Rip", null, common, false));
-        rules.add(new Rule(List.of("Blu-?ray", "BD", "BD[59]", "BD25", "BD50"),
+        // Order: longer/more-specific BD variants before bare "BD" so the
+        // alternation picks "BD25" over "BD" on input "BD25".
+        rules.add(new Rule(List.of("Blu-?ray", "BD25", "BD50", "BD[59]", "BD"),
                 "", optRipSuffix, "Blu-ray", "Rip", null, common, false));
-        rules.add(new Rule(List.of("(?<another>BR)-?(?=Scr(?:eener)?)", "(?<another>BR)-?(?=Mux)"),
+        // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
+        // the lookahead form fails validatePrefixSuffix when 'S'/'M' isn't a sep.
+        // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
+        // a lookahead-only form would fail validatePrefixSuffix when 'S'/'M'
+        // isn't a separator.
+        // Lookahead lets the Screener/Mux Other match keep its own span; the
+        // single named group avoids Java's duplicate-name compile error.
+        rules.add(new Rule(List.of("(?<another>BR)-?(?=Scr(?:eener)?|Mux)"),
                 "", "", "Blu-ray", null, "Reencoded", common, false));
         rules.add(new Rule(List.of("(?<another>BR)"), "", ripSuffix, "Blu-ray", "Rip", "Reencoded", common, false));
         rules.add(new Rule(List.of("Ultra-?Blu-?ray", "Blu-?ray-?Ultra"), "", "", "Ultra HD Blu-ray", null, null, common, false));
