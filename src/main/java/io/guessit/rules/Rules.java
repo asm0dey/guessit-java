@@ -82,6 +82,7 @@ public final class Rules {
             new AbsoluteEpisodeRule(),
             new SeasonEpisodeExtractor(),
             new EpisodeWordExtractor(),
+            new BonusExtractor(),
             new WeakEpisodeExtractor(),
             new WeakDuplicateExtractor(),
             new DiscRule(),
