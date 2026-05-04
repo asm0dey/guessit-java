@@ -57,6 +57,13 @@ public final class ScreenSizeExtractor implements Extractor {
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)" + "(?:" + fr + ")?", opts);
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)?(?:hd)", opts);
         addRegex(ctx, resPrefix + heightP + "(?<scan>p)?x", opts);
+        // Bare height pattern: 720, 1080, 2160, ... without `p`/`i`/`hd`/`x`. Tag
+        // weak.screen_size so postProcess can drop matches lacking a strong
+        // neighbor (date/source/other/streaming_service/video_profile).
+        var weakOpts = RegexOpts.defaults()
+            .withValidator(validator)
+            .withTags(Set.of("weak.screen_size"));
+        addRegex(ctx, resPrefix + heightP, weakOpts);
 
         // 4k literal → 2160p
         var fourK = StringOpts.defaults().withValidator(validator);
@@ -101,6 +108,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
         for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
             if (m.tags().contains("normalized")) continue;
+            boolean weak = m.tags().contains("weak.screen_size");
             var wh = widthHeight.matcher(m.raw());
             if (wh.find()) {
                 int w = Integer.parseInt(wh.group("width"));
@@ -109,23 +117,64 @@ public final class ScreenSizeExtractor implements Extractor {
                 double ar = (double) w / h;
                 ctx.matches.add(new Match("aspect_ratio", Math.round(ar * 1000.0) / 1000.0,
                     m.start(), m.end(), m.raw(), m.priority(), Set.of("derivedFrom:screen_size"), false));
-                // Use the canonical "1080p"-style label only when the height
-                // is a known standard AND the aspect ratio falls in the
-                // typical movie/TV range; otherwise preserve the explicit
-                // WxH shape so unusual sources (e.g. anamorphic) are not lied about.
                 String value = (standardHeights.contains(String.valueOf(h)) && minAr < ar && ar < maxAr)
                     ? h + scan : w + "x" + h;
-
+                Set<String> nt = weak ? Set.of("normalized", "weak.screen_size") : Set.of("normalized");
                 ctx.matches.replace(m, new Match(SCREEN_SIZE, value, m.start(), m.end(), m.raw(),
-                    m.priority(), Set.of("normalized"), false));
+                    m.priority(), nt, false));
                 continue;
             }
             var hs = heightScan.matcher(m.raw());
             if (hs.find()) {
                 String h = hs.group("height");
                 String scan = hs.group("scan") == null ? "p" : hs.group("scan").toLowerCase(Locale.ROOT);
+                Set<String> nt = weak ? Set.of("normalized", "weak.screen_size") : Set.of("normalized");
                 ctx.matches.replace(m, new Match(SCREEN_SIZE, h + scan, m.start(), m.end(), m.raw(),
-                    m.priority(), Set.of("normalized"), false));
+                    m.priority(), nt, false));
+            }
+        }
+
+        // ResolveScreenSizeConflicts (port of python rule): drop weak.screen_size
+        // matches that lack a strong neighbor (date/source/other/streaming_service/
+        // video_profile) — i.e. bare "720"/"1080" digits without resolution context.
+        var weakSizes = ctx.matches.named(SCREEN_SIZE)
+            .filter(m -> m.tags().contains("weak.screen_size"))
+            .toList();
+        if (!weakSizes.isEmpty()) {
+            var strongNames = Set.of("date", "source", "other", "streaming_service", "video_profile");
+            var allMatches = ctx.matches.all().toList();
+            for (var ws : weakSizes) {
+                boolean hasNeighbor = false;
+                for (var n : allMatches) {
+                    if (n == ws) continue;
+                    if (!strongNames.contains(n.name())) continue;
+                    if (n.end() <= ws.start()) {
+                        var gap = ctx.input.substring(n.end(), ws.start());
+                        if (gap.chars().allMatch(c -> Seps.isSep((char) c))) { hasNeighbor = true; break; }
+                    } else if (n.start() >= ws.end()) {
+                        var gap = ctx.input.substring(ws.end(), n.start());
+                        if (gap.chars().allMatch(c -> Seps.isSep((char) c))) { hasNeighbor = true; break; }
+                    }
+                }
+                if (!hasNeighbor) {
+                    ctx.matches.remove(ws);
+                    // Restore: bare height that lost overlap to season/episode is
+                    // dropped (matches python's screensize-loses-to-season-episode).
+                    // Re-emit weak_episode at this span if no episode covers it,
+                    // honoring episode_prefer_number gating.
+                    boolean hasEpHere = ctx.matches.named("episode")
+                        .anyMatch(e -> e.start() == ws.start() && e.end() == ws.end());
+                    if (!hasEpHere && !"movie".equals(ctx.options.type())) {
+                        try {
+                            int v = Integer.parseInt(ws.raw());
+                            if (v >= 100 || io.guessit.rules.property.WeakEpisodeExtractor.EPISODE.equals(ctx.options.type())
+                                    || ctx.options.episodePreferNumber() != null) {
+                                ctx.matches.add(new Match("episode", v, ws.start(), ws.end(),
+                                    ws.raw(), 800, Set.of("weak-episode"), false));
+                            }
+                        } catch (NumberFormatException _) { }
+                    }
+                }
             }
         }
 

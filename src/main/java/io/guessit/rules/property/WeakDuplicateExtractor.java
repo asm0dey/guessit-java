@@ -96,6 +96,17 @@ public final class WeakDuplicateExtractor implements Extractor {
                 && (ctx.input.charAt(0) == '[' || ctx.input.charAt(0) == '(')
                 && ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name()) && mk.start() <= 1
                         && !mk.raw().matches("\\d+"));
+        // Python WeakConflictSolver.is_anime: also true when a screen_size match sits
+        // inside any group marker. Mirrors python's anime detection so the canonical
+        // weak-episode wins over weak_duplicate splits of WxH digits like 1280*720.
+        if (!animeContext) {
+            for (var mk : ctx.markers) {
+                if (!"group".equals(mk.name())) continue;
+                boolean hasScreenInGroup = ctx.matches.named("screen_size")
+                        .anyMatch(m -> m.start() >= mk.start() && m.end() <= mk.end());
+                if (hasScreenInGroup) { animeContext = true; break; }
+            }
+        }
         if (animeContext) {
             var dropDup = ctx.matches.all()
                     .filter(m -> m.tags().contains(WEAK_DUPLICATE))
