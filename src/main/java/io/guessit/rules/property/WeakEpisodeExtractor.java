@@ -90,7 +90,13 @@ public final class WeakEpisodeExtractor implements Extractor {
     /** Replicates RemoveWeakIfMovie + RemoveWeak (drop weak-episode after audio/video/source). */
     @Override
     public void postProcess(ParseContext ctx) {
-        if (ctx.matches.named("year").findAny().isPresent() && !EPISODE.equals(ctx.options.type())) {
+        // Range-paired ≥100 weak-episodes ("Show.Name.-.476-479.(2007)...")
+        // are episode ranges, not movie noise — exempt them from the
+        // year-triggered movie removal so RangeFiller can expand the pair.
+        boolean rangePairedWeakPresent = hasRangePairedWeakEpisodes(ctx);
+        if (!rangePairedWeakPresent
+                && ctx.matches.named("year").findAny().isPresent()
+                && !EPISODE.equals(ctx.options.type())) {
             removeAllWeak(ctx);
             return;
         }
@@ -176,6 +182,25 @@ public final class WeakEpisodeExtractor implements Extractor {
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean hasRangePairedWeakEpisodes(ParseContext ctx) {
+        var weaks = ctx.matches.named(EPISODE)
+                .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains("weak-duplicate"))
+                .filter(m -> m.value() instanceof Integer i && i >= 100)
+                .sorted(java.util.Comparator.comparingInt(Match::start))
+                .toList();
+        for (int i = 0; i + 1 < weaks.size(); i++) {
+            var a = weaks.get(i);
+            var b = weaks.get(i + 1);
+            if (!(a.value() instanceof Integer va) || !(b.value() instanceof Integer vb)) continue;
+            if (vb <= va) continue;
+            int gapLen = b.start() - a.end();
+            if (gapLen <= 0 || gapLen > 5) continue;
+            String gap = ctx.input.substring(a.end(), b.start());
+            if (gap.matches("[ ._]*[-~][ ._]*")) return true;
+        }
+        return false;
     }
 
     private static void removeAllWeak(ParseContext ctx) {

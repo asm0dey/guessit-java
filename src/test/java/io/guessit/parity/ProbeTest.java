@@ -44,6 +44,36 @@ class ProbeTest {
     }
 
     @Test
+    void ymlLoaderParsesDashTOption() {
+        var content = """
+                ? Show.Name.-.476-479.(2007).[HorribleSubs][WEBRip]..[HD.720p]
+                : options: -t episode
+                  episode:
+                  - 476
+                  - 477
+                  - 478
+                  - 479
+                  source: Web
+                  other: [Rip, HD]
+                  release_group: HorribleSubs
+                  screen_size: 720p
+                  title: Show Name
+                  type: episode
+                  year: 2007
+                """;
+        var cases = io.guessit.parity.YmlTestLoader.parseContent(content, "probe");
+        assertThat(cases).hasSize(1);
+        assertThat(cases.getFirst().options().type()).isEqualTo("episode");
+    }
+
+    @Test
+    void showName476To479_episodeRange() {
+        var r = Guessit.parse("Show.Name.-.476-479.(2007).[HorribleSubs][WEBRip]..[HD.720p]").toMap();
+        assertThat((java.util.List<Integer>) r.get("episode")).containsExactlyInAnyOrder(476, 477, 478, 479);
+        assertThat(r.get("title")).isEqualTo("Show Name");
+    }
+
+    @Test
     void showName313To315_dotsAbsoluteEpisode() {
         var r = Guessit.parse("Show.Name.313-315.s16e03-05").toMap();
         assertThat(r.get("title")).isEqualTo("Show Name");
