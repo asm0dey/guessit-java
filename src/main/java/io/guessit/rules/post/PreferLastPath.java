@@ -38,6 +38,11 @@ public final class PreferLastPath implements PostProcessor {
             .filter(m -> !m.isPrivate())
             .filter(m -> m.end() <= last.start())
             .filter(m -> inLast.contains(m.name()))
+            // Preserve titles that survived preferTitleWithYear: they were
+            // picked because their filepart has a year-in-group. Dropping
+            // them lets the inner filepart's title (often poorer casing or
+            // has a release-group prefix like "blow-…") win.
+            .filter(m -> !("title".equals(m.name()) && m.tags().contains("equivalent-ignore")))
             .toList();
         for (var m : toDrop) ctx.matches.remove(m);
     }

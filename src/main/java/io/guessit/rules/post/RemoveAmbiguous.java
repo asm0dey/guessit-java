@@ -32,10 +32,13 @@ public class RemoveAmbiguous implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        var paths = ctx.markers.stream()
+        // Mirror python: iterate fileparts in marker_sorted order (most-
+        // valuable filepart first), so its values win when later fileparts
+        // have differently-valued same-named matches.
+        var pathsSorted = ctx.markers.stream()
             .filter(m -> "path".equals(m.name()))
-            .sorted(Comparator.comparingInt(Marker::start))
-            .collect(Collectors.toCollection(ArrayList::new));
+            .toList();
+        var paths = new ArrayList<>(io.guessit.engine.Markers.markerSorted(pathsSorted, ctx.matches));
         if (reverseFileparts) Collections.reverse(paths);
 
         var seenNames = new HashSet<String>();
