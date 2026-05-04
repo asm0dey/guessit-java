@@ -62,6 +62,16 @@ class ProbeTest {
     }
 
     @Test
+    void chuckBerry320Kbps_typeMovie_noEpisode() {
+        var r = Guessit.parse("Chuck Berry The Very Best Of Chuck Berry(2010)[320 Kbps]").toMap();
+        assertThat(r.get("type")).isEqualTo("movie");
+        assertThat(r.get("year")).isEqualTo(2010);
+        assertThat(r.get("audio_bit_rate")).isNotNull();
+        assertThat(r.get("season")).isNull();
+        assertThat(r.get("episode")).isNull();
+    }
+
+    @Test
     void epWordBeforeSxxExx_excludedFromTitle() {
         var r = Guessit.parse("Star Trek DS9 Ep 2x03 The Siege (Part III)").toMap();
         assertThat(r.get("title")).isEqualTo("Star Trek DS9");

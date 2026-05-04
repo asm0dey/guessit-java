@@ -301,6 +301,12 @@ public final class WeakDuplicateExtractor implements Extractor {
                 .filter(m -> m.raw() != null && m.raw().length() >= 4
                         && m.raw().chars().anyMatch(Character::isDigit))
                 .toList();
+        // audio_bit_rate / video_bit_rate spans (e.g. "320 Kbps") cover the
+        // weak-duplicate digits; mirror python's default longest-wins solver
+        // which drops the shorter weak-duplicate parent in this overlap.
+        var prePropBitRates = ctx.matches.all()
+                .filter(m -> m.name().equals("audio_bit_rate") || m.name().equals("video_bit_rate"))
+                .toList();
         var preClean = new ArrayList<Match>();
         for (var name : new String[]{SEASON, EPISODE}) {
             for (var m : ctx.matches.named(name).toList()) {
@@ -309,7 +315,8 @@ public final class WeakDuplicateExtractor implements Extractor {
                         || prePropDates.stream().anyMatch(d -> d.overlaps(m))
                         || prePropCodecs.stream().anyMatch(c -> c.overlaps(m))
                         || prePropScreens.stream().anyMatch(s -> s.overlaps(m))
-                        || prePropOthers.stream().anyMatch(o -> o.overlaps(m))) {
+                        || prePropOthers.stream().anyMatch(o -> o.overlaps(m))
+                        || prePropBitRates.stream().anyMatch(br -> br.overlaps(m))) {
                     preClean.add(m);
                 }
             }
