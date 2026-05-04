@@ -9,6 +9,7 @@ import io.guessit.rules.post.MimetypeProcessor;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
+import io.guessit.rules.post.EpisodeNumberSeparatorRange;
 import io.guessit.rules.post.RangeFiller;
 import io.guessit.rules.post.RemoveAmbiguous;
 import io.guessit.rules.post.RemoveLessSpecificSeasonEpisode;
@@ -51,6 +52,7 @@ public final class Rules {
                 new EquivalentHoles(),
                 new PreferLastPath(),
                 new RangeFiller(),
+                new EpisodeNumberSeparatorRange(),
                 new SeasonYearLink(),
                 new SeasonYear(),
                 new YearSeason(),
