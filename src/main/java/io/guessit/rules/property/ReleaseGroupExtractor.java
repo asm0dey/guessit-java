@@ -337,6 +337,18 @@ public final class ReleaseGroupExtractor implements Extractor {
                 rangeEnd = strip;
                 changed = true;
             }
+            // Trailing subtitle_language match (e.g. "...xvid-2hd.eng.srt"):
+            // python excludes subtitle language from RG candidate territory.
+            // Pull rangeEnd back so prev/candidate computation sees the real
+            // group span before the language tail.
+            var subLang = ctx.matches.named(LanguageExtractor.SUBTITLE_LANGUAGE)
+                .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
+                .filter(m -> m.end() == fe)
+                .findFirst().orElse(null);
+            if (subLang != null) {
+                rangeEnd = subLang.start();
+                changed = true;
+            }
         }
         return rangeEnd;
     }
