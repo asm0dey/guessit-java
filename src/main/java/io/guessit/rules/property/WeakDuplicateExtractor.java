@@ -197,6 +197,58 @@ public final class WeakDuplicateExtractor implements Extractor {
             for (var m : toAdd) ctx.matches.add(m);
         }
 
+        // RemoveWeakIfMovie analogue: per-filepart, when type != episode and a
+        // year exists, drop weak-duplicate matches in that filepart UNLESS the
+        // weak-duplicate sits immediately after the year (no hole between
+        // year.end and the weak-duplicate match). Python's RemoveWeakIfMovie
+        // exempts the next match's initiator when contiguous with the year, so
+        // "the.flash.2014.208" keeps 2+08 as season+episode. "123.Angry.Men.1957"
+        // has the weak-duplicate BEFORE the year → no exemption → drop.
+        if (!EPISODE.equals(ctx.options.type())) {
+            var movieFileparts = io.guessit.engine.Markers.named(ctx.markers, "path").toList();
+            var dropForMovie = new ArrayList<Match>();
+            for (var fp : movieFileparts) {
+                var year = ctx.matches.named("year")
+                        .filter(y -> y.start() >= fp.start() && y.end() <= fp.end())
+                        .findFirst().orElse(null);
+                if (year == null) continue;
+                int yearEnd = year.end();
+                // Identify the weak-duplicate PAIR (season + episode at same position)
+                // immediately following year via separator-only gap; exempt that pair.
+                var pairStarts = new java.util.HashSet<Integer>();
+                ctx.matches.named(SEASON)
+                        .filter(s -> s.tags().contains(WEAK_DUPLICATE))
+                        .filter(s -> s.start() >= fp.start() && s.end() <= fp.end())
+                        .filter(s -> s.start() >= yearEnd)
+                        .filter(s -> {
+                            String gap = ctx.input.substring(yearEnd, s.start());
+                            return gap.chars().allMatch(c -> Seps.isSep((char) c));
+                        })
+                        .forEach(s -> pairStarts.add(s.start()));
+                ctx.matches.all()
+                        .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                        .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+                        .filter(m -> {
+                            // Exempt season match itself
+                            if (pairStarts.contains(m.start())) return false;
+                            // Exempt episode match of the same pair (starts at season.end == season.start+1or2)
+                            for (int ps : pairStarts) {
+                                // Episode of pair starts at season.end. Season raw is 1-2 chars,
+                                // so episode start is ps+1 or ps+2.
+                                if (m.start() == ps + 1 || m.start() == ps + 2) {
+                                    var prev = ctx.matches.named(SEASON)
+                                            .filter(s -> s.start() == ps && s.tags().contains(WEAK_DUPLICATE))
+                                            .findFirst().orElse(null);
+                                    if (prev != null && m.start() == prev.end()) return false;
+                                }
+                            }
+                            return true;
+                        })
+                        .forEach(dropForMovie::add);
+            }
+            for (var m : dropForMovie) ctx.matches.remove(m);
+        }
+
         // Pre-clean weak-duplicate inside expected-title spans. The user told
         // us those digits are part of the title, so they must not influence
         // the dedup or weak-episode removal below.
