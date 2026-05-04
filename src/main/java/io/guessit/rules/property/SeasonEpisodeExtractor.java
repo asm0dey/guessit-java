@@ -39,7 +39,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
     private static final java.util.Set<String> MARKER_SEPS = Set.of("e", "ex", "xe", "ep", "x", "d", "s");
     private static final int MAX_RANGE_GAP = 1;
     private static final Pattern HEAD_NUM_X = Pattern.compile(
-        "(?i)(?<season>\\d+)@?(?<episodeMarker>x)@?(?<episode>\\d+)");
+        "(?i)(?<season>\\d+)[ ]?(?<episodeMarker>x)[ ]?(?<episode>\\d+)");
     // Episode-only chain: matches "E01E02E03", "1e18", "e112" without an explicit
     // S<season> head. Optional season prefix captured but only emitted when present.
     private static final Pattern HEAD_E = Pattern.compile(

@@ -62,6 +62,14 @@ class ProbeTest {
     }
 
     @Test
+    void numXNumWithSpaces_seasonEpisodePair() {
+        var r = Guessit.parse("Something 1 x 2-FlexGet",
+            io.guessit.Options.builder().type("episode").build()).toMap();
+        assertThat(r.get("season")).isEqualTo(1);
+        assertThat(r.get("episode")).isEqualTo(2);
+    }
+
+    @Test
     void chuckBerry320Kbps_typeMovie_noEpisode() {
         var r = Guessit.parse("Chuck Berry The Very Best Of Chuck Berry(2010)[320 Kbps]").toMap();
         assertThat(r.get("type")).isEqualTo("movie");
