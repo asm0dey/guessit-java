@@ -337,17 +337,49 @@ public final class ReleaseGroupExtractor implements Extractor {
                 rangeEnd = strip;
                 changed = true;
             }
-            // Trailing subtitle_language match (e.g. "...xvid-2hd.eng.srt"):
-            // python excludes subtitle language from RG candidate territory.
-            // Pull rangeEnd back so prev/candidate computation sees the real
-            // group span before the language tail.
-            var subLang = ctx.matches.named(LanguageExtractor.SUBTITLE_LANGUAGE)
+            // Trailing subtitle_language / language / "Dual Audio"-style
+            // other match (e.g. "...xvid-2hd.eng.srt", "...x264-Belex.-.Dual.Audio.+.Legendas"):
+            // python excludes these from RG candidate territory. Pull rangeEnd
+            // back so prev/candidate computation sees the real group span
+            // before the language/audio tail. Skip when the language match
+            // sits flush against the prior scene-prev (no real RG token
+            // between them) — in that shape the language IS the RG ("x264-CS",
+            // "H.264-NL").
+            var trailingTail = ctx.matches.all()
+                .filter(m -> !m.isPrivate())
                 .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
                 .filter(m -> m.end() == fe)
+                .filter(m -> {
+                    String n = m.name();
+                    if (LanguageExtractor.SUBTITLE_LANGUAGE.equals(n)) return true;
+                    if (LanguageExtractor.LANGUAGE.equals(n)) return true;
+                    if (OtherExtractor.OTHER.equals(n)) {
+                        Object v = m.value();
+                        if (v == null) return false;
+                        String vs = v.toString();
+                        return vs.contains("Audio") || "Dual Audio".equals(vs);
+                    }
+                    return false;
+                })
                 .findFirst().orElse(null);
-            if (subLang != null) {
-                rangeEnd = subLang.start();
-                changed = true;
+            if (trailingTail != null) {
+                final int tailStart = trailingTail.start();
+                int tailDepth = 1;
+                while (tailStart - tailDepth > filepart.start()
+                    && isGroupSep(input.charAt(tailStart - tailDepth))) tailDepth++;
+                int beforeTail = tailStart - tailDepth + 1;
+                final int beforeTailFinal = beforeTail;
+                var sceneBefore = ctx.matches.all()
+                    .filter(m -> !m.isPrivate())
+                    .filter(m -> SCENE_PREV.contains(m.name()))
+                    .filter(m -> m.start() >= filepart.start() && m.end() <= beforeTailFinal)
+                    .reduce((a, b) -> a.end() >= b.end() ? a : b)
+                    .orElse(null);
+                int gapLen = sceneBefore == null ? Integer.MAX_VALUE : (tailStart - sceneBefore.end());
+                if (gapLen >= 2) {
+                    rangeEnd = tailStart;
+                    changed = true;
+                }
             }
         }
         return rangeEnd;
