@@ -44,13 +44,19 @@ public final class WebsiteExtractor implements Extractor {
     private final Pattern pattern2;  // safe TLD
     private final Pattern pattern3;  // safe prefix + TLD
     private final List<String> websitePrefixes;
+    private final List<String> safeStarts;
 
     @SuppressWarnings("unchecked")
     public WebsiteExtractor() {
         var cfg = ConfigHolder.websiteConfig();
         var safeTlds = (List<String>) cfg.getOrDefault("safe_tlds", List.of("com", "net", "org"));
         List<String> safePrefixes = (List<String>) cfg.getOrDefault("safe_prefixes", List.of("co", "com", "net", "org"));
+        List<String> safeSubdomains = (List<String>) cfg.getOrDefault("safe_subdomains", List.of("www"));
         this.websitePrefixes = (List<String>) cfg.getOrDefault("prefixes", List.of("from"));
+        var ss = new ArrayList<String>();
+        ss.addAll(safeSubdomains);
+        ss.addAll(safePrefixes);
+        this.safeStarts = List.copyOf(ss);
 
         var tlds = loadTlds();
 
@@ -104,9 +110,8 @@ public final class WebsiteExtractor implements Extractor {
             int e = matcher.end(1);
             if (s < 0) continue;
             var raw = input.substring(s, e);
-            // check the full match (group 0) for surrounding separators
-            var fullMatch = new Match(WEBSITE, raw, matcher.start(0), matcher.end(0), input.substring(matcher.start(0), matcher.end(0)), 100, Set.of(), false);
-            if (!validator.test(fullMatch)) continue;
+            // The pattern's outer `[^a-z0-9]|^` and `[^a-z0-9]|$` already
+            // enforce non-alphanum boundaries; no extra sepsSurround needed.
             // check inner match has valid chars
             if (!isValidDomainChars(raw)) continue;
             var m = new Match(WEBSITE, raw, s, e, raw, 100, Set.of(), false);
@@ -124,17 +129,35 @@ public final class WebsiteExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
+        var toRemove = new ArrayList<Match>();
+
+        // PreferTitleOverWebsite (port of python rule): drop website matches
+        // that don't start with a known safe subdomain/prefix when followed
+        // by season/episode/year (and not enclosed in a group marker).
+        // Suppresses false positives like "Title.com" before SxxExx.
+        var sites = ctx.matches.named(WEBSITE).toList();
+        for (var w : sites) {
+            String val = w.value() instanceof String s ? s.toLowerCase(java.util.Locale.ROOT) : "";
+            boolean safe = safeStarts.stream().anyMatch(p -> val.startsWith(p.toLowerCase(java.util.Locale.ROOT)));
+            if (safe) continue;
+            boolean hasFollower = ctx.matches.all().anyMatch(o ->
+                ("season".equals(o.name()) || "episode".equals(o.name()) || "year".equals(o.name()))
+                    && o.start() >= w.end());
+            if (!hasFollower) continue;
+            boolean inGroup = ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name())
+                && mk.start() <= w.start() && mk.end() >= w.end());
+            if (!inGroup) toRemove.add(w);
+        }
+
         // ValidateWebsitePrefix: remove website.prefix matches that don't have
         // a website match following them without holes
-        var toRemove = new ArrayList<Match>();
         for (var m : ctx.matches.all().filter(m -> m.tags().contains("website.prefix")).toList()) {
             var websiteMatch = ctx.matches.named(WEBSITE)
-                .filter(w -> w.start() > m.end())
+                .filter(w -> w.start() > m.end() && !toRemove.contains(w))
                 .findFirst().orElse(null);
             if (websiteMatch == null) {
                 toRemove.add(m);
             } else {
-                // Check if there's a hole (non-empty content) between prefix and website
                 var holeContent = ctx.input.substring(m.end(), websiteMatch.start()).trim();
                 if (!holeContent.isEmpty()) {
                     toRemove.add(m);

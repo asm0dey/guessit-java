@@ -6,10 +6,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 public final class CdExtractor implements Extractor {
+    private static final String SEP = "[" + Abbreviations.SEPS_NO_FS_CLASS + "]?";
     private static final Pattern CD_OF = Pattern.compile(
-        "(?i)cd-?(?<cd>\\d+)(?:-?of-?(?<count>\\d+))?");
+        "(?i)cd" + SEP + "(?<cd>\\d+)(?:" + SEP + "of" + SEP + "(?<count>\\d+))?");
     private static final Pattern CD_COUNT = Pattern.compile(
-        "(?i)(?<count>\\d+)-?cds?");
+        "(?i)(?<count>\\d+)" + SEP + "cds?");
 
     @Override public String name() { return "cd"; }
     @Override public int priority() { return 1000; }
