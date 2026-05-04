@@ -87,13 +87,17 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             }
         });
 
-        // When `--include language` is set without subtitle_language, promote
-        // subtitle_language matches to language (mirrors python's behaviour for
-        // 'ENG.-.sub.FR' / 'ENG.-.FR Sub'). Excludes case is NOT promoted —
-        // python drops the FR signal entirely there.
-        boolean subFilteredKeepLang = !includes.isEmpty()
-                && !includes.contains("subtitle_language")
-                && includes.contains("language");
+        // Promote subtitle_language → language whenever subtitle_language is
+        // filtered out and language survives (mirrors python: when
+        // subtitle_language is disabled the SubtitlePrefixLanguageRule no
+        // longer renames language→subtitle_language, so 'ENG.-.sub.FR' /
+        // 'ST.FR' / 'ENG.-.FR Sub' all keep FR as language). Holds for both
+        // --excludes subtitle_language and --includes-without-subtitle_language.
+        boolean langKept = (includes.isEmpty() || includes.contains("language"))
+                && !excludes.contains("language");
+        boolean subFiltered = excludes.contains("subtitle_language")
+                || (!includes.isEmpty() && !includes.contains("subtitle_language"));
+        boolean subFilteredKeepLang = subFiltered && langKept;
 
         // LinkedHashMap preserves the first-seen name order, which makes the
         // order in `extras` deterministic when matches contribute unknown keys.
@@ -101,8 +105,12 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         ctx.matches.all().sorted(java.util.Comparator.comparingInt(Match::start)).forEach(m0 -> {
             Match m = m0;
             var name = m.name();
-            // Promote subtitle_language → language when the latter is filtered out.
-            if (subFilteredKeepLang && "subtitle_language".equals(name)) {
+            // Promote subtitle_language → language when the latter is filtered
+            // out — but skip "attached-affix" matches (e.g. "SubFR"). Python's
+            // attached-prefix tokens are extracted as subtitle_language directly
+            // and stay dropped under --includes language.
+            if (subFilteredKeepLang && "subtitle_language".equals(name)
+                    && !m.tags().contains("attached-affix")) {
                 m = m.withName("language");
                 name = "language";
             }

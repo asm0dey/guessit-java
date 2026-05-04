@@ -201,8 +201,15 @@ public final class LanguageExtractor implements Extractor {
             }
             var lang = reg.find(rest).orElse(null);
             if (lang != null && isAllowed(lang, allowed)) {
+                // Tag attached-affix subtitle_language matches so OutputBuilder
+                // skips promoting them to language under --includes language;
+                // python's prefix→subtitle conversion is rule-disabled in that
+                // case, but for attached "SubFR"-style tokens the match is
+                // emitted as subtitle_language directly and stays excluded.
+                Set<String> tags = SUBTITLE_LANGUAGE.equals(name)
+                        ? Set.of("attached-affix") : Set.of();
                 ctx.matches.add(new Match(name, lang, word.start(), word.end(),
-                        word.value(), 1000, Set.of(), false));
+                        word.value(), 1000, tags, false));
                 return true;
             }
         }
