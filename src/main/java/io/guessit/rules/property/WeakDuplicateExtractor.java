@@ -293,6 +293,14 @@ public final class WeakDuplicateExtractor implements Extractor {
                 .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
                 .toList();
         var prePropScreens = ctx.matches.named("screen_size").toList();
+        // Other matches whose raw spans more than a digit run (e.g. "BT.2020")
+        // can also be a coincidence-source for weak_duplicate splits. Restrict
+        // to multi-token raws that contain digits to avoid blanket-overlap of
+        // generic "Rip" / single-word others.
+        var prePropOthers = ctx.matches.named("other")
+                .filter(m -> m.raw() != null && m.raw().length() >= 4
+                        && m.raw().chars().anyMatch(Character::isDigit))
+                .toList();
         var preClean = new ArrayList<Match>();
         for (var name : new String[]{SEASON, EPISODE}) {
             for (var m : ctx.matches.named(name).toList()) {
@@ -300,7 +308,8 @@ public final class WeakDuplicateExtractor implements Extractor {
                 if (prePropYears.stream().anyMatch(y -> y.overlaps(m))
                         || prePropDates.stream().anyMatch(d -> d.overlaps(m))
                         || prePropCodecs.stream().anyMatch(c -> c.overlaps(m))
-                        || prePropScreens.stream().anyMatch(s -> s.overlaps(m))) {
+                        || prePropScreens.stream().anyMatch(s -> s.overlaps(m))
+                        || prePropOthers.stream().anyMatch(o -> o.overlaps(m))) {
                     preClean.add(m);
                 }
             }
