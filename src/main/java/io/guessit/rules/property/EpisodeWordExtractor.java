@@ -5,8 +5,6 @@ import io.guessit.engine.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -140,22 +138,29 @@ public final class EpisodeWordExtractor implements Extractor {
             + numToken + "(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
         var epMatcher = epRe.matcher(input);
         while (epMatcher.find()) {
-            EpStartEnd result = getEpStartEnd(ctx, epMatcher, seps);
-            if (result == null) continue;
+            var raw = epMatcher.group();
+            var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
+            if (!seps.test(headMatch)) continue;
+            int epStart = epMatcher.start(2);
+            int epEnd = epMatcher.end(2);
             String epToken = epMatcher.group(2);
             int ep;
             if (episodeType) {
                 ep = parseSafe(epToken);
                 if (ep < 0) continue;
                 if (!isPureDigits(epToken)) {
-                    var token = new Match(EPISODE, ep, result.epStart(), result.epEnd(), epToken, 1000, Set.of(), false);
+                    var token = new Match(EPISODE, ep, epStart, epEnd, epToken, 1000, Set.of(), false);
+                    // Roman / word numerals must be sep-bound (mirrors python validate_roman).
+                    // Skip the whole match — including the head — when validation fails so
+                    // the title hole isn't blocked by a phantom "Episode X" span.
                     if (!seps.test(token)) continue;
                 }
             } else {
                 ep = Integer.parseInt(epToken);
             }
-            ctx.matches.add(new Match(EPISODE, ep, result.epStart(), result.epEnd(),
-                input.substring(result.epStart(), result.epEnd()), 1000, Set.of("episode-word"), false));
+            ctx.matches.add(headMatch);
+            ctx.matches.add(new Match(EPISODE, ep, epStart, epEnd,
+                input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
             if (epMatcher.group(3) != null) {
                 int v = Integer.parseInt(epMatcher.group(3));
                 ctx.matches.add(new Match("version", v, epMatcher.start(3), epMatcher.end(3),
@@ -189,21 +194,6 @@ public final class EpisodeWordExtractor implements Extractor {
             ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
                 raw, 1000, Set.of(), true));
         }
-    }
-
-    private static EpStartEnd getEpStartEnd(ParseContext ctx, Matcher epMatcher, Predicate<Match> seps) {
-        var raw = epMatcher.group();
-        var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
-        if (!seps.test(headMatch)) {
-            return null;
-        }
-        ctx.matches.add(headMatch);
-        int epStart = epMatcher.start(2);
-        int epEnd = epMatcher.end(2);
-        return new EpStartEnd(epStart, epEnd);
-    }
-
-    private record EpStartEnd(int epStart, int epEnd) {
     }
 
     private static int parseSafe(String token) {
