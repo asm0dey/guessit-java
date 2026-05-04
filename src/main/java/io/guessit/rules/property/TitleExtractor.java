@@ -47,18 +47,34 @@ public final class TitleExtractor implements Extractor {
         // Spans stay valid because replacement is 1:1 by char.
         var normalizedInput = normalizeSeps(input);
         var sepsSurround = Validators.sepsSurround(input);
-        for (var word : expected) {
-            var search = normalizeSeps(word);
-            var lcInput = normalizedInput.toLowerCase(java.util.Locale.ROOT);
-            var lcSearch = search.toLowerCase(java.util.Locale.ROOT);
-            int idx = 0;
-            while ((idx = lcInput.indexOf(lcSearch, idx)) >= 0) {
-                var raw = input.substring(idx, idx + search.length());
-                var formatted = Formatters.titleText(raw);
-                var m = new Match(TITLE, formatted, idx, idx + search.length(), raw,
-                    1000, Set.of("expected", TITLE), false);
-                if (sepsSurround.test(m)) ctx.matches.add(m);
-                idx += search.length();
+        for (var entry : ExpectedTitleRegex.parse(expected)) {
+            if (entry.literalReplacement() != null) {
+                // Literal entry: use original substring-scan behaviour (sep-normalised,
+                // case-insensitive) so "Show Name" still matches "Show.Name".
+                var search = normalizeSeps(entry.literalReplacement());
+                var lcInput = normalizedInput.toLowerCase(java.util.Locale.ROOT);
+                var lcSearch = search.toLowerCase(java.util.Locale.ROOT);
+                int idx = 0;
+                while ((idx = lcInput.indexOf(lcSearch, idx)) >= 0) {
+                    var raw = input.substring(idx, idx + search.length());
+                    var formatted = Formatters.titleText(raw);
+                    var m = new Match(TITLE, formatted, idx, idx + search.length(), raw,
+                        1000, Set.of("expected", TITLE), false);
+                    if (sepsSurround.test(m)) ctx.matches.add(m);
+                    idx += search.length();
+                }
+            } else {
+                // Regex entry (re: prefix): match against the sep-normalised input so
+                // word-boundary patterns work consistently, but preserve spans into
+                // the original input.
+                var matcher = entry.pattern().matcher(normalizedInput);
+                while (matcher.find()) {
+                    var raw = input.substring(matcher.start(), matcher.end());
+                    var formatted = Formatters.titleText(raw);
+                    var m = new Match(TITLE, formatted, matcher.start(), matcher.end(), raw,
+                        1000, Set.of("expected", TITLE), false);
+                    if (sepsSurround.test(m)) ctx.matches.add(m);
+                }
             }
         }
     }
