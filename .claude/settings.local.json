@@ -37,7 +37,19 @@
       "Bash(grep -rB1 -A8 \"ESPN.E.60\" src/test/resources/yml/)",
       "Bash(grep -rB 2 -A 5 \"492x368\" src/test)",
       "Bash(grep -nP \"^\\\\s*\\\\w+:\\\\s*$\" src/test/resources/yml/rules/screen_size.yml)",
-      "Bash(grep -rB 2 -A 10 \"yaml_test\\\\|yml_test\\\\|yml_path\\\\|test_files\" /tmp/guessit/guessit/test/test_yml.py)"
+      "Bash(grep -rB 2 -A 10 \"yaml_test\\\\|yml_test\\\\|yml_path\\\\|test_files\" /tmp/guessit/guessit/test/test_yml.py)",
+      "Bash(grep -n \"compact\\\\|SxxExx\\\\|\\\\\\\\\\\\\\\\d{1,3}.*compact\" src/main/java/io/guessit/rules/property/SeasonEpisodeExtractor.java)",
+      "Bash(grep -n \"^    }$\\\\|private boolean detectScene\\\\|private boolean detect\" /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/ReleaseGroupExtractor.java)",
+      "Bash(grep -in \"ext\\\\|extens\\\\|seps_\\\\|TRAILING\\\\|trailing\\\\|\\\\\\\\\\\\\\\\.\\\\\\\\$\\\\|end.match\" /tmp/guessit/guessit/rules/properties/container.py)",
+      "Bash(git restore *)",
+      "Bash(git commit *)",
+      "Bash(grep -nA 8 'Duckman - 101' /tmp/guessit/guessit/test/episodes.yml)",
+      "Bash(grep *)",
+      "mcp__idea__xdebug_get_stack",
+      "mcp__idea__xdebug_get_frame_values",
+      "Bash(awk 'NR>=2326 && NR<=2340 {print NR\": [\"$0\"]\"}' src/test/resources/yml/episodes.yml)",
+      "mcp__idea__execute_run_configuration",
+      "mcp__idea__get_run_configurations"
     ]
   }
 }

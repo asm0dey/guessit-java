@@ -72,7 +72,7 @@ public final class AudioCodecExtractor implements Extractor {
         var profilesWithRule = ctx.matches.named(AUDIO_PROFILE)
             .filter(m -> m.tags().contains("audio_profile.rule"))
             .toList();
-        var codecValues = ctx.matches.named(AUDIO_CODEC).map(m -> m.value().toString()).collect(java.util.stream.Collectors.toSet());
+        var codecMatches = ctx.matches.named(AUDIO_CODEC).toList();
         for (var prof : profilesWithRule) {
             String requiredCodec = null;
             for (var t : prof.tags()) {
@@ -80,9 +80,34 @@ public final class AudioCodecExtractor implements Extractor {
                 requiredCodec = t;
                 break;
             }
-            if (requiredCodec != null && !codecValues.contains(requiredCodec)) {
-                ctx.matches.remove(prof);
-            }
+            if (requiredCodec == null) continue;
+            final String reqCodec = requiredCodec;
+            // Mirror python AudioProfileRule: codec must sit at the immediately
+            // adjacent match position (previous or next), not anywhere in input.
+            // "Adjacent" follows python rebulk semantics: the closest match
+            // position by step (one position is the set of all matches ending
+            // at that index, or starting at that index).
+            boolean atSpan = codecMatches.stream().anyMatch(c ->
+                c.start() == prof.start() && c.end() == prof.end()
+                && reqCodec.equals(String.valueOf(c.value())));
+            if (atSpan) continue;
+            // Closest previous match position: walk back, find first index that
+            // has any match ending there. If a codec=reqCodec ends there, OK.
+            Integer prevIdx = ctx.matches.all()
+                .filter(o -> o != prof && o.end() <= prof.start())
+                .map(Match::end)
+                .max(Integer::compareTo).orElse(null);
+            boolean prevOk = prevIdx != null && codecMatches.stream().anyMatch(c ->
+                c.end() == prevIdx && reqCodec.equals(String.valueOf(c.value())));
+            if (prevOk) continue;
+            Integer nextIdx = ctx.matches.all()
+                .filter(o -> o != prof && o.start() >= prof.end())
+                .map(Match::start)
+                .min(Integer::compareTo).orElse(null);
+            boolean nextOk = nextIdx != null && codecMatches.stream().anyMatch(c ->
+                c.start() == nextIdx && reqCodec.equals(String.valueOf(c.value())));
+            if (nextOk) continue;
+            ctx.matches.remove(prof);
         }
 
         // HqConflictRule: drop other=High Quality matches whose span overlaps a
