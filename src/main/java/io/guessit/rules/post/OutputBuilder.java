@@ -87,11 +87,25 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             }
         });
 
+        // When `--include language` is set without subtitle_language, promote
+        // subtitle_language matches to language (mirrors python's behaviour for
+        // 'ENG.-.sub.FR' / 'ENG.-.FR Sub'). Excludes case is NOT promoted —
+        // python drops the FR signal entirely there.
+        boolean subFilteredKeepLang = !includes.isEmpty()
+                && !includes.contains("subtitle_language")
+                && includes.contains("language");
+
         // LinkedHashMap preserves the first-seen name order, which makes the
         // order in `extras` deterministic when matches contribute unknown keys.
         var grouped = new LinkedHashMap<String, List<Match>>();
-        ctx.matches.all().sorted(java.util.Comparator.comparingInt(Match::start)).forEach(m -> {
+        ctx.matches.all().sorted(java.util.Comparator.comparingInt(Match::start)).forEach(m0 -> {
+            Match m = m0;
             var name = m.name();
+            // Promote subtitle_language → language when the latter is filtered out.
+            if (subFilteredKeepLang && "subtitle_language".equals(name)) {
+                m = m.withName("language");
+                name = "language";
+            }
             // Respect --exclude / --include options from the caller.
             if (!excludes.isEmpty() && excludes.contains(name)) return;
             // Coupled tag exclusion: drop SxxExx-pair sibling when one half is excluded.
