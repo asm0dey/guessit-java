@@ -61,13 +61,16 @@ public final class BonusExtractor implements Extractor {
             var fp = fpOpt.get();
 
             // Look for trailing hole after the bonus match within the filepart.
-            // Ignore private matches; they don't consume visible span.
+            // Ignore private matches and weak-episode candidates: weak episodes
+            // (e.g. "60" right after "x02") would otherwise carve the leading
+            // numeric out of the bonus_title; WeakEpisodeExtractor.postProcess
+            // hasn't dropped them yet at this point and they won't survive.
             var holes = Holes.compute(
                 ctx.input,
                 bonus.end(),
                 fp.end(),
                 ctx.matches.snapshot(),
-                Match::isPrivate,   // ignore private matches (they shouldn't block holes)
+                m -> m.isPrivate() || m.tags().contains("weak-episode"),
                 null,               // no sep splitting — keep continuous text
                 Formatters::cleanup
             );

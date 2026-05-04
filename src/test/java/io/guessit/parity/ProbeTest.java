@@ -42,4 +42,14 @@ class ProbeTest {
         assertThat(r.get("episode")).isEqualTo(2);
         assertThat(r.get("version")).isEqualTo(2);
     }
+
+    @Test
+    void insider_bonusTitleKeepsLeadingNumber() {
+        var r = Guessit.parse("The_Insider-(1999)-x02-60_Minutes_Interview-1996.mp4").toMap();
+        assertThat(r.get("title")).isEqualTo("The Insider");
+        assertThat(r.get("year")).isEqualTo(1999);
+        assertThat(r.get("bonus")).isEqualTo(2);
+        assertThat(r.get("bonus_title")).isEqualTo("60 Minutes Interview-1996");
+        assertThat(r.get("alternative_title")).isNull();
+    }
 }
