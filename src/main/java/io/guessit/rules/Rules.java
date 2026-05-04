@@ -85,6 +85,7 @@ public final class Rules {
             new BonusExtractor(),
             new FilmExtractor(),
             new PartExtractor(),
+            new CrcExtractor(),
             new WeakEpisodeExtractor(),
             new WeakDuplicateExtractor(),
             new DiscRule(),
