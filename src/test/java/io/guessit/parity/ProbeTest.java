@@ -62,6 +62,14 @@ class ProbeTest {
     }
 
     @Test
+    void epWordBeforeSxxExx_excludedFromTitle() {
+        var r = Guessit.parse("Star Trek DS9 Ep 2x03 The Siege (Part III)").toMap();
+        assertThat(r.get("title")).isEqualTo("Star Trek DS9");
+        assertThat(r.get("season")).isEqualTo(2);
+        assertThat(r.get("episode")).isEqualTo(3);
+    }
+
+    @Test
     void s01e01e07_fooBarGroup_uuidNotSwallowsEpisodeTitle() {
         var r = Guessit.parse("Test.S01E01E07-FooBar-Group.avi").toMap();
         assertThat(r.get("episode_title")).isEqualTo("FooBar-Group");

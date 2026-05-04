@@ -148,7 +148,23 @@ public final class EpisodeWordExtractor implements Extractor {
         while (epMatcher.find()) {
             var raw = epMatcher.group();
             var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
-            if (!seps.test(headMatch)) continue;
+            if (!seps.test(headMatch)) {
+                // Trailing alphanumeric: typical when the digit is the season
+                // number of an immediately-following SxxExx (e.g. "Ep 2x03").
+                // Emit a private span over JUST the marker word so the title
+                // hole excludes it (mirrors python where the episodeMarker
+                // child of the SxxExx chain hides the word from the hole).
+                int markerStart = epMatcher.start(1);
+                int markerEnd = epMatcher.end(1);
+                String mw = epMatcher.group(1);
+                if (mw != null && !SHORT_EPISODE_WORDS.contains(mw.toLowerCase())
+                    && markerEnd < input.length()
+                    && Seps.isSep(input.charAt(markerEnd))) {
+                    ctx.matches.add(new Match("episode_word_marker", null,
+                        markerStart, markerEnd, mw, 1000, Set.of(), true));
+                }
+                continue;
+            }
             // Short episode markers (single char like "e") are only valid when
             // the digit follows with no separator. Otherwise "Fumetsu no Anata
             // e - 03" matches and clips title.
