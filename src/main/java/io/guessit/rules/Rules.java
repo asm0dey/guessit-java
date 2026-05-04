@@ -66,6 +66,7 @@ public final class Rules {
             new VideoCodecExtractor(),
             new AudioCodecExtractor(),
             new ContainerExtractor(),
+            new SizeExtractor(),
             new OtherExtractor(),
             new LanguageExtractor(),
             new CountryExtractor(),
