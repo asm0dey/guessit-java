@@ -20,9 +20,9 @@ public final class BitRateExtractor implements Extractor {
     // Two regexes mirror python rebulk emitting both. The simpler match wins
     // when the dotted form overlaps an audio_channels match (handled in postProcess).
     private static final Pattern P_INT = Pattern.compile(
-        "(?i)(\\d+-?[kmg]b(?:ps|its?))");
+        "(?i)(\\d+[ ._-]?[kmg]b(?:ps|its?))");
     private static final Pattern P_DEC = Pattern.compile(
-        "(?i)(\\d+\\.\\d+-?[kmg]b(?:ps|its?))");
+        "(?i)(\\d+\\.\\d+[ ._-]?[kmg]b(?:ps|its?))");
 
     @Override public String name() { return "audio_bit_rate"; }
 
