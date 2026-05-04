@@ -70,6 +70,22 @@ class ProbeTest {
     }
 
     @Test
+    void commeUneImage_outerFolderProperCase() {
+        var r = Guessit.parse(
+            "Movies/Comme une Image (2004)/Comme.Une.Image.FRENCH.DVDRiP.XViD-NTK.par-www.divx-overnet.com.avi").toMap();
+        assertThat(r.get("title")).isEqualTo("Comme une Image");
+    }
+
+    @Test
+    void preferTitleWithYear_tagsEquivalentIgnore() {
+        // The kept title must carry "equivalent-ignore" so EquivalentHoles
+        // doesn't replace its outer-folder value with the filename's
+        // title-cased hole.
+        var r = Guessit.parse("Foo Bar (2010)/foo.bar.2010.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("Foo Bar");
+    }
+
+    @Test
     void subsAfterSubtitleLang_trailingDashRg() {
         var r1 = Guessit.parse("Show.Name.S01E02.HDTV.x264.NL-subs-ABC").toMap();
         assertThat(r1.get("subtitle_language")).isNotNull();

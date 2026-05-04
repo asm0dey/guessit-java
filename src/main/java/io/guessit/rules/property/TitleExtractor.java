@@ -182,7 +182,21 @@ public final class TitleExtractor implements Extractor {
         if (!withYearInGroup.isEmpty()) keepValues = withYearInGroup.stream().map(Match::value).collect(java.util.stream.Collectors.toSet());
         else if (!withYear.isEmpty()) keepValues = withYear.stream().map(Match::value).collect(java.util.stream.Collectors.toSet());
         else return;
-        for (var t : titles) if (!keepValues.contains(t.value())) ctx.matches.remove(t);
+        for (var t : titles) {
+            if (!keepValues.contains(t.value())) {
+                ctx.matches.remove(t);
+            } else if (!t.tags().contains("equivalent-ignore")) {
+                // Mirror python PreferTitleWithYear AppendTags: surviving
+                // titles get "equivalent-ignore" so EquivalentHoles doesn't
+                // overwrite their better-cased outer-folder value with a
+                // titlecased filename hole (e.g. "Comme une Image" must not
+                // be replaced by "Comme Une Image" from inner "Comme.Une.Image").
+                var withTag = new HashSet<>(t.tags());
+                withTag.add("equivalent-ignore");
+                ctx.matches.replace(t, new Match(t.name(), t.value(),
+                    t.start(), t.end(), t.raw(), t.priority(), withTag, t.isPrivate()));
+            }
+        }
     }
 
     private int countUsableHoles(ParseContext ctx, Marker filepart,
