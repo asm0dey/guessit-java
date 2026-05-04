@@ -67,6 +67,7 @@ public final class Rules {
             new AudioCodecExtractor(),
             new ContainerExtractor(),
             new SizeExtractor(),
+            new BitRateExtractor(),
             new OtherExtractor(),
             new LanguageExtractor(),
             new CountryExtractor(),
