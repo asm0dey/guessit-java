@@ -2,8 +2,7 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -80,9 +79,48 @@ public final class ReleaseGroupExtractor implements Extractor {
     @Override
     public void postProcess(ParseContext ctx) {
         if (ctx.matches.named(RELEASE_GROUP).findAny().isPresent()) return;
-        if (detectScene(ctx)) return;
-        if (detectDashSeparated(ctx)) return;
-        detectAnimeBrackets(ctx);
+        if (detectScene(ctx)) { preferOuterFolderCasing(ctx); return; }
+        if (detectDashSeparated(ctx)) { preferOuterFolderCasing(ctx); return; }
+        if (detectAnimeBrackets(ctx)) preferOuterFolderCasing(ctx);
+    }
+
+    /**
+     * After a release_group match has been emitted (by any detect* method), check
+     * whether an outer filepart (smaller start) also contains the same name with
+     * different casing. If so, replace the value with the outer-folder casing.
+     * Mirrors Python's ScenicReleaseGroup walking all fileparts and preferring
+     * the upper folder when both have the same name.
+     */
+    private static void preferOuterFolderCasing(ParseContext ctx) {
+        var rg = ctx.matches.named(RELEASE_GROUP).findFirst().orElse(null);
+        if (rg == null) return;
+        String currentVal = rg.value().toString();
+        String lowerVal = currentVal.toLowerCase(Locale.ROOT);
+        // Walk all fileparts; prefer the one with the smallest start (upper folder)
+        // that also contains the same group name case-insensitively.
+        String bestCasing = null;
+        int bestStart = rg.start(); // default: current match position
+        for (var filepart : pathFilepartsRightmostFirst(ctx)) {
+            // Only check fileparts that are outer (smaller start) than the current match
+            if (filepart.start() >= rg.start()) continue;
+            var part = ctx.input.substring(filepart.start(), filepart.end());
+            int idx = part.toLowerCase(Locale.ROOT).indexOf(lowerVal);
+            if (idx >= 0) {
+                // Verify it's a word boundary (surrounded by seps or filepart edges)
+                int absStart = filepart.start() + idx;
+                int absEnd = absStart + currentVal.length();
+                boolean leftOk = absStart == filepart.start() || Seps.isSep(ctx.input.charAt(absStart - 1));
+                boolean rightOk = absEnd == filepart.end() || Seps.isSep(ctx.input.charAt(absEnd));
+                if (leftOk && rightOk && absStart < bestStart) {
+                    bestCasing = ctx.input.substring(absStart, absEnd);
+                    bestStart = absStart;
+                }
+            }
+        }
+        if (bestCasing != null && !bestCasing.equals(currentVal)) {
+            ctx.matches.remove(rg);
+            ctx.matches.add(rg.withValue(bestCasing));
+        }
     }
 
     private boolean detectDashSeparated(ParseContext ctx) {
@@ -95,7 +133,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
             int end = ext != null ? ext.start() : trimKnownExtension(ctx, filepart);
-            end = trimNotARgTail(ctx, filepart, end);
+            end = trimNotAReleaseGroupTail(ctx, filepart, end);
             int dash = input.lastIndexOf('-', end - 1);
             if (dash > filepart.start() && dash < end - 1) {
                 int s = dash + 1;
@@ -186,10 +224,9 @@ public final class ReleaseGroupExtractor implements Extractor {
                 boundary = prev.start();
                 continue;
             }
-            if (".".equals(sep)) return true;
+            return ".".equals(sep);
             // Otherwise keep walking — but python breaks here. Match python:
             // any non-`.` separator after the first chain step disqualifies.
-            return false;
         }
     }
 
@@ -209,7 +246,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             var ext = ctx.matches.named("container")
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
-            final int rangeEnd = trimNotARgTail(ctx, filepart, ext != null ? ext.start() : trimKnownExtension(ctx, filepart));
+            final int rangeEnd = trimNotAReleaseGroupTail(ctx, filepart, ext != null ? ext.start() : trimKnownExtension(ctx, filepart));
 
             var prev = ctx.matches.all()
                 .filter(m -> SCENE_PREV.contains(m.name()))
@@ -362,7 +399,7 @@ public final class ReleaseGroupExtractor implements Extractor {
         return e;
     }
 
-    private static int trimNotARgTail(ParseContext ctx, Marker filepart, int rangeEnd) {
+    private static int trimNotAReleaseGroupTail(ParseContext ctx, Marker filepart, int rangeEnd) {
         var input = ctx.input;
         boolean changed = true;
         while (changed) {
@@ -420,8 +457,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 int tailDepth = 1;
                 while (tailStart - tailDepth > filepart.start()
                     && isGroupSep(input.charAt(tailStart - tailDepth))) tailDepth++;
-                int beforeTail = tailStart - tailDepth + 1;
-                final int beforeTailFinal = beforeTail;
+                final int beforeTailFinal = tailStart - tailDepth + 1;
                 var sceneBefore = ctx.matches.all()
                     .filter(m -> !m.isPrivate())
                     .filter(m -> SCENE_PREV.contains(m.name()))
@@ -508,10 +544,10 @@ public final class ReleaseGroupExtractor implements Extractor {
         if (s.length() >= 2
             && ((s.charAt(0) == '[' && s.charAt(s.length() - 1) == ']')
                 || (s.charAt(0) == '(' && s.charAt(s.length() - 1) == ')'))
-            && !containsIgnored(s.substring(1, s.length() - 1))) {
+            && doesNotContainIgnored(s.substring(1, s.length() - 1))) {
             s = s.substring(1, s.length() - 1);
         } else if (!(endsWithIgnored(s) && startsWithIgnored(s))
-            && !containsIgnored(stripIgnoredSeps(s))) {
+            && doesNotContainIgnored(stripIgnoredSeps(s))) {
             s = stripIgnoredSeps(s);
         }
         // Strip any residual group seps that were exposed by bracket removal above.
@@ -557,11 +593,11 @@ public final class ReleaseGroupExtractor implements Extractor {
         return !s.isEmpty() && IGNORED_SEPS.indexOf(s.charAt(s.length() - 1)) >= 0;
     }
 
-    private static boolean containsIgnored(String s) {
+    private static boolean doesNotContainIgnored(String s) {
         for (int i = 0; i < s.length(); i++) {
-            if (IGNORED_SEPS.indexOf(s.charAt(i)) >= 0) return true;
+            if (IGNORED_SEPS.indexOf(s.charAt(i)) >= 0) return false;
         }
-        return false;
+        return true;
     }
 
     private static boolean validGroupName(String s, boolean allowSpaces) {
