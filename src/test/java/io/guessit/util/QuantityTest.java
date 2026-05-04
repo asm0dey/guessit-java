@@ -7,22 +7,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class QuantityTest {
     @Test
     void formatsBitRate() {
-        assertEquals("1.5 Mbps", new Quantity(1.5, "Mbps").format());
+        assertEquals("1.5 Mbps", BitRate.fromString("1.5Mbps").format());
     }
 
     @Test
     void formatsIntegerSize() {
-        assertEquals("4 GB", new Quantity(4.0, "GB").format());
+        assertEquals("4 GB", Size.fromString("4GB").format());
     }
 
     @Test
     void formatsDecimalSize() {
-        assertEquals("4.7 GB", new Quantity(4.7, "GB").format());
+        assertEquals("4.7 GB", Size.fromString("4.7GB").format());
     }
 
     @Test
     void parsesFromString() {
-        assertEquals(new Quantity(1.5, "Mbps"), Quantity.parse("1.5 Mbps"));
-        assertEquals(new Quantity(800, "Kbps"), Quantity.parse("800 Kbps"));
+        assertEquals(BitRate.fromString("1.5Mbps"), Quantity.parse("1.5 Mbps"));
+        assertEquals(BitRate.fromString("800Kbps"), Quantity.parse("800 Kbps"));
     }
 }
