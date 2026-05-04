@@ -9,6 +9,7 @@ import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.RangeFiller;
 import io.guessit.rules.post.SeasonYearLink;
+import io.guessit.rules.post.MimetypeProcessor;
 import io.guessit.rules.post.TypeProcessor;
 import io.guessit.rules.property.*;
 
@@ -45,6 +46,7 @@ public final class Rules {
                 new RangeFiller(),
                 new SeasonYearLink(),
                 new TypeProcessor(),
+                new MimetypeProcessor(),
                 new PrivateRemover()
             )),
             new OutputPhase(new OutputBuilder())
