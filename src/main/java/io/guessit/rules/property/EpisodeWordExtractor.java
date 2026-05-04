@@ -27,7 +27,11 @@ public final class EpisodeWordExtractor implements Extractor {
     private static final int MAX_RANGE_GAP = 1;
     private static final List<String> EPISODE_WORDS = List.of(EPISODE, "episodes", "ep", "eps", "episodio", "episodios", "capitulo", "capitulos", "part", "parts", "ch", "chapter", "chapters", "e");
     public static final String SEASON = "season";
-    private static final List<String> SEASON_WORDS = List.of(SEASON, "seasons", "saison", "saisons", "seizoen", "serie", "series", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
+    // Mirrors python's `season_words` config — note "serie"/"series" are
+    // intentionally excluded; they're too common in show titles ("Date Series",
+    // "FlexGet Series", "DS9 Series") and python relies on the year/SxxExx
+    // patterns to pick season instead.
+    private static final List<String> SEASON_WORDS = List.of(SEASON, "seasons", "saison", "saisons", "seizoen", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
     private static final List<String> OF_WORDS = List.of("of", "sur", "de");
 
     @Override public String name() { return "episode_word"; }
@@ -193,6 +197,25 @@ public final class EpisodeWordExtractor implements Extractor {
             // names; ConflictSolver skips private matches.
             ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
                 raw, 1000, Set.of(), true));
+        }
+    }
+
+    @Override
+    public void postProcess(ParseContext ctx) {
+        // Conflict resolution can drop the season-VALUE match (e.g. "Series.10"
+        // overlapping a date) while leaving the private head match behind.
+        // Title hole compute treats every match — private or not — as a block,
+        // so an orphan head consumes its span (e.g. "Series" in
+        // "Date.Series.10-11-2008.XViD") and steals title text. Mirror python's
+        // parent/children cascade by dropping heads with no surviving value.
+        var heads = ctx.matches.all()
+            .filter(m -> (SEASON.equals(m.name()) || EPISODE.equals(m.name()))
+                && m.value() == null && m.isPrivate())
+            .toList();
+        for (var head : heads) {
+            boolean hasValue = ctx.matches.range(head.start(), head.end(),
+                m -> m.name().equals(head.name()) && m.value() != null).findAny().isPresent();
+            if (!hasValue) ctx.matches.remove(head);
         }
     }
 
