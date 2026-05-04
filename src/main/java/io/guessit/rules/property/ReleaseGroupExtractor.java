@@ -181,6 +181,23 @@ public final class ReleaseGroupExtractor implements Extractor {
                 .reduce((a, b) -> a.end() >= b.end() ? a : b)
                 .orElse(null);
             if (prev == null) continue;
+            // Lone-language scene_prev: when prev is the ONLY scene_prev in the
+            // filepart and it's a language/country/year, skip — python's
+            // SceneReleaseGroup runs after TitleFromPosition and the title
+            // would already have absorbed both the language and the trailing
+            // word. Without similar phase ordering, a bare "Title_Lang_Word"
+            // (e.g. The_Italian_Job.mkv) wrongly emits release_group=Word.
+            if (LANGUAGE.equals(prev.name()) || SUBTITLE_LANGUAGE.equals(prev.name())
+                    || "year".equals(prev.name())) {
+                final var prevFinal = prev;
+                long siblingScenePrev = ctx.matches.all()
+                    .filter(m -> SCENE_PREV.contains(m.name()) && m != prevFinal)
+                    .filter(m -> m.start() >= filepart.start() && m.end() <= rangeEnd)
+                    .filter(m -> !LANGUAGE.equals(m.name()) && !SUBTITLE_LANGUAGE.equals(m.name())
+                            && !"year".equals(m.name()))
+                    .count();
+                if (siblingScenePrev == 0) continue;
+            }
 
             var gap = input.substring(prev.end(), rangeEnd);
             int leadSeps = 0;
