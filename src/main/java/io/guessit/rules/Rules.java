@@ -14,6 +14,7 @@ import io.guessit.rules.post.RemoveAmbiguous;
 import io.guessit.rules.post.RemoveLessSpecificSeasonEpisode;
 import io.guessit.rules.post.SeasonYear;
 import io.guessit.rules.post.SeasonYearLink;
+import io.guessit.rules.post.StripSeparators;
 import io.guessit.rules.post.TypeProcessor;
 import io.guessit.rules.post.YearSeason;
 import io.guessit.rules.property.*;
@@ -58,6 +59,7 @@ public final class Rules {
                 new RemoveAmbiguous(),
                 new TypeProcessor(),
                 new MimetypeProcessor(),
+                new StripSeparators(),
                 new PrivateRemover()
             )),
             new OutputPhase(new OutputBuilder())
