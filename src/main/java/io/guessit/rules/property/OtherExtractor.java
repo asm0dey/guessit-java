@@ -374,7 +374,7 @@ public final class OtherExtractor implements Extractor {
         if (prev != null) prevEnd = prev.end();
         if (prevGroup != null && prevGroup.end() > prevEnd) prevEnd = prevGroup.end();
         if (prevEnd < 0) return false;
-        return between(input, prevEnd, m.start());
+        return betweenIsSeps(input, prevEnd, m.start());
     }
 
     private static boolean hasAdjacentAfter(String input, Match m, List<Match> all, List<Marker> markers) {
@@ -386,14 +386,10 @@ public final class OtherExtractor implements Extractor {
         if (next != null) nextStart = next.start();
         if (nextGroup != null && nextGroup.start() < nextStart) nextStart = nextGroup.start();
         if (nextStart == Integer.MAX_VALUE) return false;
-        return between(input, m.end(), nextStart);
+        return betweenIsSeps(input, m.end(), nextStart);
     }
 
-    private static boolean between(String input, int s, int e) {
-        if (s >= e) return true;
-        for (int i = s; i < e; i++) if (!Seps.isSep(input.charAt(i))) return false;
-        return true;
-    }
+
 
     private static void validateScreener(ParseContext ctx) {
         var input = ctx.input;
@@ -408,7 +404,7 @@ public final class OtherExtractor implements Extractor {
                 .max(Comparator.comparingInt(Match::end))
                 .orElse(null);
             if (src == null) { toRemove.add(sc); continue; }
-            if (!between(input, src.end(), sc.start())) toRemove.add(sc);
+            if (!betweenIsSeps(input, src.end(), sc.start())) toRemove.add(sc);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
