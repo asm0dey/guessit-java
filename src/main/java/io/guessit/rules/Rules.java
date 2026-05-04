@@ -70,6 +70,7 @@ public final class Rules {
             new BitRateExtractor(),
             new OtherExtractor(),
             new EditionExtractor(),
+            new CdExtractor(),
             new LanguageExtractor(),
             new CountryExtractor(),
             new StreamingServiceExtractor(),
