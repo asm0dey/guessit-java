@@ -120,21 +120,25 @@ public final class WeakDuplicateExtractor implements Extractor {
                 ctx.matches.remove(matchingEpisode);
             }
         }
-        // Adjacent dash-separated weak-episode pairs (e.g. "Bleach - 313-314"):
-        // both numbers are absolute episodes, not a compact-SSEE split of the
-        // second. Drop weak-duplicate matches that overlap either side. Run
-        // before the overlap-drop below so weak-episode 314 (and its sibling)
-        // both survive as episode list members.
+        // Adjacent dash-separated weak-episode pairs (e.g. "Bleach - 313-314",
+        // "003-005"): both numbers are absolute episodes. Drop weak-duplicate
+        // matches that overlap the pair so the SSEE split (3+14) is
+        // suppressed; PostPhase RangeFiller then expands the inclusive range
+        // between the two surviving weak-episode endpoints. Run before the
+        // overlap-drop below so weak-episode 314 (and its sibling) both
+        // survive as episode list members.
         if (!hasSxxExx) {
             var weakEpisodes = ctx.matches.named(EPISODE)
                     .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
-                    .filter(m -> m.value() instanceof Integer i && i >= 100)
+                    .filter(m -> m.raw() != null && m.raw().length() >= 3)
                     .sorted(java.util.Comparator.comparingInt(Match::start))
                     .toList();
             var dropDup = new ArrayList<Match>();
             for (int i = 0; i + 1 < weakEpisodes.size(); i++) {
                 var a = weakEpisodes.get(i);
                 var b = weakEpisodes.get(i + 1);
+                if (!(a.value() instanceof Integer va) || !(b.value() instanceof Integer vb)) continue;
+                if (vb <= va) continue;
                 String gap = ctx.input.substring(a.end(), b.start());
                 if (gap.length() < 1 || gap.length() > 5) continue;
                 boolean isRangeSep = gap.matches("[ ._]*[-~][ ._]*");
