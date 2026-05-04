@@ -44,6 +44,22 @@ class ProbeTest {
     }
 
     @Test
+    void showName313To315_dotsAbsoluteEpisode() {
+        var r = Guessit.parse("Show.Name.313-315.s16e03-05").toMap();
+        assertThat(r.get("title")).isEqualTo("Show Name");
+        assertThat((java.util.List<Integer>) r.get("absolute_episode")).containsExactlyInAnyOrder(313, 314, 315);
+        assertThat(r.get("season")).isEqualTo(16);
+    }
+
+    @Test
+    void showName313To315_spacesAbsoluteEpisode() {
+        var r = Guessit.parse("Show Name - 313-315 - s16e03-05").toMap();
+        assertThat(r.get("title")).isEqualTo("Show Name");
+        assertThat((java.util.List<Integer>) r.get("absolute_episode")).containsExactlyInAnyOrder(313, 314, 315);
+        assertThat(r.get("season")).isEqualTo(16);
+    }
+
+    @Test
     void insider_bonusTitleKeepsLeadingNumber() {
         var r = Guessit.parse("The_Insider-(1999)-x02-60_Minutes_Interview-1996.mp4").toMap();
         assertThat(r.get("title")).isEqualTo("The Insider");

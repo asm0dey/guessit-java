@@ -361,6 +361,27 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 boolean mediaAfter = mediaSpans.stream().anyMatch(media -> media.start() >= weak.end());
                 if (!mediaAfter) continue;
             }
+            // Keep ≥100 weak-episode candidates that are paired with another
+            // ≥100 weak-episode by a range separator — those are absolute_episode
+            // ranges (e.g. "Show.Name.313-315.s16e03-05" → absolute=313..315).
+            // A lone "100" / "165" / "4400" here is still title noise and gets
+            // dropped.
+            if (isWeak && m.value() instanceof Integer iv && iv >= 100) {
+                final Match cur = m;
+                boolean rangePaired = matches.stream().anyMatch(other -> {
+                    if (other == cur) return false;
+                    if (!other.tags().contains("weak-episode")) return false;
+                    if (other.tags().contains("weak-duplicate")) return false;
+                    if (!(other.value() instanceof Integer ov) || ov < 100) return false;
+                    int gapStart = Math.min(cur.end(), other.end());
+                    int gapEnd = Math.max(cur.start(), other.start());
+                    if (gapEnd <= gapStart) return false;
+                    if (gapEnd - gapStart > 5) return false;
+                    String gap = ctx.input.substring(gapStart, gapEnd);
+                    return gap.matches("[ ._]*[-~][ ._]*");
+                });
+                if (rangePaired) continue;
+            }
             toRemove.add(m);
         }
         for (var m : toRemove) ctx.matches.remove(m);
