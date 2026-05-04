@@ -240,6 +240,32 @@ public final class ReleaseGroupExtractor implements Extractor {
             .anyMatch(m -> m.start() < e && s < m.end());
     }
 
+    /**
+     * Mirrors python's demote_other conflict_solver: when a source match sits
+     * at the trailing position of the filepart (no separator-only suffix)
+     * AND another non-tail source already exists earlier, the trailing one
+     * is reclassified as a release_group candidate. The match is removed from
+     * source so detectScene can pick the previous source/codec as scene_prev
+     * and emit the trailing chunk as RELEASE_GROUP.
+     */
+    private static void promoteTrailingSourceToReleaseGroup(ParseContext ctx, io.guessit.engine.Marker filepart, int rangeEnd) {
+        var input = ctx.input;
+        var sources = ctx.matches.named("source")
+            .filter(m -> m.start() >= filepart.start() && m.end() <= rangeEnd)
+            .sorted(java.util.Comparator.comparingInt(m -> -m.end()))
+            .toList();
+        if (sources.size() < 2) return;
+        var trailing = sources.getFirst();
+        // Trailing source must abut rangeEnd via separator-only suffix.
+        var tail = input.substring(trailing.end(), rangeEnd);
+        if (!tail.isEmpty() && tail.chars().anyMatch(c -> Character.isLetterOrDigit((char) c))) return;
+        // Must be preceded by a separator (i.e. dash form like "...x264-SDTV").
+        if (trailing.start() == 0) return;
+        char prevCh = input.charAt(trailing.start() - 1);
+        if (Character.isLetterOrDigit(prevCh)) return;
+        ctx.matches.remove(trailing);
+    }
+
     private boolean detectScene(ParseContext ctx) {
         var input = ctx.input;
         for (var filepart : pathFilepartsRightmostFirst(ctx)) {
@@ -247,6 +273,12 @@ public final class ReleaseGroupExtractor implements Extractor {
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
             final int rangeEnd = trimNotAReleaseGroupTail(ctx, filepart, ext != null ? ext.start() : trimKnownExtension(ctx, filepart));
+
+            // Demote-other: if the rightmost source/other in the filepart has
+            // no separator gap to the trim end (or is the rightmost-end match)
+            // and at least one earlier sibling exists, treat it as the release
+            // group candidate. Mirrors python's demote_other conflict_solver.
+            promoteTrailingSourceToReleaseGroup(ctx, filepart, rangeEnd);
 
             var prev = ctx.matches.all()
                 .filter(m -> SCENE_PREV.contains(m.name()))
