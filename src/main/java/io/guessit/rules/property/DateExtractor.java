@@ -29,6 +29,16 @@ public final class DateExtractor implements Extractor {
 
     @Override
     public void extract(ParseContext ctx) {
+        // Skip entirely when date is filtered: keeping the date match would
+        // win the overlap conflict against year/season/episode, then get
+        // stripped at output → those underlying matches are gone too.
+        // Python parity ("2015.01.31" --excludes date → year=2015) needs the
+        // year/season/episode candidates to survive.
+        var excludes = ctx.options.excludes();
+        var includes = ctx.options.includes();
+        boolean dateFiltered = (!excludes.isEmpty() && excludes.contains("date"))
+                || (!includes.isEmpty() && !includes.contains("date"));
+        if (dateFiltered) return;
         var input = ctx.input;
         var result = DatePatterns.search(input, ctx.options.dateYearFirst(), ctx.options.dateDayFirst());
         if (result.isEmpty()) return;
