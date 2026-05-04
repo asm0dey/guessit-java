@@ -292,13 +292,15 @@ public final class WeakDuplicateExtractor implements Extractor {
         var prePropCodecs = ctx.matches.all()
                 .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
                 .toList();
+        var prePropScreens = ctx.matches.named("screen_size").toList();
         var preClean = new ArrayList<Match>();
         for (var name : new String[]{SEASON, EPISODE}) {
             for (var m : ctx.matches.named(name).toList()) {
                 if (!m.tags().contains(WEAK_DUPLICATE)) continue;
                 if (prePropYears.stream().anyMatch(y -> y.overlaps(m))
                         || prePropDates.stream().anyMatch(d -> d.overlaps(m))
-                        || prePropCodecs.stream().anyMatch(c -> c.overlaps(m))) {
+                        || prePropCodecs.stream().anyMatch(c -> c.overlaps(m))
+                        || prePropScreens.stream().anyMatch(s -> s.overlaps(m))) {
                     preClean.add(m);
                 }
             }
