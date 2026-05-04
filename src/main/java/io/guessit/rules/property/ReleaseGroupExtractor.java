@@ -358,6 +358,43 @@ public final class ReleaseGroupExtractor implements Extractor {
                     continue;
                 }
             }
+            // When the candidate span begins with a subtitle_language match
+            // (e.g. "NL-subs-ABC" where NL is subtitle_language), advance past
+            // it and any abutting private subtitle marker. Python's
+            // SubtitleSuffix path leaves the trailing dash-suffix to
+            // DashSeparatedReleaseGroup; allow the same shape here.
+            int sFinal = s;
+            int eFinal = e;
+            boolean advanced = true;
+            while (advanced) {
+                advanced = false;
+                final int curS = sFinal;
+                final int curE = eFinal;
+                var sl = ctx.matches.named(SUBTITLE_LANGUAGE)
+                    .filter(m -> m.start() == curS && m.end() < curE)
+                    .findFirst().orElse(null);
+                if (sl != null) {
+                    sFinal = sl.end();
+                    while (sFinal < eFinal && isGroupSep(input.charAt(sFinal))) sFinal++;
+                    advanced = true;
+                    continue;
+                }
+                // Skip past a private subtitle_language.prefix marker word
+                // (e.g. "subs" between NL and -ABC).
+                final int curS2 = sFinal;
+                final int curE2 = eFinal;
+                var marker = ctx.matches.all()
+                    .filter(m -> m.isPrivate() && "subtitle_language.prefix".equals(m.name()))
+                    .filter(m -> m.start() == curS2 && m.end() < curE2)
+                    .findFirst().orElse(null);
+                if (marker != null) {
+                    sFinal = marker.end();
+                    while (sFinal < eFinal && isGroupSep(input.charAt(sFinal))) sFinal++;
+                    advanced = true;
+                }
+            }
+            s = sFinal;
+            e = eFinal;
             var raw = input.substring(s, e);
             var candidate = cleanGroupName(raw);
             if (!validGroupName(candidate, true)) continue;

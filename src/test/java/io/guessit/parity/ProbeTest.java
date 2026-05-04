@@ -70,6 +70,17 @@ class ProbeTest {
     }
 
     @Test
+    void subsAfterSubtitleLang_trailingDashRg() {
+        var r1 = Guessit.parse("Show.Name.S01E02.HDTV.x264.NL-subs-ABC").toMap();
+        assertThat(r1.get("subtitle_language")).isNotNull();
+        assertThat(r1.get("release_group")).isEqualTo("ABC");
+
+        var r2 = Guessit.parse(
+            "FROZEN [2010] LiMiTED DVDRip H262 AAC[ ENG SUBS]-MANTESH").toMap();
+        assertThat(r2.get("release_group")).isEqualTo("MANTESH");
+    }
+
+    @Test
     void subsDashRg_undSubtitleAndTrailingRg() {
         var r1 = Guessit.parse(
             "Life of Pi 2012 2160p 4K BluRay HDR10 HEVC BT2020 DTSHD 7.1 subs -DDR").toMap();
