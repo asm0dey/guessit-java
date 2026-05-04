@@ -2,7 +2,6 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -26,7 +25,7 @@ public final class CrcExtractor implements Extractor {
         while (m.find()) {
             var head = new Match("crc32", null, m.start(1), m.end(1), m.group(1), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
-            ctx.matches.add(new Match("crc32", m.group(1).toLowerCase(Locale.ROOT),
+            ctx.matches.add(new Match("crc32", m.group(1),
                 m.start(1), m.end(1), m.group(1), priority(), Set.of(), false));
         }
     }

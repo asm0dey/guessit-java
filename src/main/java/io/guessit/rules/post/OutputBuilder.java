@@ -61,17 +61,13 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         }
         rawExcludes.addAll(childExpand);
 
-        // Collect spans of excluded matches for coupled exclusion (e.g., season ↔ episode).
-        var excludedSpans = new java.util.HashSet<String>(); // "start:end"
         var excludes = rawExcludes;
-        if (!excludes.isEmpty()) {
-            ctx.matches.all().forEach(m -> {
-                if (excludes.contains(m.name())) {
-                    var coupled = COUPLED_EXCLUSION.get(m.name());
-                    if (coupled != null) excludedSpans.add(m.start() + ":" + m.end());
-                }
-            });
-        }
+        // Coupled exclusion via the SxxExx pair tag ("coexist"): excluding one half of
+        // a compact season/episode pattern (e.g. excludes=season on "02x05") must drop
+        // its sibling too, mirroring Python's pattern-level disable. Span-based coupling
+        // does not work because season and episode have distinct spans inside the regex.
+        boolean dropCoexistEpisode = excludes.contains("season");
+        boolean dropCoexistSeason = excludes.contains("episode");
 
         // LinkedHashMap preserves the first-seen name order, which makes the
         // order in `extras` deterministic when matches contribute unknown keys.
@@ -80,11 +76,9 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             var name = m.name();
             // Respect --exclude / --include options from the caller.
             if (!excludes.isEmpty() && excludes.contains(name)) return;
-            // Coupled span exclusion: if a coupled partner was excluded at this span, skip too.
-            if (!excludedSpans.isEmpty()) {
-                var coupled = COUPLED_EXCLUSION.get(name);
-                if (coupled != null && excludedSpans.contains(m.start() + ":" + m.end())) return;
-            }
+            // Coupled tag exclusion: drop SxxExx-pair sibling when one half is excluded.
+            if (dropCoexistEpisode && "episode".equals(name) && m.tags().contains("coexist")) return;
+            if (dropCoexistSeason && "season".equals(name) && m.tags().contains("coexist")) return;
             if (!includes.isEmpty() && !includes.contains(name)) return;
             grouped.computeIfAbsent(name, _ -> new ArrayList<>()).add(m);
         });
@@ -136,6 +130,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "bonus" -> b.bonus(asInt(e.getValue().getFirst()));
                 case "bonus_title" -> b.bonusTitle(asString(e.getValue().getFirst()));
                 case "crc32" -> b.crc32(asString(e.getValue().getFirst()));
+                case "proper_count" -> b.properCount(asInt(e.getValue().getFirst()));
                 default -> extras.put(e.getKey(), e.getValue().size() == 1 ? e.getValue().getFirst().value()
                     : e.getValue().stream().map(Match::value).toList());
             }

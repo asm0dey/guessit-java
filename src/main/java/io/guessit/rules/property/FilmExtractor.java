@@ -30,8 +30,10 @@ public final class FilmExtractor implements Extractor {
             var head = new Match("film", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
 
+            // Span covers the full "fNN" so the leading 'f' doesn't leak into
+            // the surrounding title hole.
             ctx.matches.add(new Match("film", Integer.parseInt(m.group("n")),
-                m.start("n"), m.end("n"), m.group("n"), priority(), Set.of(), false));
+                m.start(), m.end(), m.group(), priority(), Set.of(), false));
         }
     }
 
@@ -50,12 +52,9 @@ public final class FilmExtractor implements Extractor {
         if (fpOpt.isEmpty()) return;
         var fp = fpOpt.get();
 
-        // Leading hole: text before the film marker within the filepart.
-        // We scan from the filepart start up to the film token's start position.
-        // The film match spans only the digit group; the full token (f+digits)
-        // starts one character earlier. Back up by 1 to exclude the 'f' prefix.
-        int filmTokenStart = film.start() - 1; // position of the 'f' character
-        if (filmTokenStart < fp.start()) filmTokenStart = fp.start();
+        // Leading hole: text before the film match within the filepart. The
+        // match span now includes the 'f' prefix, so use film.start() directly.
+        int filmTokenStart = film.start();
 
         var holes = Holes.compute(
             ctx.input,

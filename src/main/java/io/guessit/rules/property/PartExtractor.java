@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
  */
 public final class PartExtractor implements Extractor {
     private static final Pattern P = Pattern.compile(
-        "(?i)(?:pt|part)-?(?<n>" + Numerals.DIGITAL + "|" + Numerals.ROMAN + ")");
+        "(?i)(?:pt|part)[" + Abbreviations.SEPS_NO_FS_CLASS + "]?(?<n>" + Numerals.NUMERAL + ")");
 
     @Override public String name() { return "part"; }
     @Override public int priority() { return 1000; }
@@ -30,14 +30,16 @@ public final class PartExtractor implements Extractor {
             var raw = m.group("n");
             int v;
             try {
-                v = Numerals.parse(raw, true, true, false);
+                v = Numerals.parse(raw, true, true, true);
             } catch (IllegalArgumentException _) {
                 continue;
             }
             if (v <= 0 || v >= 100) continue;
 
+            // Span covers the whole "part N" so the prefix word doesn't leak
+            // into the surrounding title hole.
             ctx.matches.add(new Match("part", v,
-                m.start("n"), m.end("n"), raw, priority(), Set.of(), false));
+                m.start(), m.end(), m.group(), priority(), Set.of(), false));
         }
     }
 }

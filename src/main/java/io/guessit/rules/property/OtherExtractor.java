@@ -234,9 +234,21 @@ public final class OtherExtractor implements Extractor {
         return new Match(OTHER, value, s, e, input.substring(s, e), 1000, tags, false);
     }
 
+    private static final java.util.regex.Pattern PY_NAMED = java.util.regex.Pattern.compile("\\(\\?P<([^>]+)>");
+
     private static String toJavaRegex(String src) {
-        // Convert Python-style named groups (?P<name>...) to Java (?<name>...)
-        return src.replace("(?P<", "(?<");
+        // Convert Python-style named groups (?P<name>...) to Java (?<name>...).
+        // Java disallows '_' in group names so strip non-alphanumerics from the
+        // captured name (preserves the capture; the only metadata Java keeps is
+        // the index, which downstream code does not consume here).
+        var m = PY_NAMED.matcher(src);
+        var sb = new StringBuilder();
+        while (m.find()) {
+            var safe = m.group(1).replaceAll("[^A-Za-z0-9]", "");
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement("(?<" + safe + ">"));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     private static int groupStart(Matcher m) {

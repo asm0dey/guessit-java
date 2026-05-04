@@ -33,7 +33,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
     private static final Pattern HEAD_S_E = Pattern.compile(
         "(?i)s(?<season>\\d+)" + SEP_OPT + "(?<episodeMarker>e|ex|xe|ep|x|d)" + SEP_OPT + "(?<episode>\\d+)");
     private static final Pattern TAIL_E = Pattern.compile(
-        "(?i)(?<episodeSeparator>ex|xe|ep|and|et|to|e|x|d|\\.|_| |-|\\+|&|a|~)@?(?<episode>\\d+)");
+        "(?i)(?<episodeSeparator>ex|xe|ep|and|et|to|e|x|d|\\.|_| |-|\\+|&|a|~)@?(?<episode>\\d{1,4})");
     private static final java.util.Set<String> STRONG_SEPS = Set.of("+", "&", "and", "et");
     private static final java.util.Set<String> RANGE_SEPS = Set.of("-", "~", "to", "a");
     private static final java.util.Set<String> MARKER_SEPS = Set.of("e", "ex", "xe", "ep", "x", "d", "s");
@@ -190,6 +190,11 @@ public final class SeasonEpisodeExtractor implements Extractor {
             if (isWeak) {
                 int gap = cur - prev;
                 if (gap <= 0 || gap > MAX_RANGE_GAP + 1) return validTails;
+            } else if (RANGE_SEPS.contains(sep)) {
+                // Range separator (-, ~, to, a) — reject huge value jumps that
+                // would yield runaway range-fills (e.g. "s8e6-768660").
+                int gap = cur - prev;
+                if (gap <= 0 || gap > MAX_EXPAND_JUMP) return validTails;
             }
             validTails = i;
         }
@@ -283,6 +288,8 @@ public final class SeasonEpisodeExtractor implements Extractor {
         }
     }
 
+    private static final int MAX_EXPAND_JUMP = 50;
+
     private void expandRanges(ParseContext ctx) {
         var input = ctx.input;
         var episodes = ctx.matches.named(EPISODE)
@@ -295,13 +302,14 @@ public final class SeasonEpisodeExtractor implements Extractor {
             if (next.start() >= prev.end() && next.start() <= prev.end() + 3) {
                 var gap = input.substring(prev.end(), next.start());
                 if (containsRange(gap)) {
+                    int prevVal = (Integer) prev.value();
+                    int nextVal = (Integer) next.value();
+                    if (nextVal - prevVal > MAX_EXPAND_JUMP) continue;
                     boolean disc = prev.tags().contains("disc-marker") && next.tags().contains("disc-marker");
                     var fillTags = disc
                         ? Set.of(SXX_EXX, COEXIST, "range-fill", "disc-marker")
                         : Set.of(SXX_EXX, COEXIST, "range-fill");
-                    int a = ((Integer) prev.value()) + 1;
-                    int b = ((Integer) next.value()) - 1;
-                    for (int v = a; v <= b; v++) {
+                    for (int v = prevVal + 1; v < nextVal; v++) {
                         ctx.matches.add(new Match(EPISODE, v, prev.end(), next.start(),
                             String.valueOf(v), 1000, fillTags, false));
                     }

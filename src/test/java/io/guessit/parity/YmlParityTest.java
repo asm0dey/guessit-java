@@ -71,7 +71,8 @@ class YmlParityTest {
             Map.entry("film_title", new String[]{"filmTitle"}),
             Map.entry("bonus", new String[]{"bonus"}),
             Map.entry("bonus_title", new String[]{"bonusTitle"}),
-            Map.entry("crc32", new String[]{"crc32"})
+            Map.entry("crc32", new String[]{"crc32"}),
+            Map.entry("proper_count", new String[]{"properCount"})
     );
 
     @ParameterizedTest(name = "[{index}] {0}")

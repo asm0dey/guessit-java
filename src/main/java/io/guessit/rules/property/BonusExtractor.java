@@ -39,9 +39,10 @@ public final class BonusExtractor implements Extractor {
                 && x.start() < m.end() && x.end() > m.start());
             if (conflict) continue;
 
-            // Store match over the digit group only (mirrors Python's group span).
+            // Span covers the full "xNN" so the leading 'x' doesn't leak into
+            // the surrounding title hole.
             ctx.matches.add(new Match("bonus", Integer.parseInt(m.group("n")),
-                m.start("n"), m.end("n"), m.group("n"), priority(), Set.of(), false));
+                m.start(), m.end(), m.group(), priority(), Set.of(), false));
         }
     }
 

@@ -29,6 +29,7 @@ public final class LanguageRegistry {
         loadIso639();
         loadIso3166();
         loadScripts();
+        loadSpecialLangAliases();
         loadLangAliases();
         loadCountryAliases();
     }
@@ -82,6 +83,18 @@ public final class LanguageRegistry {
             if (code.isEmpty() || name.isEmpty()) return;
             scripts.putIfAbsent(code.toLowerCase(Locale.ROOT), name);
         });
+    }
+
+    /**
+     * Hardcoded non-ISO aliases that babelfish exposes but the ISO-639 CSV does
+     * not encode (or encodes with a different display). These take precedence
+     * over the ISO table via the override map.
+     */
+    private void loadSpecialLangAliases() {
+        langAliasOverrides.put("vo",  new Language(null, "vo",  "Original Version"));
+        langAliasOverrides.put("mul", new Language(null, "mul", "Multiple languages"));
+        langAliasOverrides.put("und", new Language(null, "und", "Undetermined"));
+        langAliasOverrides.put("zxx", new Language(null, "zxx", "No linguistic content"));
     }
 
     private void loadLangAliases() {

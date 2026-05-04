@@ -11,6 +11,7 @@ import io.guessit.rules.post.MimetypeProcessor;
 import io.guessit.rules.post.OutputBuilder;
 import io.guessit.rules.post.PreferLastPath;
 import io.guessit.rules.post.PrivateRemover;
+import io.guessit.rules.post.ProperCountRule;
 import io.guessit.rules.post.AbsoluteEpisodePromoter;
 import io.guessit.rules.post.EpisodeNumberSeparatorRange;
 import io.guessit.rules.post.RangeFiller;
@@ -65,6 +66,7 @@ public final class Rules {
                 new RemoveLessSpecificSeasonEpisode("season"),
                 new RemoveLessSpecificSeasonEpisode("episode"),
                 new RemoveAmbiguous(),
+                new ProperCountRule(),
                 new TypeProcessor(),
                 new MimetypeProcessor(),
                 new StripSeparators(),

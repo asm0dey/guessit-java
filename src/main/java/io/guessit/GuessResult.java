@@ -43,6 +43,7 @@ public record GuessResult(
     @Opt List<String> edition, @Opt Integer cd, @Opt Integer cdCount,
     @Opt Integer part, @Opt Integer version, @Opt Integer film, @Opt String filmTitle,
     @Opt Integer bonus, @Opt String bonusTitle, @Opt String crc32,
+    @Opt Integer properCount,
     @Opt Map<String, Object> extras
 ) {
     private static final ObjectMapper JSON = new ObjectMapper()
@@ -97,6 +98,7 @@ public record GuessResult(
         putIfNotNull(m, "bonus", bonus);
         putIfNotNull(m, "bonus_title", bonusTitle);
         putIfNotNull(m, "crc32", crc32);
+        putIfNotNull(m, "proper_count", properCount);
         if (extras != null) extras.forEach(m::putIfAbsent);
         return m;
     }
@@ -170,6 +172,7 @@ public record GuessResult(
             case "bonus" -> bonus;
             case "bonus_title" -> bonusTitle;
             case "crc32" -> crc32;
+            case "proper_count" -> properCount;
             default -> extras == null ? null : extras.get(key);
         };
     }

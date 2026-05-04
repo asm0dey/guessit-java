@@ -20,6 +20,9 @@ import java.util.Set;
 public final class RangeFiller implements PostProcessor {
 
     private static final int MAX_GAP = 6;
+    /** Cap value-jump to avoid runaway fills when the second match is a long-digit
+     *  artefact (e.g. {@code s8e6-768660} should not yield 768654 episodes). */
+    private static final int MAX_JUMP = 20;
     private static final Set<String> RANGE_KEYWORDS = Set.of("-", "~", "to", "a");
 
     @Override
@@ -42,6 +45,7 @@ public final class RangeFiller implements PostProcessor {
             int prevVal = (Integer) prev.value();
             int nextVal = (Integer) next.value();
             if (nextVal <= prevVal + 1) continue;
+            if (nextVal - prevVal > MAX_JUMP) continue;
             if (next.start() < prev.end()) continue;
             int gapLen = next.start() - prev.end();
             if (gapLen <= 0 || gapLen > MAX_GAP) continue;

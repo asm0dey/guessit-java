@@ -80,6 +80,7 @@ final class YmlExpected {
             case "audio_bit_rate" -> b.audioBitRate(BitRate.fromString(asString(v)));
             case "video_bit_rate" -> b.videoBitRate(BitRate.fromString(asString(v)));
             case "size" -> b.size(Size.fromString(asString(v)));
+            case "proper_count" -> b.properCount(asInt(v));
             default -> { return false; }
         }
         return true;
