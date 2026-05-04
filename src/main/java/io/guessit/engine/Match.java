@@ -48,6 +48,22 @@ public record Match(
         return new Match(name, value, start, end, raw, priority, t, isPrivate);
     }
 
+    public Match withStart(int s) {
+        return new Match(name, value, s, end, raw, priority, tags, isPrivate);
+    }
+
+    public Match withEnd(int e) {
+        return new Match(name, value, start, e, raw, priority, tags, isPrivate);
+    }
+
+    public Match withValue(Object v) {
+        return new Match(name, v, start, end, raw, priority, tags, isPrivate);
+    }
+
+    public Match withName(String n) {
+        return new Match(n, value, start, end, raw, priority, tags, isPrivate);
+    }
+
     public int length() { return end - start; }
 
     public int[] span() { return new int[]{start, end}; }
