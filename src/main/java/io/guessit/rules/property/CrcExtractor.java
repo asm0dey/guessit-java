@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 public final class CrcExtractor implements Extractor {
     private static final Pattern CRC = Pattern.compile("(?i)([0-9a-f]{8})");
     private static final Pattern UUID = Pattern.compile("([a-zA-Z0-9-]{20,})");
+    private static final Pattern SXX_EXX_INSIDE = Pattern.compile("(?i)S\\d{1,3}E\\d{1,3}");
 
     @Override public String name() { return "crc32"; }
     @Override public int priority() { return 500; }
@@ -47,6 +48,11 @@ public final class CrcExtractor implements Extractor {
         while (m.find()) {
             var raw = m.group(1);
             if (!isLikelyIdNumber(raw)) continue;
+            // Skip uuid candidates that swallow an SxxExx season+episode token.
+            // The COEXIST tag on season/episode means ConflictSolver leaves the
+            // uuid in place, so without this guard a string like
+            // "S01E01E07-FooBar-Group" becomes uuid AND blocks episode_title.
+            if (SXX_EXX_INSIDE.matcher(raw).find()) continue;
             var head = new Match("uuid", null, m.start(1), m.end(1), raw, priority(), Set.of(), false);
             if (!seps.test(head)) continue;
             ctx.matches.add(new Match("uuid", raw,

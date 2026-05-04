@@ -37,6 +37,22 @@ class ProbeTest {
     }
 
     @Test
+    void darkKnight_hqStaysOther_audioProfileAdjacencyRule() {
+        var r = Guessit.parse(
+            "The.Dark.Knight.IMAX.EDITION.HQ.BluRay.1080p.x264.AC3.Hindi.Eng.ETRG").toMap();
+        assertThat(r.get("other")).isEqualTo("High Quality");
+        assertThat(r.get("audio_profile")).isNull();
+    }
+
+    @Test
+    void s01e01e07_fooBarGroup_uuidNotSwallowsEpisodeTitle() {
+        var r = Guessit.parse("Test.S01E01E07-FooBar-Group.avi").toMap();
+        assertThat(r.get("episode_title")).isEqualTo("FooBar-Group");
+        assertThat(r.get("uuid")).isNull();
+        assertThat(r.get("episode")).isEqualTo(java.util.List.of(1, 7));
+    }
+
+    @Test
     void showE02v2_versionAfterEpisode() {
         var r = Guessit.parse("Show.E02v2.mkv").toMap();
         assertThat(r.get("episode")).isEqualTo(2);
