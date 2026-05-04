@@ -88,9 +88,13 @@ public final class WeakDuplicateExtractor implements Extractor {
         // standalone 3-4 digit number is the absolute episode, not a compact
         // SSEE pair. Drop weak-duplicate so the wider weak-episode survives
         // (e.g. "[Fansub] One Piece 603" → episode=603).
+        // Anime-context is only valid when the leading bracket contains a
+        // non-numeric group name (e.g. "[Fansub]"). If the bracket contains
+        // only digits (e.g. "[401]"), it IS the compact SSEE — do not drop.
         boolean animeContext = !ctx.input.isEmpty()
                 && (ctx.input.charAt(0) == '[' || ctx.input.charAt(0) == '(')
-                && ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name()) && mk.start() <= 1);
+                && ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name()) && mk.start() <= 1
+                        && !mk.raw().matches("\\d+"));
         if (animeContext) {
             var dropDup = ctx.matches.all()
                     .filter(m -> m.tags().contains(WEAK_DUPLICATE))
