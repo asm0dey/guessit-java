@@ -12,8 +12,10 @@ import io.guessit.rules.post.PrivateRemover;
 import io.guessit.rules.post.RangeFiller;
 import io.guessit.rules.post.RemoveAmbiguous;
 import io.guessit.rules.post.RemoveLessSpecificSeasonEpisode;
+import io.guessit.rules.post.SeasonYear;
 import io.guessit.rules.post.SeasonYearLink;
 import io.guessit.rules.post.TypeProcessor;
+import io.guessit.rules.post.YearSeason;
 import io.guessit.rules.property.*;
 
 import java.util.List;
@@ -49,6 +51,8 @@ public final class Rules {
                 new PreferLastPath(),
                 new RangeFiller(),
                 new SeasonYearLink(),
+                new SeasonYear(),
+                new YearSeason(),
                 new RemoveLessSpecificSeasonEpisode("season"),
                 new RemoveLessSpecificSeasonEpisode("episode"),
                 new RemoveAmbiguous(),
