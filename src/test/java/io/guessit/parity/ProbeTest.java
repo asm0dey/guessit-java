@@ -70,6 +70,18 @@ class ProbeTest {
     }
 
     @Test
+    void subsDashRg_undSubtitleAndTrailingRg() {
+        var r1 = Guessit.parse(
+            "Life of Pi 2012 2160p 4K BluRay HDR10 HEVC BT2020 DTSHD 7.1 subs -DDR").toMap();
+        assertThat(r1.get("subtitle_language")).isNotNull();
+        assertThat(r1.get("release_group")).isEqualTo("DDR");
+
+        var r2 = Guessit.parse("Family.Katta.2016.1080p.WEB-DL.H263.DD5.1.ESub-DDR").toMap();
+        assertThat(r2.get("subtitle_language")).isNotNull();
+        assertThat(r2.get("release_group")).isEqualTo("DDR");
+    }
+
+    @Test
     void mbcVodEmbedded_streamingService() {
         var r = Guessit.parse(
             "Eyes.Of.Dawn.1991.E01.480p.MBCVOD.AAC.x264-NOGPR.mp4").toMap();

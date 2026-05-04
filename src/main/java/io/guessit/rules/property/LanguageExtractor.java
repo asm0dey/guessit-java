@@ -454,8 +454,29 @@ public final class LanguageExtractor implements Extractor {
         }
         String beforeGap = input.substring(prevEnd, marker.start());
         String afterGap = input.substring(marker.end(), nextStart);
-        return beforeGap.chars().allMatch(c -> Seps.isSep((char) c))
-            && afterGap.chars().allMatch(c -> Seps.isSep((char) c));
+        boolean beforeOk = beforeGap.chars().allMatch(c -> Seps.isSep((char) c));
+        boolean afterOk = afterGap.chars().allMatch(c -> Seps.isSep((char) c));
+        // Relax afterGap when the only non-sep content is a trailing
+        // dash-bound release-group token at the very end of the filepart
+        // (e.g. "...7.1 subs -DDR", "...AAC.ESub-DDR"). Mirrors python's
+        // SubtitleSuffix behaviour: subs marker promotes to subtitle_language
+        // =und, and the trailing -RG remains a release-group candidate.
+        if (!afterOk && nextStart == rightBound) {
+            // Allow shape: optional seps + '-' + [A-Za-z0-9]+ + optional seps
+            String trimmed = afterGap.replaceAll("^[\\s._\\[\\](){}+*|=~#/\\\\,;:]+", "");
+            if (trimmed.startsWith("-")) {
+                String rest = trimmed.substring(1);
+                rest = rest.replaceAll("^[\\s._\\[\\](){}+*|=~#/\\\\,;:]+", "");
+                int wordEnd = 0;
+                while (wordEnd < rest.length()
+                    && Character.isLetterOrDigit(rest.charAt(wordEnd))) wordEnd++;
+                if (wordEnd > 0) {
+                    String tail = rest.substring(wordEnd);
+                    if (tail.chars().allMatch(c -> Seps.isSep((char) c))) afterOk = true;
+                }
+            }
+        }
+        return beforeOk && afterOk;
     }
 
     private static boolean renameAdjacentLanguagesBefore(ParseContext ctx, Match marker) {
