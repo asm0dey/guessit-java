@@ -243,6 +243,7 @@ public final class LanguageExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
+        dropAudioProfileOverlap(ctx);
         dropCommonWordLanguages(ctx);
         renameStandaloneAffixes(ctx);
         renameWithSubtitleExtension(ctx);
@@ -256,6 +257,31 @@ public final class LanguageExtractor implements Extractor {
         // never strips its subtitle_language.prefix marker). dropPrivateAffixes
         // is a no-op now but the call site is preserved for future cleanup.
         cleanupReleaseGroups(ctx);
+    }
+
+    /**
+     * Drop language/subtitle_language matches whose span exactly overlaps an
+     * audio_profile match (e.g. "HE" → audio_profile=High Efficiency wins,
+     * not language=Hebrew; "ES" → audio_profile=Extended Surround wins, not
+     * language=Spanish). Mirrors python's per-pattern conflict_solver.
+     */
+    private void dropAudioProfileOverlap(ParseContext ctx) {
+        var profiles = ctx.matches.named("audio_profile")
+                .map(m -> new int[]{m.start(), m.end()})
+                .toList();
+        if (profiles.isEmpty()) return;
+        var toRemove = new ArrayList<Match>();
+        for (var lang : ctx.matches.all()
+                .filter(m -> LANGUAGE.equals(m.name()) || SUBTITLE_LANGUAGE.equals(m.name()))
+                .toList()) {
+            for (var sp : profiles) {
+                if (lang.start() == sp[0] && lang.end() == sp[1]) {
+                    toRemove.add(lang);
+                    break;
+                }
+            }
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
     }
 
     private void cleanupReleaseGroups(ParseContext ctx) {

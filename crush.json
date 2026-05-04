@@ -1,0 +1,15 @@
+{
+  "$schema": "https://charm.land/crush.json",
+  "disabled_skills": [
+    "jdb-debugger",
+    "iikit*"
+  ],
+  "mcp": {
+    "browser": {
+      "disabled": true
+    },
+    "git_advanced": {
+      "disabled": true
+    }
+  }
+}

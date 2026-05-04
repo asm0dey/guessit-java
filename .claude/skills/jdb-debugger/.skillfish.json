@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "jdb-debugger",
+  "owner": "brunoborges",
+  "repo": "jdb-agentic-debugger",
+  "path": "skills/jdb-debugger",
+  "branch": "main",
+  "sha": "2ae59f17344c57bb5ab423ae7a8d62f79af6649d",
+  "source": "manual"
+}

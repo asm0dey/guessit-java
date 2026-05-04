@@ -49,7 +49,7 @@ public final class TypeProcessor implements PostProcessor {
     }
 
     private static boolean anyNamed(ParseContext ctx, String name) {
-        return ctx.matches.named(name).findAny().isPresent();
+        return ctx.matches.named(name).anyMatch(m -> !m.isPrivate());
     }
 
 }

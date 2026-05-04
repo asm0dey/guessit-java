@@ -36,7 +36,7 @@ class YmlParityTest {
             Map.entry("episode", new String[]{"episode", "episodeList"}),
             Map.entry("episode_count", new String[]{"episodeCount"}),
             Map.entry("season_count", new String[]{"seasonCount"}),
-            Map.entry("episode_title", new String[]{"episodeTitle"}),
+            Map.entry("ep   isode_title", new String[]{"episodeTitle"}),
             Map.entry("episode_format", new String[]{"episodeFormat"}),
             Map.entry("type", new String[]{"type"}),
             Map.entry("language", new String[]{"language"}),
@@ -87,6 +87,8 @@ class YmlParityTest {
         var negativeExpected = new java.util.LinkedHashMap<String, Object>(); // stripped key → value
         for (var e : c.expected().entrySet()) {
             String k = e.getKey();
+            // python check_expected: skip when expected_value is None — treat as "any value (or absent)"
+            if (e.getValue() == null) continue;
             if (k.startsWith("-")) {
                 negativeExpected.put(k.substring(1), e.getValue());
             } else {

@@ -6,6 +6,8 @@ import io.guessit.engine.ConflictSolver;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
+import static io.guessit.Guessit.parse;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,5 +44,9 @@ class AudioCodecExtractorTest {
     }
     @Test void rejectsLooseLetters() {
         assertTrue(run("Movie.AACX.mkv").matches.named("audio_codec").findAny().isEmpty());
+    }
+    @Test void channels_5_1_fullPipeline() {
+        var r = parse("Hotel.Hell.S01E01.720p.DD5.1.448kbps-ALANiS").toMap();
+        assertEquals("5.1", r.get("audio_channels"));
     }
 }

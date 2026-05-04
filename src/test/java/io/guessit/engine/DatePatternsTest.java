@@ -38,4 +38,8 @@ class DatePatternsTest {
     @Test void noDate() {
         assertTrue(DatePatterns.search(" no date ", null, null).isEmpty());
     }
+    @Test void searchYmdWithX() {
+        var r = DatePatterns.search("Something.2008x12.13-FlexGet", null, null).orElseThrow();
+        assertEquals(LocalDate.of(2008, 12, 13), r.date());
+    }
 }

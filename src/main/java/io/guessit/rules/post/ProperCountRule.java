@@ -25,7 +25,9 @@ public final class ProperCountRule implements PostProcessor {
         int start = Integer.MAX_VALUE;
         int end = Integer.MIN_VALUE;
         for (var m : distinct.values()) {
-            total += m.tags().contains("real") ? 2 : 1;
+            int trailing = trailingDigits(m.raw());
+            if (trailing > 0) total += trailing;
+            else total += m.tags().contains("real") ? 2 : 1;
             if (m.start() < start) start = m.start();
             if (m.end() > end) end = m.end();
         }
@@ -36,5 +38,14 @@ public final class ProperCountRule implements PostProcessor {
     private static String rawCleanup(String raw) {
         return raw == null ? "" : raw.toLowerCase(java.util.Locale.ROOT)
             .replaceAll("[\\W_]+", "");
+    }
+
+    private static int trailingDigits(String raw) {
+        if (raw == null) return 0;
+        int i = raw.length();
+        while (i > 0 && Character.isDigit(raw.charAt(i - 1))) i--;
+        if (i == raw.length()) return 0;
+        try { return Integer.parseInt(raw.substring(i)); }
+        catch (NumberFormatException _) { return 0; }
     }
 }

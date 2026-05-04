@@ -22,7 +22,22 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(xargs ls *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(grep -v \"^\\\\[ERROR\\\\] $\\\\|^\\\\[ERROR\\\\] -e\\\\|^\\\\[ERROR\\\\] See\\\\|^\\\\[ERROR\\\\] To\\\\|^\\\\[ERROR\\\\] Re-run\\\\|^\\\\[ERROR\\\\] Failed\\\\|^\\\\[ERROR\\\\] For\\\\|^\\\\[ERROR\\\\] \\\\[\\\\|^\\\\[ERROR\\\\]   YmlParityTest\")",
+      "mcp__idea__xdebug_set_breakpoint",
+      "mcp__idea__xdebug_start_debugger_session",
+      "mcp__idea__xdebug_get_debugger_status",
+      "mcp__idea__xdebug_evaluate_expression",
+      "mcp__idea__xdebug_control_session",
+      "mcp__idea__xdebug_remove_breakpoint",
+      "Bash(java -jar target/guessit-java-*-cli.jar \"BR.Screener\")",
+      "Bash(java -jar target/guessit-java-*-cli.jar \"BR.Mux\")",
+      "Bash(grep -rB1 -A8 \"Test.S01E01-FooBar-Group\\\\|Test.S01E01E07-FooBar\" src/test/resources/yml/)",
+      "Bash(grep -rB1 -A6 '\"2015.01.31\"\\\\|2015\\\\.01\\\\.31' src/test/resources/yml/)",
+      "Bash(grep -rB1 -A8 \"ESPN.E.60\" src/test/resources/yml/)",
+      "Bash(grep -rB 2 -A 5 \"492x368\" src/test)",
+      "Bash(grep -nP \"^\\\\s*\\\\w+:\\\\s*$\" src/test/resources/yml/rules/screen_size.yml)",
+      "Bash(grep -rB 2 -A 10 \"yaml_test\\\\|yml_test\\\\|yml_path\\\\|test_files\" /tmp/guessit/guessit/test/test_yml.py)"
     ]
   }
 }

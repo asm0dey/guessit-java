@@ -112,11 +112,9 @@ public final class DatePatterns {
     }
 
     private static Optional<LocalDate> parseAllValid(String raw, Boolean yearFirst, Boolean dayFirst) {
-        var seps = new String[]{"-", "/", " ", ".", "x"};
-        for (var sep : seps) {
-            var attempt = tryParse(raw.replace(sep, "-"), yearFirst, dayFirst);
-            if (attempt.isPresent() && validYear(attempt.get().getYear())) return attempt;
-        }
+        var normalized = raw.replaceAll("[/ .x]", "-");
+        var attempt = tryParse(normalized, yearFirst, dayFirst);
+        if (attempt.isPresent() && validYear(attempt.get().getYear())) return attempt;
         return Optional.empty();
     }
 
