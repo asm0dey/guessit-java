@@ -177,8 +177,13 @@ public final class EpisodeWordExtractor implements Extractor {
             }
         }
 
-        // Detached: \d+ of \d+
-        var detached = Pattern.compile("(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)");
+        // Detached: \d+ of \d+ optionally followed by an episode-word
+        // (mirrors python episodes.py L342: "(\d+)-?of-?(\d+)-?(episode_words)?").
+        // Trailing "Ep"/"Episode" word is absorbed into the private span so
+        // it doesn't surface as the first hole and steal episode_title text
+        // (e.g. "Season.2.1of4.Ep.Title" → episode_title=Title, not "Ep Title").
+        var detached = Pattern.compile("(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
+            + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
         var dm = detached.matcher(input);
         while (dm.find()) {
             var raw = dm.group();
@@ -190,11 +195,9 @@ public final class EpisodeWordExtractor implements Extractor {
                 dm.group(1), 1000, Set.of("episode-word"), false));
             ctx.matches.add(new Match("episode_count", c, dm.start(2), dm.end(2),
                 dm.group(2), 1000, Set.of(), false));
-            // Private span covering the entire "N of M" so the connector "of"
-            // doesn't surface as the first hole and steal episode_title.
-            // Title/EpisodeTitle hole compute treats non-language non-country
-            // private matches as hole-blockers; OutputBuilder drops unknown
-            // names; ConflictSolver skips private matches.
+            // Private span covering the entire match so the connector "of"
+            // (and trailing episode-word, if present) doesn't surface as the
+            // first hole and steal episode_title.
             ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
                 raw, 1000, Set.of(), true));
         }
