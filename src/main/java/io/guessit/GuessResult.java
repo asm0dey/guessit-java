@@ -21,7 +21,7 @@ import java.util.Map;
 @Builder(style = BuilderStyle.CLASSIC, factoryMethod = "result")
 public record GuessResult(
     @Opt String title,
-    @Opt String alternativeTitle,
+    @Opt List<String> alternativeTitleList,
     @Opt Integer year,
     @Opt LocalDate date,
     @Opt Integer season, @Opt List<Integer> seasonList,
@@ -54,7 +54,7 @@ public record GuessResult(
     public Map<String, Object> toMap() {
         var m = new LinkedHashMap<String, Object>();
         putIfNotNull(m, "title", title);
-        putIfNotNull(m, "alternative_title", alternativeTitle);
+        putList(m, "alternative_title", alternativeTitleList);
         putIfNotNull(m, "year", year);
         putIfNotNull(m, "date", date);
         putSeasonOrEpisode(m, "season", season, seasonList);
@@ -123,7 +123,7 @@ public record GuessResult(
     public Object field(String key) {
         return switch (key) {
             case "title" -> title;
-            case "alternative_title" -> alternativeTitle;
+            case "alternative_title" -> singleOrList(alternativeTitleList);
             case "year" -> year;
             case "date" -> date;
             case "season" -> seasonList != null && !seasonList.isEmpty()

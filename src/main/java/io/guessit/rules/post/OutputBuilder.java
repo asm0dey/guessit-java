@@ -40,7 +40,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         for (var e : grouped.entrySet()) {
             switch (e.getKey()) {
                 case "title" -> b.title(asString(e.getValue().getFirst()));
-                case "alternative_title" -> b.alternativeTitle(asString(e.getValue().getFirst()));
+                case "alternative_title" -> b.alternativeTitleList(e.getValue().stream().map(OutputBuilder::asString).collect(java.util.stream.Collectors.toList()));
                 case "year" -> b.year(asInt(e.getValue().getFirst()));
                 case "date" -> b.date((LocalDate) e.getValue().getFirst().value());
                 case "season" -> applyIntList(e.getValue(), b::season, b::seasonList);

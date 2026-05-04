@@ -54,7 +54,7 @@ class YmlParityTest {
      */
     private static final Map<String, String[]> KEY_TO_FIELDS = Map.ofEntries(
             Map.entry("title", new String[]{"title"}),
-            Map.entry("alternative_title", new String[]{"alternativeTitle"}),
+            Map.entry("alternative_title", new String[]{"alternativeTitleList"}),
             Map.entry("year", new String[]{"year"}),
             Map.entry("date", new String[]{"date"}),
             Map.entry("season", new String[]{"season", "seasonList"}),

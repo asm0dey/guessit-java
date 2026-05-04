@@ -35,7 +35,7 @@ final class YmlExpected {
     private static boolean apply(GuessResultBuilder b, String key, Object v) {
         switch (key) {
             case "title" -> b.title(asString(v));
-            case "alternative_title" -> b.alternativeTitle(asString(v));
+            case "alternative_title" -> b.alternativeTitleList(asStrings(v));
             case "year" -> b.year(asInt(v));
             case "date" -> b.date(asDate(v));
             case "season" -> setSeason(b, v);
