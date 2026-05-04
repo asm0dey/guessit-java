@@ -70,6 +70,13 @@ class ProbeTest {
     }
 
     @Test
+    void mbcVodEmbedded_streamingService() {
+        var r = Guessit.parse(
+            "Eyes.Of.Dawn.1991.E01.480p.MBCVOD.AAC.x264-NOGPR.mp4").toMap();
+        assertThat(r.get("streaming_service")).isEqualTo("MBC");
+    }
+
+    @Test
     void chuckBerry320Kbps_typeMovie_noEpisode() {
         var r = Guessit.parse("Chuck Berry The Very Best Of Chuck Berry(2010)[320 Kbps]").toMap();
         assertThat(r.get("type")).isEqualTo("movie");

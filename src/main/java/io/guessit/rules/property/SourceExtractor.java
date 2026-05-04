@@ -147,7 +147,21 @@ public final class SourceExtractor implements Extractor {
                     input.substring(s, e), 1000, rule.tags(), false);
             if (!validator.test(sourceMatch)) continue;
             if (overlapsExtension(ctx, s, e)) continue;
-            ctx.matches.add(sourceMatch);
+            // When the source span sits inside an existing streaming_service
+            // literal (e.g. VOD inside MBCVOD), mark the source PRIVATE so it
+            // doesn't conflict with the longer streaming_service via default
+            // longest-wins. ValidateStreamingService still sees it (private
+            // matches participate in matches.next/previous) and the longer
+            // streaming_service literal can validate against it.
+            // Mirrors python's source private_parent semantics where private
+            // source matches survive overlap with streaming_service.
+            boolean insideStream = ctx.matches.named(StreamingServiceExtractor.STREAMING_SERVICE)
+                .anyMatch(ss -> ss.start() <= s && e <= ss.end() && (ss.start() < s || e < ss.end()));
+            var emit = insideStream
+                ? new Match(SOURCE, rule.source(), s, e,
+                    input.substring(s, e), 1000, rule.tags(), true)
+                : sourceMatch;
+            ctx.matches.add(emit);
             if (rule.otherValue() != null) {
                 int os = groupStart(matcher, OTHER);
                 int oe = groupEnd(matcher, OTHER);
