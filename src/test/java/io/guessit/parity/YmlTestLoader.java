@@ -162,7 +162,7 @@ public final class YmlTestLoader {
         var tokens = tokenizeArgs(s);
         for (int i = 0; i < tokens.length; i++) {
             switch (tokens[i]) {
-                case "--episode-prefer-number" -> a.episodePreferNumber = true;
+                case "--episode-prefer-number", "-E" -> a.episodePreferNumber = true;
                 case "--date-year-first", "-Y" -> a.dateYearFirst = true;
                 case "--date-day-first", "-D" -> a.dateDayFirst = true;
                 case "--no-default-config" -> a.noDefaultConfig = true;

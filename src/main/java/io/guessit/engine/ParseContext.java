@@ -32,6 +32,16 @@ public final class ParseContext {
     public GuessResultBuilder resultBuilder = GuessResult.builder();
     /** Final assembled result; written by {@link OutputPhase}. */
     public GuessResult result;
+    /**
+     * Counter for coupling groups. A rule that produces multiple sibling
+     * matches sharing one regex pass tags each with {@code "cg:" + nextCoexistGroupId()}
+     * so {@link io.guessit.rules.post.OutputBuilder} can drop the whole pair
+     * when any sibling is filtered by includes/excludes.
+     */
+    private long coexistGroupCounter = 0;
+    public String nextCoexistGroupTag() {
+        return "cg:" + (++coexistGroupCounter);
+    }
 
     public ParseContext(String input, Options options, OptionsConfig config) {
         this.input = input;

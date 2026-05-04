@@ -108,7 +108,7 @@ public final class ScreenSizeExtractor implements Extractor {
                 String scan = wh.group("scan") == null ? "p" : wh.group("scan").toLowerCase(Locale.ROOT);
                 double ar = (double) w / h;
                 ctx.matches.add(new Match("aspect_ratio", Math.round(ar * 1000.0) / 1000.0,
-                    m.start(), m.end(), m.raw(), m.priority(), Set.of(), false));
+                    m.start(), m.end(), m.raw(), m.priority(), Set.of("derivedFrom:screen_size"), false));
                 // Use the canonical "1080p"-style label only when the height
                 // is a known standard AND the aspect ratio falls in the
                 // typical movie/TV range; otherwise preserve the explicit
@@ -141,7 +141,7 @@ public final class ScreenSizeExtractor implements Extractor {
                     int val = Integer.parseInt(rawFr.replaceAll("\\..*$", ""));
                     ctx.matches.add(new Match("frame_rate", val,
                         m.start() + fr.start("fr"), m.start() + fr.end("fr"),
-                        rawFr, m.priority(), Set.of("coexist"), false));
+                        rawFr, m.priority(), Set.of("coexist", "derivedFrom:screen_size"), false));
                 }
             }
         }

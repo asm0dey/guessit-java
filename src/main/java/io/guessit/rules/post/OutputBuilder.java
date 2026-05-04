@@ -69,6 +69,24 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         boolean dropCoexistEpisode = excludes.contains("season");
         boolean dropCoexistSeason = excludes.contains("episode");
 
+        // First pass: collect coexist-group ids whose exclusion must propagate.
+        // A "cg:N" tag groups sibling matches produced by one rule pass (symmetric:
+        // dropping any member drops the whole group, mirroring rebulk's rule-level
+        // disable). A separate "derivedFrom:<name>" tag is one-way (asymmetric):
+        // dropping the master drops the derivative, but not vice versa.
+        var droppedGroups = new java.util.HashSet<String>();
+        var droppedNames = new java.util.HashSet<String>();
+        ctx.matches.all().forEach(m -> {
+            var name = m.name();
+            boolean filtered = (!excludes.isEmpty() && excludes.contains(name))
+                    || (!includes.isEmpty() && !includes.contains(name));
+            if (!filtered) return;
+            droppedNames.add(name);
+            for (var t : m.tags()) {
+                if (t.startsWith("cg:")) droppedGroups.add(t);
+            }
+        });
+
         // LinkedHashMap preserves the first-seen name order, which makes the
         // order in `extras` deterministic when matches contribute unknown keys.
         var grouped = new LinkedHashMap<String, List<Match>>();
@@ -80,6 +98,18 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             if (dropCoexistEpisode && "episode".equals(name) && m.tags().contains("coexist")) return;
             if (dropCoexistSeason && "season".equals(name) && m.tags().contains("coexist")) return;
             if (!includes.isEmpty() && !includes.contains(name)) return;
+            // Drop matches whose coexist-group sibling was filtered (symmetric).
+            if (!droppedGroups.isEmpty()) {
+                for (var t : m.tags()) {
+                    if (droppedGroups.contains(t)) return;
+                }
+            }
+            // Drop derivative matches whose master name was filtered (asymmetric).
+            if (!droppedNames.isEmpty()) {
+                for (var t : m.tags()) {
+                    if (t.startsWith("derivedFrom:") && droppedNames.contains(t.substring(12))) return;
+                }
+            }
             grouped.computeIfAbsent(name, _ -> new ArrayList<>()).add(m);
         });
 

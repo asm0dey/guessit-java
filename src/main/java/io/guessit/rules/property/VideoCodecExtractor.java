@@ -68,7 +68,7 @@ public final class VideoCodecExtractor implements Extractor {
             // Tag color_depth suffix as video-codec-suffix so the abutting codec
             // match passes validateVideoCodec without sepsAfter.
             ctx.matches.add(new Match("color_depth", "10-bit", g2s, g2e, raw2, 1000,
-                Set.of("video-codec-suffix"), false));
+                Set.of("video-codec-suffix", "derivedFrom:video_codec"), false));
         }
 
         // video_profile (validated, validators enforce seps_surround)

@@ -157,6 +157,15 @@ public final class WeakEpisodeExtractor implements Extractor {
                     }
                 }
                 if (contiguous && sameFilepart && v < 100) {
+                    // Numeric-proximity guard: keep as episode only when value is
+                    // a small step from prev (mirrors Python's separator-range
+                    // semantics — sequential or short range). Larger jumps mean
+                    // the digits belong to title content like "S02E02.65.Million.Years".
+                    int prevVal = prev.value() instanceof Integer pi ? pi : -1;
+                    if (prevVal > 0 && (v - prevVal) > 5) {
+                        toRemove.add(weak);
+                        continue;
+                    }
                     continue;
                 }
                 if (v >= 100 && (highWeakCount >= 2 || !contiguous)) {

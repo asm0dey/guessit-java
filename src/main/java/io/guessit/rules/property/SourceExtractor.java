@@ -153,7 +153,7 @@ public final class SourceExtractor implements Extractor {
                 int oe = groupEnd(matcher, OTHER);
                 if (os >= 0 && oe > os) {
                     ctx.matches.add(new Match(OTHER, rule.otherValue(), os, oe,
-                            input.substring(os, oe), 1000, Set.of("coexist"), false));
+                            input.substring(os, oe), 1000, Set.of("coexist", "derivedFrom:source"), false));
                 }
             }
             if (rule.anotherValue() != null) {
@@ -161,7 +161,7 @@ public final class SourceExtractor implements Extractor {
                 int ae = groupEnd(matcher, "another");
                 if (as >= 0 && ae > as) {
                     ctx.matches.add(new Match(OTHER, rule.anotherValue(), as, ae,
-                            input.substring(as, ae), 1000, Set.of("coexist"), false));
+                            input.substring(as, ae), 1000, Set.of("coexist", "derivedFrom:source"), false));
                 }
             }
         }

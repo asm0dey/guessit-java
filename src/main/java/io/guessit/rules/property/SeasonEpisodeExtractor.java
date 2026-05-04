@@ -126,15 +126,19 @@ public final class SeasonEpisodeExtractor implements Extractor {
             ctx.matches.add(headMatch);
             boolean discRun = episodeMarkers.stream().anyMatch(s -> s.equalsIgnoreCase("d"))
                 || episodeSeparators.stream().anyMatch(s -> s.equalsIgnoreCase("d"));
+            String cg = withEpisode && !seasonValues.isEmpty() && !episodeValues.isEmpty()
+                ? ctx.nextCoexistGroupTag() : null;
             for (int i = 0; i < seasonValues.size(); i++) {
                 int[] sp = seasonSpans.get(i);
+                var stags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
                 ctx.matches.add(new Match(SEASON, Integer.valueOf(seasonValues.get(i)),
-                    sp[0], sp[1], input.substring(sp[0], sp[1]), 1000, Set.of(SXX_EXX, COEXIST), false));
+                    sp[0], sp[1], input.substring(sp[0], sp[1]), 1000, stags, false));
             }
             if (withEpisode) {
-                var tags = discRun
-                    ? Set.of(SXX_EXX, COEXIST, "disc-marker")
-                    : Set.of(SXX_EXX, COEXIST);
+                Set<String> baseTags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
+                Set<String> tags = discRun
+                    ? java.util.stream.Stream.concat(baseTags.stream(), java.util.stream.Stream.of("disc-marker")).collect(java.util.stream.Collectors.toUnmodifiableSet())
+                    : baseTags;
                 for (int i = 0; i < episodeValues.size(); i++) {
                     int[] ep = episodeSpans.get(i);
                     ctx.matches.add(new Match(EPISODE, Integer.valueOf(episodeValues.get(i)),
@@ -212,10 +216,11 @@ public final class SeasonEpisodeExtractor implements Extractor {
             int sEnd = matcher.end(SEASON);
             int eStart = matcher.start(EPISODE);
             int eEnd = matcher.end(EPISODE);
+            String cg = ctx.nextCoexistGroupTag();
             ctx.matches.add(new Match(SEASON, Integer.parseInt(matcher.group(SEASON)),
-                sStart, sEnd, matcher.group(SEASON), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN), false));
+                sStart, sEnd, matcher.group(SEASON), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
             ctx.matches.add(new Match(EPISODE, Integer.parseInt(matcher.group(EPISODE)),
-                eStart, eEnd, matcher.group(EPISODE), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN), false));
+                eStart, eEnd, matcher.group(EPISODE), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
             if (matcher.group("season2") != null) {
                 int e2Start = matcher.start("episode2");
                 int e2End = matcher.end("episode2");
@@ -224,12 +229,12 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 int e1 = Integer.parseInt(matcher.group(EPISODE));
                 int e2 = Integer.parseInt(matcher.group("episode2"));
                 ctx.matches.add(new Match(EPISODE, e2, e2Start, e2End,
-                    matcher.group("episode2"), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN), false));
+                    matcher.group("episode2"), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
                 if (s2 == s1 && e2 > e1) {
                     for (int v = e1 + 1; v < e2; v++) {
                         ctx.matches.add(new Match(EPISODE, v, eEnd, e2Start,
                             String.valueOf(v), 1000,
-                            Set.of(SXX_EXX, COEXIST, SEE_PATTERN, "range-fill"), false));
+                            Set.of(SXX_EXX, COEXIST, SEE_PATTERN, "range-fill", cg), false));
                     }
                 }
             }
