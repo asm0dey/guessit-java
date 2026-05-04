@@ -319,7 +319,27 @@ public final class ReleaseGroupExtractor implements Extractor {
             // non-sep is another '[', fall through to detectAnimeBrackets.
             while (s < e && (input.charAt(s) == ']' || isGroupSep(input.charAt(s)))) s++;
             if (s >= e) continue;
-            if (input.charAt(s) == '[') continue;
+            // Bracket-wrapped trailing candidate: when scene_prev is followed by
+            // "[GROUP]" sitting at the trim end, treat the bracket interior as
+            // the RG (mirrors python SceneReleaseGroup's "hole inside group
+            // marker, strip brackets" behaviour).
+            if (input.charAt(s) == '[') {
+                int closeIdx = input.indexOf(']', s + 1);
+                if (closeIdx > s && closeIdx >= e - 1) {
+                    int innerS = s + 1;
+                    int innerE = closeIdx;
+                    while (innerS < innerE && isGroupSep(input.charAt(innerS))) innerS++;
+                    while (innerE > innerS && isGroupSep(input.charAt(innerE - 1))) innerE--;
+                    if (innerE > innerS) {
+                        s = innerS;
+                        e = innerE;
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
             var raw = input.substring(s, e);
             var candidate = cleanGroupName(raw);
             if (!validGroupName(candidate, true)) continue;
@@ -335,19 +355,15 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     private boolean detectAnimeBrackets(ParseContext ctx) {
-        // Collect group markers; iterate rightmost-first so trailing brackets
-        // (which typically hold the actual group when multiple "[...]" decorations
-        // are present) win over a leading-bracket fansub when both are bare.
+        // Mirror python AnimeReleaseGroup: emit the FIRST empty group marker
+        // (in input order) whose contents are not all-digits and contain no
+        // recognized properties. This handles both `[Fansub] One Piece 603`
+        // (leading) and `One.Piece.[Group]` (trailing) — whichever appears
+        // first in the path filepart.
         var groups = new java.util.ArrayList<io.guessit.engine.Marker>();
         for (var marker : ctx.markers) if ("group".equals(marker.name())) groups.add(marker);
-        // Try trailing-first; if no trailing bracket has empty content, fall back
-        // to leading-bracket (covers `[Fansub] One Piece 603` shape).
-        for (int dir = 0; dir < 2; dir++) {
-            for (int i = groups.size() - 1; i >= 0; i--) {
-                var marker = groups.get(i);
-                if (dir == 0 && i == 0 && groups.size() > 1) continue; // skip leading on first pass
-                if (tryEmitAnimeBracket(ctx, marker)) return true;
-            }
+        for (var marker : groups) {
+            if (tryEmitAnimeBracket(ctx, marker)) return true;
         }
         return false;
     }
