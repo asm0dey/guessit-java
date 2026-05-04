@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.lang.Country;
 import io.guessit.lang.Language;
 import io.guessit.lang.LanguageRegistry;
 
@@ -74,6 +75,7 @@ public final class LanguageExtractor implements Extractor {
         // single-word lookup so the pair wins (otherwise espanol→es and
         // castellano→ca emit as two separate matches).
         var pairConsumed = new java.util.HashSet<Integer>();
+        var countryWordConsumed = new java.util.HashSet<Integer>();
         for (int i = 0; i + 1 < words.size(); i++) {
             var w1 = words.get(i);
             var w2 = words.get(i + 1);
@@ -89,6 +91,7 @@ public final class LanguageExtractor implements Extractor {
 
         for (int wi = 0; wi < words.size(); wi++) {
             if (pairConsumed.contains(wi)) continue;
+            if (countryWordConsumed.contains(wi)) continue;
             Words.Word word = words.get(wi);
             var lower = word.value().toLowerCase(Locale.ROOT);
             if (lower.chars().allMatch(Character::isDigit)) continue;
@@ -114,8 +117,33 @@ public final class LanguageExtractor implements Extractor {
             // 2. Direct match on the whole word.
             var lang = registry.find(lower).orElse(null);
             if (lang != null && isAllowed(lang, allowed)) {
-                ctx.matches.add(new Match(LANGUAGE, lang, word.start(), word.end(),
-                        word.value(), 1000, Set.of(), false));
+                // 2a. Check for a trailing country code via hyphen: '-' + exactly 2 alpha chars at word
+                // boundary. Only '-' is accepted as separator — dots/underscores/spaces can separate
+                // unrelated tokens (e.g. "en.va" in "Elle.s.en.va"). Mirrors Python guessit's
+                // LanguageCountry rule which uses '-' as the explicit locale connector.
+                Language langWithCountry = lang;
+                int matchEnd = word.end();
+                if (word.end() + 3 <= input.length() && input.charAt(word.end()) == '-') {
+                    String countryToken = input.substring(word.end() + 1, word.end() + 3);
+                    if (countryToken.matches("[A-Za-z]{2}")
+                            && (word.end() + 3 == input.length() || Seps.isSep(input.charAt(word.end() + 3)))) {
+                        var resolved = registry.findCountry(countryToken.toUpperCase(Locale.ROOT)).orElse(null);
+                        if (resolved != null) {
+                            langWithCountry = new Language(lang.alpha2(), lang.alpha3(), lang.name(), resolved);
+                            matchEnd = word.end() + 3;
+                            // Mark the word covering the country token as consumed so it isn't
+                            // also matched as a separate language (e.g. "br" → Portuguese alias).
+                            if (wi + 1 < words.size()) {
+                                var nextWord = words.get(wi + 1);
+                                if (nextWord.start() == word.end() + 1 && nextWord.end() == word.end() + 3) {
+                                    countryWordConsumed.add(wi + 1);
+                                }
+                            }
+                        }
+                    }
+                }
+                ctx.matches.add(new Match(LANGUAGE, langWithCountry, word.start(), matchEnd,
+                        input.substring(word.start(), matchEnd), 1000, Set.of(), false));
                 continue;
             }
 
