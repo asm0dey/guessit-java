@@ -24,8 +24,14 @@ import java.util.regex.Pattern;
  * code stays declarative.
  */
 public final class SeasonEpisodeExtractor implements Extractor {
+    // Mirror python's `alt_dash` abbreviation: `@?` in source patterns expands
+    // to `[seps_no_fs]?` (any separator except '/' and '\'). Apply only to the
+    // head patterns so "s03-x01" parses as season=3+episode=1; tail keeps the
+    // literal `@?` (effectively a no-op) to avoid linking a SxxExx head to
+    // unrelated trailing digits across audio_channels/screen_size matches.
+    private static final String SEP_OPT = "[ \\[\\](){}+*|=_~#.,;:\\-]?";
     private static final Pattern HEAD_S_E = Pattern.compile(
-        "(?i)s(?<season>\\d+)@?(?<episodeMarker>e|ex|xe|ep|x|d)@?(?<episode>\\d+)");
+        "(?i)s(?<season>\\d+)" + SEP_OPT + "(?<episodeMarker>e|ex|xe|ep|x|d)" + SEP_OPT + "(?<episode>\\d+)");
     private static final Pattern TAIL_E = Pattern.compile(
         "(?i)(?<episodeSeparator>ex|xe|ep|and|et|to|e|x|d|\\.|_| |-|\\+|&|a|~)@?(?<episode>\\d+)");
     private static final java.util.Set<String> STRONG_SEPS = Set.of("+", "&", "and", "et");
@@ -244,9 +250,47 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
+        dropTailOverCodec(ctx);
         expandRanges(ctx);
         removeInvalidSecondaryChain(ctx, SEASON);
         removeInvalidSecondaryChain(ctx, EPISODE);
+    }
+
+    /**
+     * Drop SxxExx episode/season matches whose digit span overlaps a stronger
+     * property (video_codec, audio_codec, source, screen_size, audio_channels).
+     * Chain.scan tolerates a separator-class gap before the tail token, so
+     * "S6.Ep5.X265" accidentally extends the chain into "X265" producing a
+     * spurious episode=265 alongside the real video_codec=H.265. Drop the
+     * tail match so the canonical codec stands alone. The first/leading
+     * SxxExx pair (smallest start) is exempt — we only prune trailing tails.
+     */
+    private void dropTailOverCodec(ParseContext ctx) {
+        var blockingNames = Set.of("video_codec", "audio_codec", "source",
+                "screen_size", "audio_channels", "audio_profile", "video_profile");
+        var blocking = ctx.matches.all()
+                .filter(m -> blockingNames.contains(m.name()))
+                .toList();
+        if (blocking.isEmpty()) return;
+        for (var name : new String[]{SEASON, EPISODE}) {
+            var sxxExxList = ctx.matches.named(name)
+                    .filter(m -> m.tags().contains(SXX_EXX))
+                    .sorted(java.util.Comparator.comparingInt(Match::start))
+                    .toList();
+            if (sxxExxList.size() <= 1) continue;
+            // Skip the first (head); only consider trailing tails.
+            var toRemove = new ArrayList<Match>();
+            for (int i = 1; i < sxxExxList.size(); i++) {
+                var m = sxxExxList.get(i);
+                for (var b : blocking) {
+                    if (b.start() < m.end() && b.end() > m.start()) {
+                        toRemove.add(m);
+                        break;
+                    }
+                }
+            }
+            for (var m : toRemove) ctx.matches.remove(m);
+        }
     }
 
     private void expandRanges(ParseContext ctx) {
