@@ -304,6 +304,10 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var toRemove = new ArrayList<Match>();
         for (var m : matches) {
             if (m.tags().contains(SXX_EXX)) continue;
+            // weak-duplicate matches are paired (s+e from compact NNNN/NNN);
+            // breaking the pair via this rule corrupts the pair logic in
+            // WeakDuplicateExtractor.postProcess. Let that pass decide.
+            if (m.tags().contains("weak-duplicate")) continue;
             boolean isWeak = m.tags().contains("weak-episode") || m.tags().contains("weak-duplicate");
             if (isWeak && m.start() >= strongMaxEnd) {
                 final Match weak = m;

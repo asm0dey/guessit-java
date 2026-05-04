@@ -197,19 +197,96 @@ public final class WeakDuplicateExtractor implements Extractor {
             for (var m : toAdd) ctx.matches.add(m);
         }
 
-        // Drop weak-episode matches that overlap with weak-duplicate matches —
-        // skip when a SxxExx episode/season is present, since weak-duplicate
-        // will be dropped below and we want the wider weak-episode to survive
-        // for the absolute_episode rename (e.g. "Show.Name.s16e03-05.313-315").
+        // Pre-clean weak-duplicate inside expected-title spans. The user told
+        // us those digits are part of the title, so they must not influence
+        // the dedup or weak-episode removal below.
+        var preExpectedTitles = ctx.matches.all()
+                .filter(m -> "title".equals(m.name()) && m.tags().contains("expected"))
+                .toList();
+        if (!preExpectedTitles.isEmpty()) {
+            var dropInsideExpected = ctx.matches.all()
+                    .filter(m -> SEASON.equals(m.name()) || EPISODE.equals(m.name()))
+                    .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> preExpectedTitles.stream().anyMatch(t -> t.start() <= m.start() && m.end() <= t.end()))
+                    .toList();
+            for (var m : dropInsideExpected) ctx.matches.remove(m);
+        }
+
+        // Pre-clean weak-duplicate matches that overlap a stronger property
+        // (year, date, video_codec, audio_codec). These overlaps would have
+        // been resolved by python's default longest-wins conflict solver
+        // before WeakConflictSolver/RemoveWeakDuplicate run. Doing this BEFORE
+        // the dedup pass prevents a year-shaped weak-duplicate (e.g. "2010"
+        // → 20+10) from beating a real episode-shaped weak-duplicate ("100" →
+        // 1+00) just because it appears later in the input.
+        var prePropYears = ctx.matches.named("year").toList();
+        var prePropDates = ctx.matches.named("date").toList();
+        var prePropCodecs = ctx.matches.all()
+                .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
+                .toList();
+        var preClean = new ArrayList<Match>();
+        for (var name : new String[]{SEASON, EPISODE}) {
+            for (var m : ctx.matches.named(name).toList()) {
+                if (!m.tags().contains(WEAK_DUPLICATE)) continue;
+                if (prePropYears.stream().anyMatch(y -> y.overlaps(m))
+                        || prePropDates.stream().anyMatch(d -> d.overlaps(m))
+                        || prePropCodecs.stream().anyMatch(c -> c.overlaps(m))) {
+                    preClean.add(m);
+                }
+            }
+        }
+        for (var m : preClean) ctx.matches.remove(m);
+
+        // Per-filepart: when weak-duplicate exists and no SxxExx in the same
+        // filepart, drop ALL weak-episode in that filepart (mirror Python
+        // WeakConflictSolver "elif weak_dup_matches: ... if not episodes_in_range
+        // and not SxxExx: to_remove.extend(weak_matches)"). Java's
+        // WeakEpisodeExtractor doesn't chain weak-episodes with separators,
+        // so the "episodes_in_range" branch is empty.
         boolean sxxExxPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word"))
                 || ctx.matches.named(SEASON).anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("season-word"));
-        var weakDuplicates = ctx.matches.all().filter(m -> m.tags().contains(WEAK_DUPLICATE)).toList();
-        if (!weakDuplicates.isEmpty() && !sxxExxPresent) {
-            var toRemove = ctx.matches.all()
-                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
-                    .filter(m -> weakDuplicates.stream().anyMatch(wd -> wd.overlaps(m)))
+        var fileparts = io.guessit.engine.Markers.named(ctx.markers, "path").toList();
+        for (var fp : fileparts) {
+            var localDup = ctx.matches.all()
+                    .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
                     .toList();
-            for (var m : toRemove) ctx.matches.remove(m);
+            if (localDup.isEmpty()) continue;
+            boolean localSxxExx = ctx.matches.all()
+                    .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+                    .anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word") || m.tags().contains("season-word"));
+            if (localSxxExx) continue;
+            var dropWeakEp = ctx.matches.all()
+                    .filter(m -> m.tags().contains("weak-episode") && !m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+                    .toList();
+            for (var m : dropWeakEp) ctx.matches.remove(m);
+        }
+
+        // Per-filepart: when multiple weak-duplicate matches share the same
+        // pattern (here all from PATTERN), drop earlier occurrences keeping
+        // only the LAST. Mirror Python RemoveWeakDuplicate: iterate in reverse
+        // and drop matches whose pattern was already seen. Each weak-duplicate
+        // pair contributes one season match and one episode match — dedup
+        // them independently so both sides of the surviving pair stay.
+        // Example: "the.100.109" → 1+00 and 1+09. Reverse-iter keeps 1+09, drops 1+00.
+        for (var fp : fileparts) {
+            boolean seenSeason = false;
+            boolean seenEpisode = false;
+            var localDup = ctx.matches.all()
+                    .filter(m -> m.tags().contains(WEAK_DUPLICATE))
+                    .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+                    .sorted(java.util.Comparator.comparingInt(Match::start).reversed())
+                    .toList();
+            var dropDup = new ArrayList<Match>();
+            for (var m : localDup) {
+                if (SEASON.equals(m.name())) {
+                    if (seenSeason) dropDup.add(m); else seenSeason = true;
+                } else if (EPISODE.equals(m.name())) {
+                    if (seenEpisode) dropDup.add(m); else seenEpisode = true;
+                }
+            }
+            for (var m : dropDup) ctx.matches.remove(m);
         }
 
         // Drop weak-duplicate (and overlapping weak-episode) matches that fall
@@ -227,23 +304,20 @@ public final class WeakDuplicateExtractor implements Extractor {
             for (var m : insideExpected) ctx.matches.remove(m);
         }
 
-        var years = ctx.matches.named("year").toList();
-        var codecs = ctx.matches.all()
-                .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
-                .toList();
+        // Per-filepart: drop weak-duplicate when a SxxExx/season-word/episode-word
+        // exists in the same filepart. Mirror python RemoveWeakDuplicate
+        // dependency on RemoveWeakIfSxxExx (filepart-scoped). A weak-duplicate
+        // in the filename filepart must NOT be dropped just because an upper
+        // dir contains "Season N".
         var toRemove = new ArrayList<Match>();
-        for (var name : new String[]{SEASON, EPISODE}) {
-            for (var m : ctx.matches.named(name).toList()) {
+        for (var fp : fileparts) {
+            boolean localStrong = ctx.matches.all()
+                    .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+                    .anyMatch(m -> m.tags().contains("SxxExx") || m.tags().contains("episode-word") || m.tags().contains("season-word"));
+            if (!localStrong) continue;
+            for (var m : ctx.matches.all().toList()) {
                 if (!m.tags().contains(WEAK_DUPLICATE)) continue;
-                if (sxxExxPresent) {
-                    toRemove.add(m);
-                    continue;
-                }
-                if (years.stream().anyMatch(y -> y.overlaps(m))) {
-                    toRemove.add(m);
-                    continue;
-                }
-                if (codecs.stream().anyMatch(c -> c.overlaps(m))) toRemove.add(m);
+                if (m.start() >= fp.start() && m.end() <= fp.end()) toRemove.add(m);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
