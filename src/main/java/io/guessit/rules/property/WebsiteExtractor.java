@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
+import io.guessit.engine.Seps;
 import io.guessit.engine.Validators;
 
 import java.io.BufferedReader;
@@ -136,7 +137,10 @@ public final class WebsiteExtractor implements Extractor {
         // that don't start with a known safe subdomain/prefix when followed
         // by season/episode/year (and not enclosed in a group marker).
         // Suppresses false positives like "Title.com" before SxxExx.
-        var sites = ctx.matches.named(WEBSITE).toList();
+        // Skip private website.prefix matches; ValidateWebsitePrefix below
+        // handles their lifecycle. Removing them here strips the "from" span
+        // before TitleExtractor sees it, leaving "From" as a usable title hole.
+        var sites = ctx.matches.named(WEBSITE).filter(m -> !m.isPrivate()).toList();
         for (var w : sites) {
             String val = w.value() instanceof String s ? s.toLowerCase(java.util.Locale.ROOT) : "";
             boolean safe = safeStarts.stream().anyMatch(p -> val.startsWith(p.toLowerCase(java.util.Locale.ROOT)));
@@ -159,8 +163,16 @@ public final class WebsiteExtractor implements Extractor {
             if (websiteMatch == null) {
                 toRemove.add(m);
             } else {
-                var holeContent = ctx.input.substring(m.end(), websiteMatch.start()).trim();
-                if (!holeContent.isEmpty()) {
+                // Mirror python ValidateWebsitePrefix: hole content cleaned of
+                // separator chars (including brackets) must be empty. Java's
+                // earlier trim() left "[" non-empty for `From [ www.x.com ]`.
+                var raw = ctx.input.substring(m.end(), websiteMatch.start());
+                var cleaned = new StringBuilder(raw.length());
+                for (int i = 0; i < raw.length(); i++) {
+                    char c = raw.charAt(i);
+                    if (!Seps.isSep(c)) cleaned.append(c);
+                }
+                if (cleaned.length() > 0) {
                     toRemove.add(m);
                 }
             }

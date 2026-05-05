@@ -356,4 +356,13 @@ class ProbeTest {
         assertThat(r.get("bonus_title")).isEqualTo("60 Minutes Interview-1996");
         assertThat(r.get("alternative_title")).isNull();
     }
+
+    @Test
+    void torrentingPrefix_titleSkipsFromWord() {
+        var r = Guessit.parse(
+            "From [ WWW.TORRENTING.COM ] - White.Rabbit.Project.S01E08.1080p.NF.WEBRip.DD5.1.x264-ViSUM/"
+                + "White.Rabbit.Project.S01E08.1080p.NF.WEBRip.DD5.1.x264-ViSUM.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("White Rabbit Project");
+        assertThat(r.get("website")).isEqualTo("WWW.TORRENTING.COM");
+    }
 }
