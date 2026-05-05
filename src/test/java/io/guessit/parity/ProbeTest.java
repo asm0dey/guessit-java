@@ -205,6 +205,15 @@ class ProbeTest {
     }
 
     @Test
+    void engineeringCatastrophes_wholeFilepartGroupKeepsTitle() {
+        var r = Guessit.parse("[ Engineering Catastrophes S02E10 1080p AMZN WEB-DL DD+ 2.0 x264-TrollHD ]").toMap();
+        assertThat(r.get("title")).isEqualTo("Engineering Catastrophes");
+        assertThat(r.get("season")).isEqualTo(2);
+        assertThat(r.get("episode")).isEqualTo(10);
+        assertThat(r.get("release_group")).isEqualTo("TrollHD");
+    }
+
+    @Test
     void daiseiFreeIwatobiCrcSwallowsSxxExx() {
         var r = Guessit.parse("[Daisei] Free!：Iwatobi Swim Club - 01 ~ (BD 720p 10-bit AAC) [99E8E009].mkv").toMap();
         assertThat(r.get("title")).isEqualTo("Free!：Iwatobi Swim Club");

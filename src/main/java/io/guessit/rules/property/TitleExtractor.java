@@ -362,7 +362,15 @@ public final class TitleExtractor implements Extractor {
             var g = iter.next();
             var path = Markers.atMatch(ctx.markers, Match.of("g", null, g.start(), g.end(), g.raw()),
                 m -> "path".equals(m.name())).orElse(null);
-            if (path != null && path.start() == g.start() && path.end() == g.end()) iter.remove();
+            // Mirror python title.holes_process: skip groups whose span equals
+            // the enclosing filepart. Java's GroupMarker excludes the bracket
+            // chars (s+1, e-1) while PathMarker includes them, so also accept
+            // the "group + brackets == path" case.
+            if (path != null
+                && ((path.start() == g.start() && path.end() == g.end())
+                    || (path.start() == g.start() - 1 && path.end() == g.end() + 1))) {
+                iter.remove();
+            }
         }
         var ret = new ArrayList<Holes.Hole>();
         for (var h : holes) ret.addAll(h.crop(groupMarkers));
