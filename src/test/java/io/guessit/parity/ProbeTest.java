@@ -221,6 +221,14 @@ class ProbeTest {
     }
 
     @Test
+    void xctLePrestige_chapsReleaseGroup() {
+        var r = Guessit.parse(
+            "[XCT].Le.Prestige.(The.Prestige).DVDRip.[x264.HP.He-Aac.{Fr-Eng}.St{Fr-Eng}.Chaps].mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("Le Prestige");
+        assertThat(r.get("release_group")).isEqualTo("Chaps");
+    }
+
+    @Test
     void showName2_10_2016_animeContextKeepsWeakEpisode() {
         var r = Guessit.parse("Show!.Name.2.-.10.(2016).[HorribleSubs][WEBRip]..[HD.720p]").toMap();
         assertThat(r.get("episode")).isEqualTo(10);

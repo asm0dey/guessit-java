@@ -721,6 +721,12 @@ public final class ReleaseGroupExtractor implements Extractor {
         } else if (!(endsWithIgnored(s) && startsWithIgnored(s))
             && doesNotContainIgnored(stripIgnoredSeps(s))) {
             s = stripIgnoredSeps(s);
+        } else if (endsWithIgnored(s) && startsWithIgnored(s)) {
+            // Edges are unbalanced ignored-sep chars (e.g. "}.Chaps]"): strip
+            // both ends iteratively until the result has no surrounding
+            // ignored-sep noise, then drop residual group seps.
+            var trimmed = stripIgnoredSeps(stripGroupSeps(s));
+            if (!trimmed.isEmpty() && doesNotContainIgnored(trimmed)) s = trimmed;
         }
         // Strip any residual group seps that were exposed by bracket removal above.
         s = stripGroupSeps(s);
