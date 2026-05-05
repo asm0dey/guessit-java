@@ -238,11 +238,34 @@ public final class EpisodeTitleExtractor implements Extractor {
     }
 
     private static Holes.Hole findEpisodeTitleHoles(ParseContext ctx, Marker subdirectory) {
-        java.util.function.Predicate<Match> ignore = m -> m.tags().contains("weak-episode") || TitleExtractor.isIgnored(m);
+        // Mirror python: a country/language match wrapped in (..)/[..] (e.g.
+        // "(US)") has raw length 4 in python so isIgnored(False); the hole
+        // splits at the bracket. Java's CountryExtractor stores raw="US"
+        // (length 2), so isIgnored returns True and the hole swallows "US"
+        // into the title (e.g. "The Office US"). Treat those as not-ignored
+        // when bracket-wrapped.
+        java.util.function.Predicate<Match> ignore = m -> {
+            if (m.tags().contains("weak-episode")) return true;
+            if (!TitleExtractor.isIgnored(m)) return false;
+            if (("country".equals(m.name()) || "language".equals(m.name()))
+                    && isBracketWrapped(ctx.input, m)) {
+                return false;
+            }
+            return true;
+        };
         var holes = Holes.compute(ctx.input, subdirectory.start(), subdirectory.end(),
             ctx.matches.snapshot(), ignore, Seps.TITLE_CHARS, Formatters::cleanup);
         if (holes.isEmpty()) return null;
         return holes.getFirst();
+    }
+
+    private static boolean isBracketWrapped(String input, Match m) {
+        int s = m.start();
+        int e = m.end();
+        if (s <= 0 || e >= input.length()) return false;
+        char before = input.charAt(s - 1);
+        char after = input.charAt(e);
+        return (before == '(' && after == ')') || (before == '[' && after == ']');
     }
 
     private void filepart2EpisodeTitle(ParseContext ctx) {

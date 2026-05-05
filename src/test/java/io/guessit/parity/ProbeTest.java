@@ -358,6 +358,17 @@ class ProbeTest {
     }
 
     @Test
+    void officeWithCountry_titleStripsBracketWrappedCountry() {
+        var r = Guessit.parse(
+            "Videos/Office1080/The Office  (US)  (2005) Season 2 S02 + Extras  "
+                + "(1080p AMZN WEB-DL x265 HEVC 10bit AAC 2.0 LION)/"
+                + "The Office  (US)  (2005) - S02E12 - The Injury  "
+                + "(1080p AMZN WEB-DL x265 LION).mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("The Office");
+        assertThat(r.get("episode_title")).isEqualTo("The Injury");
+    }
+
+    @Test
     void psychVsPsy_episodeTitleAfterEpisodeMatch() {
         var r = Guessit.parse(
             "series/Psych/Psych S02 Season 2 Complete English DVD/"
