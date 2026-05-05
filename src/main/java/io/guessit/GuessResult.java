@@ -41,7 +41,7 @@ public record GuessResult(
     @Opt String container, @Opt String mimetype,
     @Opt String releaseGroup, @Opt String streamingService, @Opt String website,
     @Opt List<String> edition, @Opt Integer cd, @Opt Integer cdCount,
-    @Opt Integer part, @Opt Integer version, @Opt Integer film, @Opt String filmTitle,
+    @Opt Integer part, @Opt List<Integer> partList, @Opt Integer version, @Opt Integer film, @Opt String filmTitle,
     @Opt Integer bonus, @Opt String bonusTitle, @Opt String crc32,
     @Opt Integer properCount,
     @Opt Map<String, Object> extras
@@ -91,7 +91,7 @@ public record GuessResult(
         putList(m, "edition", edition);
         putIfNotNull(m, "cd", cd);
         putIfNotNull(m, "cd_count", cdCount);
-        putIfNotNull(m, "part", part);
+        putSeasonOrEpisode(m, "part", part, partList);
         putIfNotNull(m, "version", version);
         putIfNotNull(m, "film", film);
         putIfNotNull(m, "film_title", filmTitle);
@@ -165,7 +165,8 @@ public record GuessResult(
             case "edition" -> singleOrList(edition);
             case "cd" -> cd;
             case "cd_count" -> cdCount;
-            case "part" -> part;
+            case "part" -> partList != null && !partList.isEmpty()
+                ? (partList.size() == 1 ? partList.getFirst() : partList) : part;
             case "version" -> version;
             case "film" -> film;
             case "film_title" -> filmTitle;

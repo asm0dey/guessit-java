@@ -68,7 +68,7 @@ class YmlParityTest {
             Map.entry("edition", new String[]{"edition"}),
             Map.entry("cd", new String[]{"cd"}),
             Map.entry("cd_count", new String[]{"cdCount"}),
-            Map.entry("part", new String[]{"part"}),
+            Map.entry("part", new String[]{"part", "partList"}),
             Map.entry("version", new String[]{"version"}),
             Map.entry("film", new String[]{"film"}),
             Map.entry("film_title", new String[]{"filmTitle"}),

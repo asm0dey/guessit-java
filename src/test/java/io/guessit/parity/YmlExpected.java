@@ -69,7 +69,7 @@ final class YmlExpected {
             case "edition" -> b.edition(asStrings(v));
             case "cd" -> b.cd(asInt(v));
             case "cd_count" -> b.cdCount(asInt(v));
-            case "part" -> b.part(asInt(v));
+            case "part" -> setPart(b, v);
             case "version" -> b.version(asInt(v));
             case "film" -> b.film(asInt(v));
             case "film_title" -> b.filmTitle(asString(v));
@@ -96,6 +96,12 @@ final class YmlExpected {
         var ints = asInts(v);
         if (ints.size() == 1) b.episode(ints.getFirst());
         else b.episodeList(ints);
+    }
+
+    private static void setPart(GuessResultBuilder b, Object v) {
+        var ints = asInts(v);
+        if (ints.size() == 1) b.part(ints.getFirst());
+        else b.partList(ints);
     }
 
     private static String asString(Object v) {

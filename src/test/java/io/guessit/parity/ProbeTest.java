@@ -519,6 +519,13 @@ class ProbeTest {
     }
 
     @Test
+    void multiplePartMatches_emitAsList() {
+        var r = Guessit.parse("Show.Name.Part.1.and.Part.2.Blah-Group").toMap();
+        assertThat(r.get("title")).isEqualTo("Show Name");
+        assertThat(r.get("part")).isEqualTo(java.util.List.of(1, 2));
+    }
+
+    @Test
     void palindromeTail_outerSxxExxWinsAgainstWeakInnerSeasonEpisode() {
         var r = Guessit.parse(
             "The.Messengers.2015.S01E07.1080p.WEB-DL.DD5.1.H264.Nlsubs-Q/"
