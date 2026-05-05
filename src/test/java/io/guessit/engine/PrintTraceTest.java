@@ -53,4 +53,48 @@ class PrintTraceTest {
         var m = Match.of("year", 2020, 11, 15, "2020");
         assertThat(PrintTrace.formatMatch(m)).doesNotContain("tags=");
     }
+
+    @Test
+    void inputLineFollowedByBlank() {
+        var sb = new StringBuilder();
+        new PrintTrace(sb).input("Movie.Name.2020.mkv");
+        assertThat(sb.toString()).isEqualTo("For: Movie.Name.2020.mkv\n\n");
+    }
+
+    @Test
+    void phaseLineHeader() {
+        var sb = new StringBuilder();
+        new PrintTrace(sb).phase("extractors");
+        assertThat(sb.toString()).isEqualTo("[phase] extractors\n");
+    }
+
+    @Test
+    void stepLineIndentedTwoSpaces() {
+        var sb = new StringBuilder();
+        new PrintTrace(sb).step("extract", "year");
+        assertThat(sb.toString()).isEqualTo("  [extract] year\n");
+    }
+
+    @Test
+    void addedLineIndentedFourSpaces() {
+        var sb = new StringBuilder();
+        var m = Match.of("year", 2020, 11, 15, "2020");
+        new PrintTrace(sb).added(m);
+        assertThat(sb.toString()).isEqualTo("    + 2020:(11,15)+name=year\n");
+    }
+
+    @Test
+    void removedLineIndentedFourSpaces() {
+        var sb = new StringBuilder();
+        var m = Match.of("year", 2020, 11, 15, "2020");
+        new PrintTrace(sb).removed(m);
+        assertThat(sb.toString()).isEqualTo("    - 2020:(11,15)+name=year\n");
+    }
+
+    @Test
+    void noteLineIndentedTwoSpaces() {
+        var sb = new StringBuilder();
+        new PrintTrace(sb).note("marker: path:(0,41)+name=path");
+        assertThat(sb.toString()).isEqualTo("  marker: path:(0,41)+name=path\n");
+    }
 }
