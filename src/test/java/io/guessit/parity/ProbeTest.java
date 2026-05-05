@@ -221,6 +221,15 @@ class ProbeTest {
     }
 
     @Test
+    void showName2_10_2016_animeContextKeepsWeakEpisode() {
+        var r = Guessit.parse("Show!.Name.2.-.10.(2016).[HorribleSubs][WEBRip]..[HD.720p]").toMap();
+        assertThat(r.get("episode")).isEqualTo(10);
+        assertThat(r.get("year")).isEqualTo(2016);
+        assertThat(r.get("type")).isEqualTo("episode");
+        assertThat(r.get("release_group")).isEqualTo("HorribleSubs");
+    }
+
+    @Test
     void dimensionWTvDub_undLanguageAndTvSource() {
         var r = Guessit.parse("[MK-Pn8].Dimension.W.-.05.[720p][Hi10][Dual][TV-Dub][EDA6E7F1]",
             OptionsBuilder.options()

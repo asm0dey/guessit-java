@@ -94,7 +94,18 @@ public final class WeakEpisodeExtractor implements Extractor {
         // are episode ranges, not movie noise — exempt them from the
         // year-triggered movie removal so RangeFiller can expand the pair.
         boolean rangePairedWeakPresent = hasRangePairedWeakEpisodes(ctx);
-        if (!rangePairedWeakPresent
+        // Anime context: a screen_size match inside any group marker means
+        // the input is an anime release ("Show.Name.2.-.10.(2016).[HorribleSubs]
+        // [WEBRip]..[HD.720p]"). In that shape weak-episodes carry the
+        // absolute episode number, even with a year present, so don't purge.
+        boolean animeContext = false;
+        for (var mk : ctx.markers) {
+            if (!"group".equals(mk.name())) continue;
+            boolean hasScreenInGroup = ctx.matches.named("screen_size")
+                    .anyMatch(m -> m.start() >= mk.start() && m.end() <= mk.end());
+            if (hasScreenInGroup) { animeContext = true; break; }
+        }
+        if (!rangePairedWeakPresent && !animeContext
                 && ctx.matches.named("year").findAny().isPresent()
                 && !EPISODE.equals(ctx.options.type())) {
             removeAllWeak(ctx);
