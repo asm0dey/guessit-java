@@ -358,6 +358,16 @@ class ProbeTest {
     }
 
     @Test
+    void howToBeSingle_outerDirTitleWinsOverInnerWithDashPrefix() {
+        var r = Guessit.parse(
+            "How.To.Be.Single.2016.1080p.BluRay.x264-BLOW/"
+                + "blow-how.to.be.single.2016.1080p.bluray.x264.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("How To Be Single");
+        assertThat(r.get("release_group")).isEqualTo("BLOW");
+        assertThat(r.get("year")).isEqualTo(2016);
+    }
+
+    @Test
     void brokeGirls_dateAtEndDoesntStealReleaseGroup() {
         var r = Guessit.parse(
             "c:\\Temp\\autosubliminal\\completed\\2 Broke Girls\\Season 01\\"

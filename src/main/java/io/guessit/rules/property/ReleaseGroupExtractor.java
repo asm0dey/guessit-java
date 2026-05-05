@@ -145,7 +145,13 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     private boolean detectDashSeparated(ParseContext ctx) {
         var input = ctx.input;
-        for (var filepart : pathFilepartsRightmostFirst(ctx)) {
+        // Mirror python DashSeparatedReleaseGroup: walks fileparts in spatial
+        // order (outermost first) and bails globally on first hit. Reverse
+        // (innermost-first) order misclassifies inputs like
+        // ".../How.To.Be.Single.2016...-BLOW/blow-how.to.be.single.2016...mkv"
+        // where the inner filepart's "blow-" matches leading-dash before the
+        // outer's trailing "-BLOW" is seen.
+        for (var filepart : pathFilepartsLeftmostFirst(ctx)) {
             var part = input.substring(filepart.start(), filepart.end());
 
             // Trailing dash group: "...-Group.ext"
@@ -542,6 +548,12 @@ public final class ReleaseGroupExtractor implements Extractor {
         var paths = new java.util.ArrayList<Marker>();
         for (var m : ctx.markers) if ("path".equals(m.name())) paths.add(m);
         java.util.Collections.reverse(paths);
+        return paths;
+    }
+
+    private static List<Marker> pathFilepartsLeftmostFirst(ParseContext ctx) {
+        var paths = new java.util.ArrayList<Marker>();
+        for (var m : ctx.markers) if ("path".equals(m.name())) paths.add(m);
         return paths;
     }
 
