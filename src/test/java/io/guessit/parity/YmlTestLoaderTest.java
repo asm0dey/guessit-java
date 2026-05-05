@@ -51,7 +51,7 @@ class YmlTestLoaderTest {
 
     @Test
     void discoverAllFindsAtLeastOneRealFixture() {
-        var all = YmlTestLoader.discoverAll("yml/").toList();
+        var all = YmlTestLoader.discoverAll("yml/");
         assertFalse(all.isEmpty(), "should discover real guessit YML cases");
     }
 }

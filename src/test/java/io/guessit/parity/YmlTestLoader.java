@@ -23,11 +23,11 @@ public final class YmlTestLoader {
     private YmlTestLoader() {
     }
 
-    public static Stream<YmlCase> discoverAll(String classpathRoot) {
+    public static List<YmlCase> discoverAll(String classpathRoot) {
         var loader = Thread.currentThread().getContextClassLoader();
         try {
             var url = loader.getResource(classpathRoot);
-            if (url == null) return Stream.empty();
+            if (url == null) return List.of();
             var rootPath = Path.of(url.toURI());
             try (Stream<Path> walk = Files.walk(rootPath)) {
                 return walk
@@ -38,7 +38,8 @@ public final class YmlTestLoader {
                         .flatMap(p -> {
                             var rel = rootPath.getParent().relativize(p).toString();
                             return loadResource(rel).stream();
-                        });
+                        })
+                        .toList();
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

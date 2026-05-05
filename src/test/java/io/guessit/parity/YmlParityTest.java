@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -85,8 +86,8 @@ class YmlParityTest {
 
         // Separate positive keys from per-key negative keys (Python semantics: a key
         // starting with "-" in the expected map means "this field must NOT have this value").
-        var positiveExpected = new java.util.LinkedHashMap<String, Object>();
-        var negativeExpected = new java.util.LinkedHashMap<String, Object>(); // stripped key → value
+        var positiveExpected = new LinkedHashMap<String, Object>();
+        var negativeExpected = new LinkedHashMap<String, Object>(); // stripped key → value
         for (var e : c.expected().entrySet()) {
             String k = e.getKey();
             // python check_expected: skip when expected_value is None — treat as "any value (or absent)"
@@ -161,6 +162,7 @@ class YmlParityTest {
 
     static Stream<YmlCase> allYmlCases() {
         return YmlTestLoader.discoverAll("yml/")
+                .stream()
                 .filter(c -> !c.expected().isEmpty());
     }
 }

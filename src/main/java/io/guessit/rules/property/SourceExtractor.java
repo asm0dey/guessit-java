@@ -84,10 +84,11 @@ public final class SourceExtractor implements Extractor {
         rules.add(new Rule(List.of("SD-?TV"), "", optRipSuffix, "TV", "Rip", null, common, false));
         rules.add(new Rule(List.of("TV"), "", ripSuffix, "TV", "Rip", null, common, false));
         rules.add(new Rule(List.of("TV", "SD-?TV"), ripPrefix, "", "TV", "Rip", null, common, false));
-        // Consume "Dub" so the match end lands on a separator-bound boundary
-        // (validatePrefixSuffix drops a match whose suffix sits flush against
-        // a non-separator character).
-        rules.add(new Rule(List.of("TV-?Dub"), "", "", "TV", null, null, common, false));
+        // "TV-Dub" form: emit source=TV only over the "TV" prefix and let
+        // the trailing "-Dub" stay free for LanguageExtractor to recognise as
+        // a language affix (→ language=Undetermined). Lookahead anchors the
+        // match without consuming the suffix.
+        rules.add(new Rule(List.of("TV(?=-?Dub\\b)"), "", "", "TV", null, null, common, false));
         rules.add(new Rule(List.of("DVB", "PD-?TV"), "", optRipSuffix, "Digital TV", "Rip", null, common, false));
         rules.add(new Rule(List.of("DVD"), "", optRipSuffix, "DVD", "Rip", null, common, false));
         rules.add(new Rule(List.of("DM"), "", optRipSuffix, "Digital Master", "Rip", null, common, false));

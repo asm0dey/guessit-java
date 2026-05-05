@@ -1,10 +1,13 @@
 package io.guessit.parity;
 
 import io.guessit.Guessit;
-import io.guessit.Options;
 import io.guessit.OptionsBuilder;
+import io.guessit.lang.Language;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
+import static io.guessit.OptionsBuilder.options;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Targeted regression checks for YML parity diffs that have been fixed.
@@ -22,7 +25,7 @@ class ProbeTest {
 
     @Test
     void epiTypeEpisode_titleEpi() {
-        var r = Guessit.parse("epi", OptionsBuilder.options().type("episode").build()).toMap();
+        var r = Guessit.parse("epi", options().type("episode").build()).toMap();
         assertThat(r.get("title")).isEqualTo("epi");
     }
 
@@ -66,7 +69,7 @@ class ProbeTest {
     @Test
     void numXNumWithSpaces_seasonEpisodePair() {
         var r = Guessit.parse("Something 1 x 2-FlexGet",
-            OptionsBuilder.options().type("episode").build()).toMap();
+            options().type("episode").build()).toMap();
         assertThat(r.get("season")).isEqualTo(1);
         assertThat(r.get("episode")).isEqualTo(2);
     }
@@ -150,7 +153,7 @@ class ProbeTest {
         var r = Guessit.parse("Test.S01E01E07-FooBar-Group.avi").toMap();
         assertThat(r.get("episode_title")).isEqualTo("FooBar-Group");
         assertThat(r.get("uuid")).isNull();
-        assertThat(r.get("episode")).isEqualTo(java.util.List.of(1, 7));
+        assertThat(r.get("episode")).isEqualTo(List.of(1, 7));
     }
 
     @Test
@@ -213,8 +216,19 @@ class ProbeTest {
         assertThat(r.get("episode_title")).isEqualTo("En Close, Yet En Far");
         var lang = r.get("language");
         if (lang instanceof java.util.List<?> l) {
-            assertThat(l).extracting(o -> ((io.guessit.lang.Language) o).alpha2()).doesNotContain("en");
+            assertThat(l).extracting(o -> ((Language) o).alpha2()).doesNotContain("en");
         }
+    }
+
+    @Test
+    void dimensionWTvDub_undLanguageAndTvSource() {
+        var r = Guessit.parse("[MK-Pn8].Dimension.W.-.05.[720p][Hi10][Dual][TV-Dub][EDA6E7F1]",
+            OptionsBuilder.options()
+                .allowedLanguages(List.of("und"))
+                .allowedCountries(List.of("us"))
+                .build()).toMap();
+        assertThat(r.get("source")).isEqualTo("TV");
+        assertThat(r.get("language")).isNotNull();
     }
 
     @Test
@@ -231,14 +245,14 @@ class ProbeTest {
         var r = Guessit.parse(
             "Show Name S01e10[Mux - 1080p - H264 - Ita Eng Ac3 - Sub Ita Eng]DLMux By GiuseppeTnT Littlelinx").toMap();
         @SuppressWarnings("unchecked")
-        var subs = (java.util.List<io.guessit.lang.Language>) r.get("subtitle_language");
-        assertThat(subs).extracting(io.guessit.lang.Language::alpha3).containsExactlyInAnyOrder("ita", "eng");
+        var subs = (java.util.List<Language>) r.get("subtitle_language");
+        assertThat(subs).extracting(Language::alpha3).containsExactlyInAnyOrder("ita", "eng");
     }
 
     @Test
     void barFoodChristmasSpecial_episodeTypeViaSpecialDetail() {
         var r = Guessit.parse("BarFood christmas special HDTV",
-            io.guessit.OptionsBuilder.options().expectedTitle(java.util.List.of("BarFood")).build()).toMap();
+            options().expectedTitle(List.of("BarFood")).build()).toMap();
         assertThat(r.get("title")).isEqualTo("BarFood");
         assertThat(r.get("episode_title")).isEqualTo("christmas special");
         assertThat(r.get("type")).isEqualTo("episode");
