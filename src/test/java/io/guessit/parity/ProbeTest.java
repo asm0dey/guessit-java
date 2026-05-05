@@ -432,6 +432,16 @@ class ProbeTest {
     }
 
     @Test
+    void seasonNofN_chainedNofN_secondClauseIsEpisode() {
+        var r = Guessit.parse("Something.Season.2of5.3of9.Ep.Title.HDTV.torrent").toMap();
+        assertThat(r.get("season")).isEqualTo(2);
+        assertThat(r.get("season_count")).isEqualTo(5);
+        assertThat(r.get("episode")).isEqualTo(3);
+        assertThat(r.get("episode_count")).isEqualTo(9);
+        assertThat(r.get("episode_title")).isEqualTo("Title");
+    }
+
+    @Test
     void torrentingPrefix_titleSkipsFromWord() {
         var r = Guessit.parse(
             "From [ WWW.TORRENTING.COM ] - White.Rabbit.Project.S01E08.1080p.NF.WEBRip.DD5.1.x264-ViSUM/"

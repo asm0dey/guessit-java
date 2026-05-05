@@ -125,6 +125,13 @@ public final class EpisodeWordExtractor implements Extractor {
                 int tEnd = tail.end(2);
                 if (blockSpans.stream().anyMatch(sp -> sp[0] < tEnd && tStart < sp[1])) break;
                 if (!strong && !range && v - prevVal > MAX_RANGE_GAP + 1) break;
+                // Stop if the candidate digit is the head of a `\d+ of \d+`
+                // count expression (e.g. "Season.2of5.3of9" — the "3" belongs
+                // to the second NofN clause, not a new season number).
+                {
+                    var afterRe = Pattern.compile("(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
+                    if (afterRe.matcher(input).region(tEnd, input.length()).lookingAt()) break;
+                }
 
                 if (range) {
                     // expand intermediate values privately so seasonList captures full range
@@ -217,6 +224,14 @@ public final class EpisodeWordExtractor implements Extractor {
             var raw = dm.group();
             var headMatch = new Match(EPISODE, null, dm.start(), dm.end(), raw, 1000, Set.of(), false);
             if (!seps.test(headMatch)) continue;
+            // Skip if the digit at group(1) overlaps an existing season match
+            // emitted from "Season N of M" — that's the same NofN clause, not
+            // an episode/episode_count expression.
+            int dStart = dm.start(1);
+            int dEnd = dm.end(1);
+            boolean overlapsSeason = ctx.matches.range(dStart, dEnd,
+                m -> SEASON.equals(m.name()) && m.value() != null).findAny().isPresent();
+            if (overlapsSeason) continue;
             int e = Integer.parseInt(dm.group(1));
             int c = Integer.parseInt(dm.group(2));
             ctx.matches.add(new Match(EPISODE, e, dm.start(1), dm.end(1),
