@@ -15,8 +15,10 @@ import java.util.regex.Pattern;
  * <p>Implementation hinges on {@link Chain}: a head pattern matches the
  * first season+episode combo, then a star-repeated tail consumes any
  * adjacent additional episodes / seasons. Each emitted episode match is
- * tagged {@code "SxxExx"} so {@link AbsoluteEpisodeRule} can recognise the
- * canonical form and rule out leading numerics as episode candidates.
+ * tagged {@code "SxxExx"} so downstream rules
+ * ({@link WeakEpisodeExtractor#postProcess},
+ * {@link io.guessit.rules.post.AbsoluteEpisodePromoter}) can recognise the
+ * canonical form and route leading/trailing numerics accordingly.
  *
  * <p>Range expansion ({@code S01E02-E04} → episodes [2, 3, 4]) and
  * separator-class classification ({@link #STRONG_SEPS} for additive,

@@ -4,7 +4,7 @@ import io.guessit.Guessit;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
-class AbsoluteEpisodeRuleTest {
+class AbsoluteEpisodeTest {
     @Test void bleachTwoGroupsHigherBecomesAbsolute() {
         var r = Guessit.parse("Bleach - s16e03-04 - 313-314");
         assertThat(r.episodeList()).containsExactlyInAnyOrder(3, 4);

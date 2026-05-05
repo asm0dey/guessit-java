@@ -32,8 +32,9 @@ import java.util.List;
  *
  * <p>The order in {@link #allInOrder()} is part of the contract — extractors
  * routinely depend on tags or matches added by earlier ones (e.g.
- * {@code AbsoluteEpisodeRule} reads the {@code "SxxExx"} tag set by
- * {@code SeasonEpisodeExtractor}). A flat ordered list keeps that dependency
+ * {@code WeakEpisodeExtractor} reads the {@code "SxxExx"} tag set by
+ * {@code SeasonEpisodeExtractor} when promoting trailing weaks to
+ * {@code absolute_episode}). A flat ordered list keeps that dependency
  * visible at the call site instead of hidden in metadata.
  */
 public final class Rules {
@@ -104,7 +105,6 @@ public final class Rules {
             new EpisodeDetailsExtractor(),
             new EpisodeFormatExtractor(),
             new VersionExtractor(),
-            new AbsoluteEpisodeRule(),
             new SeasonEpisodeExtractor(),
             new EpisodeWordExtractor(),
             new BonusExtractor(),

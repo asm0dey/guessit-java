@@ -16,7 +16,8 @@ import java.util.Set;
  *   <li>{@code tags} — string flags read by other rules. Notable values:
  *       {@code "coexist"} (opt out of conflict resolution; allowed to overlap),
  *       {@code "SxxExx"} (set by {@code SeasonEpisodeExtractor}; gates
- *       {@code AbsoluteEpisodeRule}'s rename pass).</li>
+ *       {@code WeakEpisodeExtractor}'s trailing-weak → {@code absolute_episode}
+ *       rename pass).</li>
  *   <li>{@code isPrivate} — match exists only to influence other rules and
  *       is dropped before output by the {@code PrivateRemover} processor.</li>
  * </ul>
