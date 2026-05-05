@@ -358,6 +358,18 @@ class ProbeTest {
     }
 
     @Test
+    void persepolis_groupBracketDigitsDontMakeSeasonEpisode() {
+        var r = Guessit.parse(
+            "Movies/Persepolis (2007)/[XCT] Persepolis "
+                + "[H264+Aac-128(Fr-Eng)+ST(Fr-Eng)+Ind].mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("Persepolis");
+        assertThat(r.get("year")).isEqualTo(2007);
+        assertThat(r.get("type")).isEqualTo("movie");
+        assertThat(r.get("season")).isNull();
+        assertThat(r.get("episode")).isNull();
+    }
+
+    @Test
     void officeWithCountry_titleStripsBracketWrappedCountry() {
         var r = Guessit.parse(
             "Videos/Office1080/The Office  (US)  (2005) Season 2 S02 + Extras  "

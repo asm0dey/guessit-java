@@ -215,10 +215,31 @@ public final class WeakEpisodeExtractor implements Extractor {
     }
 
     private static void removeAllWeak(ParseContext ctx) {
+        // Mirror python RemoveWeakIfMovie: weak-episode tagged matches are
+        // removed when year is present and type isn't episode. Python's
+        // weak_duplicate matches ALSO carry the weak-episode tag and are
+        // therefore removed too. Java previously excluded weak-duplicate to
+        // protect compact "401"-style SSEE pairs, but for inputs where the
+        // pair lives in a non-title context (e.g. "Aac-128(...)" inside a
+        // group bracket) it produces phantom season=1 episode=28. Only keep
+        // weak-duplicate exclusion when the pair sits OUTSIDE any group
+        // marker — those are the canonical SSEE shapes.
         var weaks = ctx.matches.named(EPISODE)
             .filter(m -> m.tags().contains("weak-episode"))
-            .filter(m -> !m.tags().contains("weak-duplicate"))
+            .filter(m -> !(m.tags().contains("weak-duplicate")
+                    && !inAnyGroupMarker(ctx, m)))
+            .toList();
+        var weakSeasons = ctx.matches.named("season")
+            .filter(m -> m.tags().contains("weak-episode") && m.tags().contains("weak-duplicate"))
+            .filter(m -> inAnyGroupMarker(ctx, m))
             .toList();
         for (var m : weaks) ctx.matches.remove(m);
+        for (var m : weakSeasons) ctx.matches.remove(m);
+    }
+
+    private static boolean inAnyGroupMarker(ParseContext ctx, Match m) {
+        return ctx.markers.stream()
+            .anyMatch(mk -> "group".equals(mk.name())
+                && mk.start() <= m.start() && mk.end() >= m.end());
     }
 }
