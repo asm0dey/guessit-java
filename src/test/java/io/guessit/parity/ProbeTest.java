@@ -358,6 +358,17 @@ class ProbeTest {
     }
 
     @Test
+    void brokeGirls_dateAtEndDoesntStealReleaseGroup() {
+        var r = Guessit.parse(
+            "c:\\Temp\\autosubliminal\\completed\\2 Broke Girls\\Season 01\\"
+                + "2 Broke Girls - S01E01 - HDTV-720p Proper - x264 AC3 - IMMERSE - [2011-09-19].mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("2 Broke Girls");
+        assertThat(r.get("release_group")).isEqualTo("IMMERSE");
+        assertThat(r.get("episode_title")).isNull();
+        assertThat(r.get("date")).isNotNull();
+    }
+
+    @Test
     void torrentingPrefix_titleSkipsFromWord() {
         var r = Guessit.parse(
             "From [ WWW.TORRENTING.COM ] - White.Rabbit.Project.S01E08.1080p.NF.WEBRip.DD5.1.x264-ViSUM/"

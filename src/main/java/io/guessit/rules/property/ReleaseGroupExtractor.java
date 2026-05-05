@@ -599,6 +599,11 @@ public final class ReleaseGroupExtractor implements Extractor {
                 rangeEnd = strip;
                 changed = true;
             }
+            int dateStrip = trimTrailingDate(ctx, filepart, rangeEnd);
+            if (dateStrip < rangeEnd) {
+                rangeEnd = dateStrip;
+                changed = true;
+            }
             // Trailing subtitle_language / language / "Dual Audio"-style
             // other match (e.g. "...xvid-2hd.eng.srt", "...x264-Belex.-.Dual.Audio.+.Legendas"):
             // python excludes these from RG candidate territory. Pull rangeEnd
@@ -644,6 +649,28 @@ public final class ReleaseGroupExtractor implements Extractor {
             }
         }
         return rangeEnd;
+    }
+
+    /** Trim a trailing date match (optionally wrapped in brackets/parens) so
+     *  the dash/scene detection sees the real group span. Mirrors
+     *  trimTrailingWebsite for `date` instead of `website`. */
+    private static int trimTrailingDate(ParseContext ctx, Marker filepart, int rangeEnd) {
+        var input = ctx.input;
+        int probe = rangeEnd;
+        if (probe > filepart.start() && (input.charAt(probe - 1) == ']' || input.charAt(probe - 1) == ')')) {
+            probe--;
+        }
+        final int p = probe;
+        var date = ctx.matches.named("date")
+            .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
+            .filter(m -> m.end() == p)
+            .findFirst().orElse(null);
+        if (date == null) return rangeEnd;
+        int newEnd = date.start();
+        if (newEnd > filepart.start() && (input.charAt(newEnd - 1) == '[' || input.charAt(newEnd - 1) == '(')) {
+            newEnd--;
+        }
+        return newEnd;
     }
 
     /**
