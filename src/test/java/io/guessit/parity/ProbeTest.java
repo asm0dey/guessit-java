@@ -206,6 +206,17 @@ class ProbeTest {
     }
 
     @Test
+    void enInsideEpisodeTitle_notLanguage() {
+        var r = Guessit.parse(
+            "Fear the Walking Dead - 01x02 - En Close, Yet En Far.REPACK-KILLERS.French.C.updated.Addic7ed.com.mkv").toMap();
+        assertThat(r.get("episode_title")).isEqualTo("En Close, Yet En Far");
+        var lang = r.get("language");
+        if (lang instanceof java.util.List<?> l) {
+            assertThat(l).extracting(o -> ((io.guessit.lang.Language) o).alpha2()).doesNotContain("en");
+        }
+    }
+
+    @Test
     void splitScenesBetweenSourceAndContainer_notAltTitle() {
         var r = Guessit.parse(
             "French Maid Services - Lola At Your Service WEB-DL SPLIT SCENES MP4-RARBG").toMap();

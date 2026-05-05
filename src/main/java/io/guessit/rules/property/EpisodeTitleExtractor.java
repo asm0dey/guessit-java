@@ -45,6 +45,36 @@ public final class EpisodeTitleExtractor implements Extractor {
         titleToEpisodeTitle(ctx);
         episodeTitleFromPosition(ctx);
         alternativeTitleReplace(ctx);
+        dropLanguagesInsideTitleHoles(ctx);
+    }
+
+    /**
+     * Drop short {@code language} / {@code subtitle_language} matches that
+     * fall entirely inside a {@code title}, {@code alternative_title}, or
+     * {@code episode_title} span. Mirrors python guessit's outcome where
+     * "En" inside "En Close, Yet En Far" episode_title is not emitted as
+     * language=English.
+     */
+    private static void dropLanguagesInsideTitleHoles(ParseContext ctx) {
+        var titleSpans = ctx.matches.all()
+            .filter(m -> TITLE.equals(m.name()) || "alternative_title".equals(m.name())
+                    || EPISODE_TITLE.equals(m.name()))
+            .map(m -> new int[]{m.start(), m.end()})
+            .toList();
+        if (titleSpans.isEmpty()) return;
+        var toRemove = new java.util.ArrayList<Match>();
+        for (var m : ctx.matches.all().toList()) {
+            if (!"language".equals(m.name()) && !"subtitle_language".equals(m.name())) continue;
+            if (m.length() > 3) continue;
+            for (var sp : titleSpans) {
+                if (m.start() >= sp[0] && m.end() <= sp[1]
+                        && (m.start() > sp[0] || m.end() < sp[1])) {
+                    toRemove.add(m);
+                    break;
+                }
+            }
+        }
+        for (var m : toRemove) ctx.matches.remove(m);
     }
 
     private void removeConflictsWithEpisodeTitle(ParseContext ctx) {

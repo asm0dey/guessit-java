@@ -19,7 +19,8 @@ import static java.util.Locale.ROOT;
 
 public final class YmlTestLoader {
 
-    private YmlTestLoader() {}
+    private YmlTestLoader() {
+    }
 
     public static Stream<YmlCase> discoverAll(String classpathRoot) {
         var loader = Thread.currentThread().getContextClassLoader();
@@ -27,15 +28,19 @@ public final class YmlTestLoader {
             var url = loader.getResource(classpathRoot);
             if (url == null) return Stream.empty();
             var rootPath = Path.of(url.toURI());
-            return Files.walk(rootPath)
-                .filter(p -> {
-                    var n = p.getFileName().toString().toLowerCase(ROOT);
-                    return n.endsWith(".yml") || n.endsWith(".yaml");
-                })
-                .flatMap(p -> {
-                    var rel = rootPath.getParent().relativize(p).toString();
-                    return loadResource(rel).stream();
-                });
+            try (Stream<Path> walk = Files.walk(rootPath)) {
+                return walk
+                        .filter(p -> {
+                            var n = p.getFileName().toString().toLowerCase(ROOT);
+                            return n.endsWith(".yml") || n.endsWith(".yaml");
+                        })
+                        .flatMap(p -> {
+                            var rel = rootPath.getParent().relativize(p).toString();
+                            return loadResource(rel).stream();
+                        })
+                        .toList()
+                        .stream();
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -128,16 +133,16 @@ public final class YmlTestLoader {
 
         Options build() {
             return Options.builder()
-                .type(type).name(name)
-                .expectedTitle(expectedTitle).expectedGroup(expectedGroup)
-                .excludes(excludes).includes(includes)
-                .allowedLanguages(allowedLanguages).allowedCountries(allowedCountries)
-                .dateYearFirst(dateYearFirst).dateDayFirst(dateDayFirst)
-                .episodePreferNumber(episodePreferNumber).enforceListWhenSingle(enforceListWhenSingle)
-                .configPaths(configPaths)
-                .noUserConfig(noUserConfig).noDefaultConfig(noDefaultConfig)
-                .raw(raw)
-                .build();
+                    .type(type).name(name)
+                    .expectedTitle(expectedTitle).expectedGroup(expectedGroup)
+                    .excludes(excludes).includes(includes)
+                    .allowedLanguages(allowedLanguages).allowedCountries(allowedCountries)
+                    .dateYearFirst(dateYearFirst).dateDayFirst(dateDayFirst)
+                    .episodePreferNumber(episodePreferNumber).enforceListWhenSingle(enforceListWhenSingle)
+                    .configPaths(configPaths)
+                    .noUserConfig(noUserConfig).noDefaultConfig(noDefaultConfig)
+                    .raw(raw)
+                    .build();
         }
     }
 
@@ -167,14 +172,30 @@ public final class YmlTestLoader {
                 case "--date-day-first", "-D" -> a.dateDayFirst = true;
                 case "--no-default-config" -> a.noDefaultConfig = true;
                 case "--no-user-config" -> a.noUserConfig = true;
-                case "--type", "-t" -> { if (i + 1 < tokens.length) a.type = tokens[++i]; }
-                case "--name", "-n" -> { if (i + 1 < tokens.length) a.name = tokens[++i]; }
-                case "--expected-title", "-T" -> { if (i + 1 < tokens.length) a.expectedTitle.add(tokens[++i]); }
-                case "--expected-group", "-G" -> { if (i + 1 < tokens.length) a.expectedGroup.add(tokens[++i]); }
-                case "--allowed-language", "-L" -> { if (i + 1 < tokens.length) a.allowedLanguages.add(tokens[++i]); }
-                case "--allowed-country", "-C" -> { if (i + 1 < tokens.length) a.allowedCountries.add(tokens[++i]); }
-                case "--excludes", "--exclude" -> { if (i + 1 < tokens.length) a.excludes.add(tokens[++i]); }
-                case "--includes", "--include" -> { if (i + 1 < tokens.length) a.includes.add(tokens[++i]); }
+                case "--type", "-t" -> {
+                    if (i + 1 < tokens.length) a.type = tokens[++i];
+                }
+                case "--name", "-n" -> {
+                    if (i + 1 < tokens.length) a.name = tokens[++i];
+                }
+                case "--expected-title", "-T" -> {
+                    if (i + 1 < tokens.length) a.expectedTitle.add(tokens[++i]);
+                }
+                case "--expected-group", "-G" -> {
+                    if (i + 1 < tokens.length) a.expectedGroup.add(tokens[++i]);
+                }
+                case "--allowed-language", "-L" -> {
+                    if (i + 1 < tokens.length) a.allowedLanguages.add(tokens[++i]);
+                }
+                case "--allowed-country", "-C" -> {
+                    if (i + 1 < tokens.length) a.allowedCountries.add(tokens[++i]);
+                }
+                case "--excludes", "--exclude" -> {
+                    if (i + 1 < tokens.length) a.excludes.add(tokens[++i]);
+                }
+                case "--includes", "--include" -> {
+                    if (i + 1 < tokens.length) a.includes.add(tokens[++i]);
+                }
                 default -> { /* ignore unknown for now */ }
             }
         }
@@ -196,7 +217,10 @@ public final class YmlTestLoader {
             } else if (c == '\'' || c == '"') {
                 quote = c;
             } else if (Character.isWhitespace(c)) {
-                if (!sb.isEmpty()) { out.add(sb.toString()); sb.setLength(0); }
+                if (!sb.isEmpty()) {
+                    out.add(sb.toString());
+                    sb.setLength(0);
+                }
             } else {
                 sb.append(c);
             }
@@ -209,10 +233,20 @@ public final class YmlTestLoader {
         switch (k) {
             case "type" -> a.type = v.toString();
             case "name" -> a.name = v.toString();
-            case "expected_title" -> { if (v instanceof List<?> l) l.forEach(x -> a.expectedTitle.add(x.toString())); else a.expectedTitle.add(v.toString()); }
-            case "expected_group" -> { if (v instanceof List<?> l) l.forEach(x -> a.expectedGroup.add(x.toString())); else a.expectedGroup.add(v.toString()); }
-            case "allowed_languages" -> { if (v instanceof List<?> l) l.forEach(x -> a.allowedLanguages.add(x.toString())); }
-            case "allowed_countries" -> { if (v instanceof List<?> l) l.forEach(x -> a.allowedCountries.add(x.toString())); }
+            case "expected_title" -> {
+                if (v instanceof List<?> l) l.forEach(x -> a.expectedTitle.add(x.toString()));
+                else a.expectedTitle.add(v.toString());
+            }
+            case "expected_group" -> {
+                if (v instanceof List<?> l) l.forEach(x -> a.expectedGroup.add(x.toString()));
+                else a.expectedGroup.add(v.toString());
+            }
+            case "allowed_languages" -> {
+                if (v instanceof List<?> l) l.forEach(x -> a.allowedLanguages.add(x.toString()));
+            }
+            case "allowed_countries" -> {
+                if (v instanceof List<?> l) l.forEach(x -> a.allowedCountries.add(x.toString()));
+            }
             case "date_year_first" -> a.dateYearFirst = toBool(v);
             case "date_day_first" -> a.dateDayFirst = toBool(v);
             case "episode_prefer_number" -> a.episodePreferNumber = toBool(v);
