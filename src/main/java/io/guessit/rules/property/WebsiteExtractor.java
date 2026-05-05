@@ -146,7 +146,8 @@ public final class WebsiteExtractor implements Extractor {
             boolean safe = safeStarts.stream().anyMatch(p -> val.startsWith(p.toLowerCase(java.util.Locale.ROOT)));
             if (safe) continue;
             boolean hasFollower = ctx.matches.all().anyMatch(o ->
-                ("season".equals(o.name()) || "episode".equals(o.name()) || "year".equals(o.name()))
+                ("season".equals(o.name()) || "episode".equals(o.name())
+                    || "year".equals(o.name()) || "date".equals(o.name()))
                     && o.start() >= w.end());
             if (!hasFollower) continue;
             boolean inGroup = ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name())

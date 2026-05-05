@@ -496,6 +496,18 @@ class ProbeTest {
     }
 
     @Test
+    void websiteFollowedByDate_demotesToTitle() {
+        var r = Guessit.parse(
+            "PlayboyPlus.com_16.01.23.Eleni.Corfiate.Playboy.Romania.XXX.iMAGESET-OHRLY"
+        ).toMap();
+        assertThat(r.get("title")).isEqualTo("PlayboyPlus com");
+        assertThat(r.get("episode_title")).isEqualTo("Eleni Corfiate Playboy Romania");
+        assertThat(r.get("date")).hasToString("2023-01-16");
+        assertThat(r.get("other")).isEqualTo("XXX");
+        assertThat(r.get("website")).isNull();
+    }
+
+    @Test
     void releaseGroupCasing_outerWinsWhenItHasEpisodeTitleHole() {
         var r = Guessit.parse(
             "Scrubs/SEASON-06/Scrubs.S06E09.My.Perspective.DVDRip.XviD-WAT/"
