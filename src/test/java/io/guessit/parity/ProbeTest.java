@@ -358,6 +358,17 @@ class ProbeTest {
     }
 
     @Test
+    void mindField_altTitleNotConvertedWhenAdjacentMatchUnrelated() {
+        var r = Guessit.parse(
+            "Mind.Field.S02E06.The.Power.of.Suggestion.1440p.H264.WEBDL.Subtitles/"
+                + "The Power of Suggestion - Mind Field S2 (Ep 6) "
+                + "(1440p_24fps_H264-384kbit_AAC 6Ch).mp4").toMap();
+        assertThat(r.get("title")).isEqualTo("The Power of Suggestion");
+        assertThat(r.get("alternative_title")).isEqualTo("Mind Field");
+        assertThat(r.get("episode_title")).isNull();
+    }
+
+    @Test
     void howToBeSingle_outerDirTitleWinsOverInnerWithDashPrefix() {
         var r = Guessit.parse(
             "How.To.Be.Single.2016.1080p.BluRay.x264-BLOW/"

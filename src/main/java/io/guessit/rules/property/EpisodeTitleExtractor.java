@@ -178,6 +178,17 @@ public final class EpisodeTitleExtractor implements Extractor {
         return "movie";
     }
 
+    private static java.util.Optional<Match> previousAdjacent(ParseContext ctx, int startPos,
+                                                               java.util.function.Predicate<Match> predicate) {
+        for (int pos = startPos; pos >= 0; pos--) {
+            final int p = pos;
+            var ending = ctx.matches.all().filter(m -> m.end() == p).toList();
+            if (ending.isEmpty()) continue;
+            return ending.stream().filter(predicate).findFirst();
+        }
+        return java.util.Optional.empty();
+    }
+
     private static boolean anyNamed(ParseContext ctx, String name) {
         return ctx.matches.named(name).anyMatch(m -> !m.isPrivate());
     }
@@ -189,7 +200,12 @@ public final class EpisodeTitleExtractor implements Extractor {
         var mainTitle = ctx.matches.chainBefore(alt.start(), ctx.input, Seps.CHARS,
             m -> m.tags().contains(TITLE)).orElse(null);
         if (mainTitle == null) return;
-        var prev = ctx.matches.previous(mainTitle, m -> PREVIOUS_NAMES.contains(m.name()));
+        // Mirror python rebulk previous(): walk back position-by-position;
+        // the FIRST position with any match ending there decides — if those
+        // matches don't satisfy the predicate, return None (don't keep walking).
+        // Java's MatchSet.previous() flat-scans, which finds far-away outer
+        // titles/episodes and wrongly converts alt titles to episode_title.
+        var prev = previousAdjacent(ctx, mainTitle.start(), m -> PREVIOUS_NAMES.contains(m.name()));
         var hasCrc = ctx.matches.named("crc32").findAny().isPresent();
         if (prev.isPresent() || hasCrc) {
             var newTags = new java.util.HashSet<>(alt.tags());
