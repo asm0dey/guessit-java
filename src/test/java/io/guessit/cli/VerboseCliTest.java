@@ -67,7 +67,8 @@ class VerboseCliTest {
             "Movie.B.2021.mkv");
         assertThat(out).contains("For: Movie.A.2020.mkv");
         assertThat(out).contains("For: Movie.B.2021.mkv");
-        assertThat(out.split("GuessIt found:", -1)).hasSize(3);
+        // The second filename's "For: " header must be preceded by a blank line.
+        assertThat(out).contains("\n\nFor: Movie.B.2021.mkv");
     }
 
     private String run(String... args) {
