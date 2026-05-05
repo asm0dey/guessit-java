@@ -63,6 +63,9 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     @Override public String name() { return SEASON; }
 
+    private static final Pattern S_EXTRAS = Pattern.compile(
+        "(?i)s(?<season>\\d+)(?<extras>Extras?)");
+
     @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
@@ -70,6 +73,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
         runChain(ctx, new Chain(HEAD_NUM_X).tail(TAIL_E, Chain.Repeater.STAR), input, true, true, false);
         runChain(ctx, new Chain(HEAD_E).tail(TAIL_E_ONLY, Chain.Repeater.STAR), input, true, false, true);
         runChain(ctx, new Chain(HEAD_S).tail(TAIL_S, Chain.Repeater.STAR), input, false, false, false);
+        runSExtras(ctx, input);
         runCap(ctx, input);
         runSxxAll(ctx, input);
     }
@@ -101,6 +105,32 @@ public final class SeasonEpisodeExtractor implements Extractor {
             ctx.matches.add(new Match("other", "Complete",
                 aStart, aEnd, m.group("all"), 1000,
                 Set.of(SXX_EXX, COEXIST, cg), false));
+        }
+    }
+
+    /**
+     * "S01Extras" form: emits season + other=Extras tied via a coexist
+     * group tag. Mirrors python's chain at episodes.py line 209-214 where
+     * "(season_markers)(season)(Extras)?" produces both fields.
+     */
+    private void runSExtras(ParseContext ctx, String input) {
+        var seps = Validators.sepsSurround(input);
+        var m = S_EXTRAS.matcher(input);
+        while (m.find()) {
+            var head = new Match(SEASON, null, m.start(), m.end(),
+                m.group(), 1000, Set.of(SXX_EXX), false);
+            if (!seps.test(head)) continue;
+            String cg = ctx.nextCoexistGroupTag();
+            // Private head spans "S<digits>Extras?" so the leading "S" is
+            // consumed and doesn't leak into the title hole.
+            ctx.matches.add(new Match("seasonHead", null, m.start(), m.end(),
+                m.group(), 1000, Set.of(SXX_EXX), true));
+            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group("season")),
+                m.start("season"), m.end("season"), m.group("season"), 1000,
+                Set.of(SXX_EXX, COEXIST, cg), false));
+            ctx.matches.add(new Match("other", "Extras",
+                m.start("extras"), m.end("extras"), m.group("extras"), 1000,
+                Set.of(SXX_EXX, COEXIST, cg, "no-release-group-prefix"), false));
         }
     }
 

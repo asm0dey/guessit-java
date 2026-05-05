@@ -221,6 +221,15 @@ class ProbeTest {
     }
 
     @Test
+    void s01Extras_seasonAndOtherExtras() {
+        var r = Guessit.parse("Series/My Name Is Earl/My.Name.Is.Earl.S01Extras.-.Bad.Karma.DVDRip.XviD.avi").toMap();
+        assertThat(r.get("title")).isEqualTo("My Name Is Earl");
+        assertThat(r.get("season")).isEqualTo(1);
+        assertThat(r.get("episode_title")).isEqualTo("Bad Karma");
+        assertThat((java.util.List<String>) r.get("other")).contains("Extras");
+    }
+
+    @Test
     void xctLePrestige_chapsReleaseGroup() {
         var r = Guessit.parse(
             "[XCT].Le.Prestige.(The.Prestige).DVDRip.[x264.HP.He-Aac.{Fr-Eng}.St{Fr-Eng}.Chaps].mkv").toMap();
