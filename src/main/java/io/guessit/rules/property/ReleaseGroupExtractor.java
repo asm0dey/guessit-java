@@ -151,8 +151,15 @@ public final class ReleaseGroupExtractor implements Extractor {
                 .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
                 .findFirst().orElse(null);
             int end = ext != null ? ext.start() : trimKnownExtension(ctx, filepart);
+            int endBeforeTrim = end;
             end = trimNotAReleaseGroupTail(ctx, filepart, end);
             int dash = input.lastIndexOf('-', end - 1);
+            // Same guard as detectScene: when a not-a-release-group `other`
+            // was trimmed off the tail and the filepart has no leading title
+            // hole before the dash, this is a title-shaped slot — let
+            // TitleExtractor claim it.
+            if (end < endBeforeTrim && dash > filepart.start()
+                    && filepartIsTitleOnly(ctx, filepart, dash)) continue;
             if (dash > filepart.start() && dash < end - 1) {
                 int s = dash + 1;
                 int e = end;
@@ -401,6 +408,13 @@ public final class ReleaseGroupExtractor implements Extractor {
             if (isProbableLanguagePrefix(candidate)) continue;
             if (overlapsNonLanguageExceptHd(ctx, s, e)) continue;
             if (overlapsSubtitleLanguage(ctx, s, e)) continue;
+            // Mirror python's TitleFromPosition-before-SceneReleaseGroup
+            // ordering: if a not-a-release-group `other` was trimmed off the
+            // tail AND the filepart has no leading title hole (no alpha-text
+            // gap before scene_prev), the candidate is acting as the title,
+            // not a release group. Skip so TitleExtractor.postProcess can
+            // claim it.
+            if (candidateIsLikelyTitle(ctx, filepart, prev, e)) continue;
             dropHdInsideCandidate(ctx, s, e);
             removeOverlappingLanguages(ctx, s, e);
             ctx.matches.add(new Match(RELEASE_GROUP, candidate, s, e, raw, 1500, Set.of("scene"), false));
@@ -447,6 +461,60 @@ public final class ReleaseGroupExtractor implements Extractor {
         ctx.matches.add(new Match(RELEASE_GROUP, trimmed, fInnerS, fInnerE,
             innerStr, 1500, Set.of("anime"), false));
         return true;
+    }
+
+    /**
+     * True when (a) a {@code not-a-release-group} {@code other} sits between
+     * the candidate end and the filepart's container/extension and (b) the
+     * filepart has no usable alpha-text hole before {@code prev} that would
+     * become the title. In that shape the candidate is the only viable title
+     * slot, so RG should yield to {@code TitleExtractor.postProcess}.
+     */
+    private static boolean candidateIsLikelyTitle(ParseContext ctx, Marker filepart, Match prev, int candidateEnd) {
+        var notRgAfter = ctx.matches.named(OtherExtractor.OTHER)
+            .filter(m -> m.tags().contains("not-a-release-group"))
+            .filter(m -> m.start() >= candidateEnd && m.end() <= filepart.end())
+            .findFirst().orElse(null);
+        if (notRgAfter == null) return false;
+        return !hasLeadingTitleHole(ctx, filepart, prev.start());
+    }
+
+    /** Same shape as {@link #candidateIsLikelyTitle} but used by
+     *  {@link #detectDashSeparated} where there is no scene_prev pointer —
+     *  treat the dash position as the right boundary. */
+    private static boolean filepartIsTitleOnly(ParseContext ctx, Marker filepart, int rightBoundary) {
+        var notRgAfter = ctx.matches.named(OtherExtractor.OTHER)
+            .filter(m -> m.tags().contains("not-a-release-group"))
+            .filter(m -> m.start() >= rightBoundary && m.end() <= filepart.end())
+            .findFirst().orElse(null);
+        if (notRgAfter == null) return false;
+        return !hasLeadingTitleHole(ctx, filepart, rightBoundary);
+    }
+
+    private static boolean hasLeadingTitleHole(ParseContext ctx, Marker filepart, int rightBoundary) {
+        var input = ctx.input;
+        int hs = filepart.start();
+        if (rightBoundary <= hs) return false;
+        // Include private matches (e.g. SxxExx episodeMarker "e", chain heads)
+        // so leading marker chars don't count as a title hole. Need to gauge
+        // truly unmatched input.
+        var prevMatches = ctx.matches.all()
+            .filter(m -> m.end() <= rightBoundary && m.start() >= filepart.start())
+            .sorted(java.util.Comparator.comparingInt(Match::start))
+            .toList();
+        int cursor = hs;
+        for (var m : prevMatches) {
+            if (m.start() > cursor) {
+                var gap = input.substring(cursor, m.start());
+                if (gap.chars().anyMatch(c -> !isGroupSep((char) c))) return true;
+            }
+            if (m.end() > cursor) cursor = m.end();
+        }
+        if (cursor < rightBoundary) {
+            var gap = input.substring(cursor, rightBoundary);
+            if (gap.chars().anyMatch(Character::isLetter)) return true;
+        }
+        return false;
     }
 
     private static boolean overlapsNonLanguage(ParseContext ctx, int s, int e) {

@@ -205,6 +205,22 @@ class ProbeTest {
     }
 
     @Test
+    void waveyObfuscated_titleNotReleaseGroup() {
+        var r = Guessit.parse("Season 06/e01.1080p.bluray.x264-wavey-obfuscated.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("wavey");
+        assertThat(r.get("release_group")).isNull();
+        assertThat(r.get("other")).isEqualTo("Obfuscated");
+    }
+
+    @Test
+    void epsilonXpost_keepsReleaseGroupWhenLeadingTitleExists() {
+        var r = Guessit.parse(
+            "24.S01E02.1080p.BluRay.REMUX.AVC.DD.2.0-EPSiLON-xpost/eb518eaf33f641a1a8c6e0973a67aec2.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("24");
+        assertThat(r.get("release_group")).isEqualTo("EPSiLON");
+    }
+
+    @Test
     void engineeringCatastrophes_wholeFilepartGroupKeepsTitle() {
         var r = Guessit.parse("[ Engineering Catastrophes S02E10 1080p AMZN WEB-DL DD+ 2.0 x264-TrollHD ]").toMap();
         assertThat(r.get("title")).isEqualTo("Engineering Catastrophes");
