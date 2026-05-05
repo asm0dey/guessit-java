@@ -205,6 +205,14 @@ class ProbeTest {
     }
 
     @Test
+    void queenAKindOfMagic_2cd_noCdAltTitle() {
+        var r = Guessit.parse("Queen - A Kind of Magic (Alternative Extended Version) 2CD 2014").toMap();
+        assertThat(r.get("title")).isEqualTo("Queen");
+        assertThat(r.get("alternative_title")).isEqualTo("A Kind of Magic");
+        assertThat(r.get("cd_count")).isEqualTo(2);
+    }
+
+    @Test
     void germanCustomSubbed_subtitleLanguage() {
         var r = Guessit.parse(
             "Show.Name.S04E21.Aint.Nothing.Like.the.Real.Thing.German.Custom.Subbed.720p.HDTV.x264.iNTERNAL-BaCKToRG").toMap();

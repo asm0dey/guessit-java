@@ -47,6 +47,15 @@ public final class CdExtractor implements Extractor {
             ctx.matches.add(new Match("cd_count", c,
                 m.start("count"), m.end("count"), m.group("count"),
                 priority(), Set.of(), false));
+            // Cover the trailing "cd"/"cds" literal with a private marker so
+            // it doesn't leak into a title/alt-title hole.
+            int litStart = m.end("count");
+            int litEnd = m.end();
+            while (litStart < litEnd && Seps.isSep(input.charAt(litStart))) litStart++;
+            if (litEnd > litStart) {
+                ctx.matches.add(new Match("cd_marker", null, litStart, litEnd,
+                    input.substring(litStart, litEnd), priority(), Set.of(), true));
+            }
         }
     }
 }
