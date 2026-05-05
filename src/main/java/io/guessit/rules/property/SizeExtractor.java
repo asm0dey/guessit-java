@@ -1,6 +1,9 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.*;
+import io.guessit.engine.Extractor;
+import io.guessit.engine.Match;
+import io.guessit.engine.ParseContext;
+import io.guessit.engine.Validators;
 import io.guessit.util.Size;
 
 import java.util.Set;

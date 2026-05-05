@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import io.guessit.config.OptionsConfig;
 import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
@@ -32,7 +33,7 @@ class TypeProcessorTest {
         assertThat(ctx.matches.named("type").findFirst().orElseThrow().value()).isEqualTo("episode");
     }
     @Test void optionsTypeOverridesEverything() {
-        var opts = Options.builder().type("movie").build();
+        var opts = OptionsBuilder.options().type("movie").build();
         var ctx = new ParseContext("x", opts, OptionsConfig.empty());
         ctx.matches.add(Match.of("episode", 1, 0, 1, "1"));
         new TypeProcessor().process(ctx);

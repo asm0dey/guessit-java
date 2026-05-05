@@ -24,7 +24,7 @@ final class YmlExpected {
     private YmlExpected() {}
 
     static GuessResult build(Map<String, Object> expected) {
-        var b = GuessResult.builder();
+        var b = GuessResultBuilder.result();
         var extras = new java.util.LinkedHashMap<String, Object>();
         for (var e : expected.entrySet()) {
             if (e.getValue() == null) continue;

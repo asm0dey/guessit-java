@@ -40,6 +40,4 @@ public record Options(
 
     public static Options defaults() { return OptionsBuilder.options().build(); }
 
-    /** Convenience alias so callers can write `Options.builder().type(...)...build()`. */
-    public static OptionsBuilder builder() { return OptionsBuilder.options(); }
 }

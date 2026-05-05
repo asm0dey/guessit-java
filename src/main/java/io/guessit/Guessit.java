@@ -6,9 +6,6 @@ import io.guessit.engine.ParseContext;
 import io.guessit.engine.Pipeline;
 import io.guessit.rules.Rules;
 
-import java.util.List;
-import java.util.Map;
-
 public final class Guessit {
 
     private final Options options;

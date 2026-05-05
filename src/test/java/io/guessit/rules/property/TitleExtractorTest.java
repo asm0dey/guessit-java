@@ -1,7 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.Guessit;
-import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +29,7 @@ class TitleExtractorTest {
         assertThat(r).containsEntry("title", "Movie Name");
     }
     @Test void expectedTitleEmitsExpectedTaggedMatch() {
-        var opts = Options.builder().expectedTitle(java.util.List.of("My Show")).build();
+        var opts = OptionsBuilder.options().expectedTitle(java.util.List.of("My Show")).build();
         var r = Guessit.parse("My.Show.2020.mkv", opts).toMap();
         assertThat(r).containsEntry("title", "My Show");
     }

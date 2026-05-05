@@ -2,6 +2,7 @@ package io.guessit.parity;
 
 import io.guessit.Guessit;
 import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,7 +22,7 @@ class ProbeTest {
 
     @Test
     void epiTypeEpisode_titleEpi() {
-        var r = Guessit.parse("epi", Options.builder().type("episode").build()).toMap();
+        var r = Guessit.parse("epi", OptionsBuilder.options().type("episode").build()).toMap();
         assertThat(r.get("title")).isEqualTo("epi");
     }
 
@@ -65,7 +66,7 @@ class ProbeTest {
     @Test
     void numXNumWithSpaces_seasonEpisodePair() {
         var r = Guessit.parse("Something 1 x 2-FlexGet",
-            io.guessit.Options.builder().type("episode").build()).toMap();
+            OptionsBuilder.options().type("episode").build()).toMap();
         assertThat(r.get("season")).isEqualTo(1);
         assertThat(r.get("episode")).isEqualTo(2);
     }
@@ -237,7 +238,7 @@ class ProbeTest {
     @Test
     void barFoodChristmasSpecial_episodeTypeViaSpecialDetail() {
         var r = Guessit.parse("BarFood christmas special HDTV",
-            io.guessit.Options.builder().expectedTitle(java.util.List.of("BarFood")).build()).toMap();
+            io.guessit.OptionsBuilder.options().expectedTitle(java.util.List.of("BarFood")).build()).toMap();
         assertThat(r.get("title")).isEqualTo("BarFood");
         assertThat(r.get("episode_title")).isEqualTo("christmas special");
         assertThat(r.get("type")).isEqualTo("episode");

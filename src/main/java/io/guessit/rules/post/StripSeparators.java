@@ -1,6 +1,8 @@
 package io.guessit.rules.post;
 
-import io.guessit.engine.*;
+import io.guessit.engine.ParseContext;
+import io.guessit.engine.PostPhase;
+import io.guessit.engine.Seps;
 
 import java.util.ArrayList;
 

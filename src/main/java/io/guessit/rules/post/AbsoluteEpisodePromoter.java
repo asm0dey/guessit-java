@@ -1,16 +1,8 @@
 package io.guessit.rules.post;
 
-import io.guessit.engine.Match;
-import io.guessit.engine.Markers;
-import io.guessit.engine.ParseContext;
-import io.guessit.engine.PostPhase;
-import io.guessit.engine.Seps;
+import io.guessit.engine.*;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * PostPhase processor that finalises {@code absolute_episode} promotion after

@@ -1,7 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.Guessit;
-import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,13 +17,13 @@ class WeakDuplicateExtractorTest {
     }
     @Test void preferNumberOverridesWeakDuplicate() {
         var r = Guessit.parse("Show.0102.HDTV.mkv",
-            Options.builder().episodePreferNumber(true).build()).toMap();
+            OptionsBuilder.options().episodePreferNumber(true).build()).toMap();
         assertEquals(102, r.get("episode"));
         assertNull(r.get("season"));
     }
     @Test void droppedWhenMovie() {
         var r = Guessit.parse("Movie.0102.HDTV.mkv",
-            Options.builder().type("movie").build()).toMap();
+            OptionsBuilder.options().type("movie").build()).toMap();
         assertNull(r.get("season"));
         assertNull(r.get("episode"));
     }

@@ -193,6 +193,4 @@ public record GuessResult(
         return new Yaml(opts).dump(toMap());
     }
 
-    /** Convenience alias so callers can write `GuessResult.builder().title(...)...build()`. */
-    public static GuessResultBuilder builder() { return GuessResultBuilder.result(); }
 }

@@ -1,6 +1,7 @@
 package io.guessit.parity;
 
 import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
@@ -37,9 +38,7 @@ public final class YmlTestLoader {
                         .flatMap(p -> {
                             var rel = rootPath.getParent().relativize(p).toString();
                             return loadResource(rel).stream();
-                        })
-                        .toList()
-                        .stream();
+                        });
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -132,7 +131,7 @@ public final class YmlTestLoader {
         final Map<String, Object> raw = new LinkedHashMap<>();
 
         Options build() {
-            return Options.builder()
+            return OptionsBuilder.options()
                     .type(type).name(name)
                     .expectedTitle(expectedTitle).expectedGroup(expectedGroup)
                     .excludes(excludes).includes(includes)

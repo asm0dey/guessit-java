@@ -2,8 +2,8 @@ package io.guessit.rules.post;
 
 import io.guessit.Options;
 import io.guessit.config.OptionsConfig;
-import io.guessit.engine.Match;
 import io.guessit.engine.Marker;
+import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 

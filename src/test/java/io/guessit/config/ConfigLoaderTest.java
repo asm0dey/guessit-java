@@ -1,6 +1,7 @@
 package io.guessit.config;
 
 import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -21,7 +22,7 @@ class ConfigLoaderTest {
 
     @Test
     void noDefaultConfigSkipsBundle() {
-        var opts = Options.builder().noDefaultConfig(true).noUserConfig(true).build();
+        var opts = OptionsBuilder.options().noDefaultConfig(true).noUserConfig(true).build();
         var cfg = ConfigLoader.load(opts);
         assertTrue(cfg.raw().isEmpty());
     }
@@ -30,7 +31,7 @@ class ConfigLoaderTest {
     void explicitConfigOverridesScalars(@TempDir Path tmp) throws IOException {
         var f = tmp.resolve("override.json");
         Files.writeString(f, "{\"some_key\": \"override\"}");
-        var opts = Options.builder()
+        var opts = OptionsBuilder.options()
             .noDefaultConfig(true)
             .noUserConfig(true)
             .configPaths(java.util.List.of(f))
@@ -45,7 +46,7 @@ class ConfigLoaderTest {
         var b = tmp.resolve("b.json");
         Files.writeString(a, "{\"items\": [1, 2]}");
         Files.writeString(b, "{\"items\": [3]}");
-        var opts = Options.builder()
+        var opts = OptionsBuilder.options()
             .noDefaultConfig(true)
             .noUserConfig(true)
             .configPaths(java.util.List.of(a, b))
@@ -60,7 +61,7 @@ class ConfigLoaderTest {
         var b = tmp.resolve("b.json");
         Files.writeString(a, "{\"nested\": {\"x\": 1, \"y\": 2}}");
         Files.writeString(b, "{\"nested\": {\"y\": 3, \"z\": 4}}");
-        var opts = Options.builder()
+        var opts = OptionsBuilder.options()
             .noDefaultConfig(true).noUserConfig(true)
             .configPaths(java.util.List.of(a, b)).build();
         var cfg = ConfigLoader.load(opts);
@@ -77,7 +78,7 @@ class ConfigLoaderTest {
         var b = tmp.resolve("b.json");
         Files.writeString(a, "{\"key\": \"original\"}");
         Files.writeString(b, "{\"key\": null}");
-        var opts = Options.builder()
+        var opts = OptionsBuilder.options()
             .noDefaultConfig(true).noUserConfig(true)
             .configPaths(java.util.List.of(a, b)).build();
         var cfg = ConfigLoader.load(opts);

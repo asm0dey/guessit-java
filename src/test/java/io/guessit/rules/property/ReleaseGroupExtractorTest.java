@@ -1,7 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.Guessit;
-import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -26,7 +26,7 @@ class ReleaseGroupExtractorTest {
         assertEquals("ReleaseGroup", r.get("release_group"));
     }
     @Test void expectedGroupWins() {
-        var opts = Options.builder().expectedGroup(List.of("MyGroup")).build();
+        var opts = OptionsBuilder.options().expectedGroup(List.of("MyGroup")).build();
         var r = Guessit.parse("Movie.MyGroup.x264.mkv", opts).toMap();
         assertEquals("MyGroup", r.get("release_group"));
     }

@@ -1,7 +1,7 @@
 package io.guessit.cli;
 
 import io.guessit.Guessit;
-import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -74,7 +74,7 @@ public final class GuessitCli implements Callable<Integer> {
             System.err.println("No input filename provided. See --help.");
             return 2;
         }
-        var opts = Options.builder()
+        var opts = OptionsBuilder.options()
             .type(type)
             .name(name)
             .expectedTitle(expectedTitles)

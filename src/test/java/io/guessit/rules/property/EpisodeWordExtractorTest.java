@@ -1,7 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.Guessit;
-import io.guessit.Options;
+import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,7 +20,7 @@ class EpisodeWordExtractorTest {
         assertEquals(2, r.get("season"));
     }
     @Test void seasonRomanNumeralEpisodeType() {
-        var r = Guessit.parse("Show Season III.mkv", Options.builder().type("episode").build()).toMap();
+        var r = Guessit.parse("Show Season III.mkv", OptionsBuilder.options().type("episode").build()).toMap();
         assertEquals(3, r.get("season"));
     }
     @Test void countDetached() {
