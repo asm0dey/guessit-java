@@ -2,6 +2,7 @@ package io.guessit.cli;
 
 import io.guessit.Guessit;
 import io.guessit.OptionsBuilder;
+import io.guessit.engine.PrintTrace;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -91,6 +92,18 @@ public final class GuessitCli implements Callable<Integer> {
             .noDefaultConfig(noDefaultConfig)
             .build();
         var guessit = Guessit.withOptions(opts);
+
+        if (verbose) {
+            if (json || yaml || showProperty != null) {
+                System.err.println("warning: --json/--yaml/--show-property ignored when --verbose is set");
+            }
+            var trace = new PrintTrace(System.out);
+            for (int i = 0; i < filenames.size(); i++) {
+                if (i > 0) System.out.println();
+                guessit.guess(filenames.get(i), trace);
+            }
+            return 0;
+        }
 
         for (var fn : filenames) {
             var result = guessit.guess(fn);

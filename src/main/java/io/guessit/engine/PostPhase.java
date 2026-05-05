@@ -22,6 +22,12 @@ public record PostPhase(List<PostProcessor> processors) implements Phase {
 
     @Override
     public void apply(ParseContext ctx) {
-        for (var p : processors) p.process(ctx);
+        ctx.trace.phase("post");
+        for (var p : processors) {
+            var before = ctx.matches.snapshot();
+            ctx.trace.step("rule", p.getClass().getSimpleName());
+            p.process(ctx);
+            TraceDiff.emit(before, ctx.matches.snapshot(), ctx.trace);
+        }
     }
 }
