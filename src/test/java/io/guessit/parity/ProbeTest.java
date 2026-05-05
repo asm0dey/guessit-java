@@ -77,6 +77,16 @@ class ProbeTest {
     }
 
     @Test
+    void duckman101Parens_keepsCompactSsee() {
+        var r = Guessit.parse(
+            "Series/Duckman/Duckman - 101 (01) - 20021107 - I, Duckman.avi").toMap();
+        assertThat(r.get("season")).isEqualTo(1);
+        assertThat(r.get("episode")).isEqualTo(1);
+        assertThat(r.get("title")).isEqualTo("Duckman");
+        assertThat(r.get("episode_title")).isEqualTo("I, Duckman");
+    }
+
+    @Test
     void preferTitleWithYear_tagsEquivalentIgnore() {
         // The kept title must carry "equivalent-ignore" so EquivalentHoles
         // doesn't replace its outer-folder value with the filename's

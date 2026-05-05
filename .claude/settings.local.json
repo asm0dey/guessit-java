@@ -50,7 +50,8 @@
       "Bash(awk 'NR>=2326 && NR<=2340 {print NR\": [\"$0\"]\"}' src/test/resources/yml/episodes.yml)",
       "mcp__idea__execute_run_configuration",
       "mcp__idea__get_run_configurations",
-      "mcp__idea__list_database_connections"
+      "mcp__idea__list_database_connections",
+      "mcp__idea__xdebug_list_breakpoints"
     ]
   }
 }

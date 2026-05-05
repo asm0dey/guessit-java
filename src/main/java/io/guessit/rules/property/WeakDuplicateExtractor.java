@@ -132,6 +132,31 @@ public final class WeakDuplicateExtractor implements Extractor {
                 if (matchingEpisode == null) continue;
                 int runEnd = matchingEpisode.end();
                 if (!hasContentAfterPos(ctx.input, runEnd)) continue;
+                // Only drop the SSEE pair when the run is followed by anime-
+                // style trailing content (another weak-episode digit run, or
+                // a wrapped marker like "[HD]" / "[720p]") — i.e. context
+                // signaling the digits are an absolute episode, not a season-
+                // episode pair. Without this guard, "Title - 101 (01) - …"
+                // wrongly drops the pair (the parens "(01)" is a confirming
+                // SSEE marker, not a range continuation).
+                int sStart = seasonMatch.start();
+                boolean rangePartner = ctx.matches.named(EPISODE)
+                        .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
+                        .filter(m -> m.start() >= runEnd)
+                        .anyMatch(m -> {
+                            String gap = ctx.input.substring(runEnd, m.start());
+                            return !gap.isEmpty() && gap.length() <= 5
+                                && gap.matches("[ ._]*[-~][ ._]*");
+                        });
+                boolean leadingPartner = ctx.matches.named(EPISODE)
+                        .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
+                        .filter(m -> m.end() <= sStart)
+                        .anyMatch(m -> {
+                            String gap = ctx.input.substring(m.end(), sStart);
+                            return !gap.isEmpty() && gap.length() <= 5
+                                && gap.matches("[ ._]*[-~][ ._]*");
+                        });
+                if (!rangePartner && !leadingPartner) continue;
                 ctx.matches.remove(seasonMatch);
                 ctx.matches.remove(matchingEpisode);
             }
