@@ -205,6 +205,16 @@ class ProbeTest {
     }
 
     @Test
+    void daiseiFreeIwatobiCrcSwallowsSxxExx() {
+        var r = Guessit.parse("[Daisei] Free!：Iwatobi Swim Club - 01 ~ (BD 720p 10-bit AAC) [99E8E009].mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("Free!：Iwatobi Swim Club");
+        assertThat(r.get("episode")).isEqualTo(1);
+        assertThat(r.get("crc32")).isEqualTo("99E8E009");
+        assertThat(r.get("season")).isNull();
+        assertThat(r.get("episode_title")).isNull();
+    }
+
+    @Test
     void insider_bonusTitleKeepsLeadingNumber() {
         var r = Guessit.parse("The_Insider-(1999)-x02-60_Minutes_Interview-1996.mp4").toMap();
         assertThat(r.get("title")).isEqualTo("The Insider");

@@ -27,6 +27,40 @@ public final class CrcExtractor implements Extractor {
     public void extract(ParseContext ctx) {
         extractCrc32(ctx);
         extractUuid(ctx);
+        dropSeasonEpisodeInsideCrc(ctx);
+    }
+
+    /**
+     * Drop season/episode (and the private {@code seasonHead} chain marker)
+     * that fall entirely inside a crc32 span. Without this, an 8-hex-digit
+     * checksum like {@code 99E8E009} is also matched by the
+     * {@code (\d{1,2})?E(\d{1,4})} chain → false season=99, episode=[8,9].
+     * Python guessit's _default_conflict_solver drops the shorter match
+     * inside the crc32 span; the {@code coexist} tag on Java's SxxExx pairs
+     * skips that comparison so mirror the drop explicitly. Run inside
+     * {@link #extract} (after the SeasonEpisodeExtractor has already
+     * emitted its chain) to keep
+     * {@link io.guessit.rules.property.SeasonEpisodeExtractor#removeInvalidSecondaryChain}
+     * from later mistaking the false SxxExx pair for a real one and
+     * dropping legitimate weak-episode candidates outside the crc32 span.
+     */
+    private void dropSeasonEpisodeInsideCrc(ParseContext ctx) {
+        var crcSpans = ctx.matches.named("crc32")
+            .map(m -> new int[]{m.start(), m.end()})
+            .toList();
+        if (crcSpans.isEmpty()) return;
+        var toRemove = new java.util.ArrayList<Match>();
+        ctx.matches.all().forEach(m -> {
+            String n = m.name();
+            if (!"season".equals(n) && !"episode".equals(n) && !"seasonHead".equals(n)) return;
+            for (var s : crcSpans) {
+                if (m.start() >= s[0] && m.end() <= s[1]) {
+                    toRemove.add(m);
+                    return;
+                }
+            }
+        });
+        for (var m : toRemove) ctx.matches.remove(m);
     }
 
     private void extractCrc32(ParseContext ctx) {
