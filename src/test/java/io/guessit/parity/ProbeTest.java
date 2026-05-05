@@ -205,6 +205,16 @@ class ProbeTest {
     }
 
     @Test
+    void barFoodChristmasSpecial_episodeTypeViaSpecialDetail() {
+        var r = Guessit.parse("BarFood christmas special HDTV",
+            io.guessit.Options.builder().expectedTitle(java.util.List.of("BarFood")).build()).toMap();
+        assertThat(r.get("title")).isEqualTo("BarFood");
+        assertThat(r.get("episode_title")).isEqualTo("christmas special");
+        assertThat(r.get("type")).isEqualTo("episode");
+        assertThat(r.get("episode_details")).isEqualTo("Special");
+    }
+
+    @Test
     void queenAKindOfMagic_2cd_noCdAltTitle() {
         var r = Guessit.parse("Queen - A Kind of Magic (Alternative Extended Version) 2CD 2014").toMap();
         assertThat(r.get("title")).isEqualTo("Queen");
