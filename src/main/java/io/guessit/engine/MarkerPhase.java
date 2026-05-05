@@ -20,6 +20,15 @@ public record MarkerPhase(List<MarkerProducer> producers) implements Phase {
 
     @Override
     public void apply(ParseContext ctx) {
-        for (var p : producers) p.produce(ctx);
+        ctx.trace.phase("markers");
+        var beforeAll = List.copyOf(ctx.markers);
+        for (var p : producers) {
+            p.produce(ctx);
+        }
+        for (var m : ctx.markers) {
+            if (!beforeAll.contains(m)) {
+                ctx.trace.note("marker: " + m.raw() + ":(" + m.start() + "," + m.end() + ")+name=" + m.name());
+            }
+        }
     }
 }
