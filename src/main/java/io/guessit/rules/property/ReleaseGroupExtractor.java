@@ -512,7 +512,7 @@ public final class ReleaseGroupExtractor implements Extractor {
         }
         if (cursor < rightBoundary) {
             var gap = input.substring(cursor, rightBoundary);
-            if (gap.chars().anyMatch(Character::isLetter)) return true;
+            return gap.chars().anyMatch(Character::isLetter);
         }
         return false;
     }
@@ -680,7 +680,7 @@ public final class ReleaseGroupExtractor implements Extractor {
      */
     private static final Set<String> RG_INTERIOR_OTHER = Set.of(
         "HD", "Ultra HD", "Full HD", "HDR10", "Dolby Vision", "BT.2020",
-        "Standard Dynamic Range");
+        "Standard Dynamic Range", "High Resolution");
 
     private static void dropHdInsideCandidate(ParseContext ctx, int s, int e) {
         var toRemove = ctx.matches.all()

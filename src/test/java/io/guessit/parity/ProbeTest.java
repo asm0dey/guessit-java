@@ -205,6 +205,16 @@ class ProbeTest {
     }
 
     @Test
+    void huaMulan_hrAsReleaseGroup() {
+        var r = Guessit.parse("Hua.Mulan.BRRIP.MP4.x264.720p-HR.avi").toMap();
+        assertThat(r.get("title")).isEqualTo("Hua Mulan");
+        assertThat(r.get("release_group")).isEqualTo("HR");
+        @SuppressWarnings("unchecked")
+        var other = (java.util.List<String>) r.get("other");
+        assertThat(other).doesNotContain("High Resolution");
+    }
+
+    @Test
     void waveyObfuscated_titleNotReleaseGroup() {
         var r = Guessit.parse("Season 06/e01.1080p.bluray.x264-wavey-obfuscated.mkv").toMap();
         assertThat(r.get("title")).isEqualTo("wavey");
