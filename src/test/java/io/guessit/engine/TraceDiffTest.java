@@ -13,6 +13,7 @@ class TraceDiffTest {
         final List<String> events = new ArrayList<>();
         @Override public void added(Match m)   { events.add("+ " + PrintTrace.formatMatch(m)); }
         @Override public void removed(Match m) { events.add("- " + PrintTrace.formatMatch(m)); }
+        @Override public void noChanges() { events.add("(no changes)"); }
     }
 
     @Test
@@ -32,11 +33,11 @@ class TraceDiffTest {
     }
 
     @Test
-    void emitsNothingWhenIdentical() {
+    void emitsNoChangesWhenIdentical() {
         var year = Match.of("year", 2020, 11, 15, "2020");
         var trace = new CapturingTrace();
         TraceDiff.emit(List.of(year), List.of(year), trace);
-        assertThat(trace.events).isEmpty();
+        assertThat(trace.events).containsExactly("(no changes)");
     }
 
     @Test

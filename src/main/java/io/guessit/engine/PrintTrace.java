@@ -39,6 +39,7 @@ public final class PrintTrace implements Trace {
     @Override public void step(String kind, String name) { write("  [" + kind + "] " + name + "\n"); }
     @Override public void added(Match m)     { write("    + " + formatMatch(m) + "\n"); }
     @Override public void removed(Match m)   { write("    - " + formatMatch(m) + "\n"); }
+    @Override public void noChanges() { write("    (no changes)\n"); }
     @Override public void note(String msg)   { write("  " + msg + "\n"); }
     @Override public void result(GuessResult r) {
         write("\nGuessIt found:\n" + io.guessit.cli.PlainFormatter.format(r) + "\n");

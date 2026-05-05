@@ -92,6 +92,13 @@ class PrintTraceTest {
     }
 
     @Test
+    void noChangesLineIndentedFourSpaces() {
+        var sb = new StringBuilder();
+        new PrintTrace(sb).noChanges();
+        assertThat(sb.toString()).isEqualTo("    (no changes)\n");
+    }
+
+    @Test
     void noteLineIndentedTwoSpaces() {
         var sb = new StringBuilder();
         new PrintTrace(sb).note("marker: path:(0,41)+name=path");

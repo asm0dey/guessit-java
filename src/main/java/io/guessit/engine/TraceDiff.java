@@ -17,6 +17,10 @@ final class TraceDiff {
     private TraceDiff() {}
 
     static void emit(List<Match> before, List<Match> after, Trace trace) {
+        if (before.equals(after)) {
+            trace.noChanges();
+            return;
+        }
         var afterCounts = new HashMap<Match, Integer>();
         for (var m : after) afterCounts.merge(m, 1, Integer::sum);
 

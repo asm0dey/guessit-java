@@ -15,6 +15,7 @@ public interface Trace {
     default void step(String kind, String name) {}
     default void added(Match m) {}
     default void removed(Match m) {}
+    default void noChanges() {}
     default void note(String msg) {}
     default void result(GuessResult r) {}
 }
