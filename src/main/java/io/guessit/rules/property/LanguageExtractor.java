@@ -57,8 +57,27 @@ public final class LanguageExtractor implements Extractor {
         if (allowed.isEmpty()) return;
 
         var registry = LanguageRegistry.instance();
-        var input = ctx.input;
+        var affixes = loadAffixConfiguration(ctx);
+        var words = Words.iter(ctx.input);
 
+        var pairConsumed = new java.util.HashSet<Integer>();
+        var countryWordConsumed = new java.util.HashSet<Integer>();
+
+        extractTwoWordLanguages(ctx, words, pairConsumed, allowed, registry);
+        extractTwoWordSubtitleAffixes(ctx, words, pairConsumed, affixes);
+        extractSingleWordLanguages(ctx, words, pairConsumed, countryWordConsumed, allowed, registry, affixes);
+        extractLanguageSuffixes(ctx, words, affixes.languageSuffixes);
+    }
+
+    private record AffixConfiguration(
+            List<String> subtitlePrefixes,
+            List<String> subtitleSuffixes,
+            List<String> languageAffixes,
+            List<String> languagePrefixes,
+            List<String> languageSuffixes) {
+    }
+
+    private AffixConfiguration loadAffixConfiguration(ParseContext ctx) {
         var section = ctx.config.section(LANGUAGE);
         var subtitleAffixes = stringList(section.get("subtitle_affixes"));
         var subtitlePrefixes = combine(subtitleAffixes, stringList(section.get("subtitle_prefixes")));
@@ -66,15 +85,14 @@ public final class LanguageExtractor implements Extractor {
         var languageAffixes = stringList(section.get("language_affixes"));
         var languagePrefixes = combine(languageAffixes, stringList(section.get("language_prefixes")));
         var languageSuffixes = combine(languageAffixes, stringList(section.get("language_suffixes")));
+        return new AffixConfiguration(subtitlePrefixes, subtitleSuffixes, languageAffixes,
+                languagePrefixes, languageSuffixes);
+    }
 
-        var words = Words.iter(input);
-
-        // Two-word language alias pass: registry knows combos like
-        // "espanol castellano" → ca. Try every consecutive pair before
-        // single-word lookup so the pair wins (otherwise espanol→es and
-        // castellano→ca emit as two separate matches).
-        var pairConsumed = new java.util.HashSet<Integer>();
-        var countryWordConsumed = new java.util.HashSet<Integer>();
+    private void extractTwoWordLanguages(ParseContext ctx, List<Words.Word> words,
+                                         Set<Integer> pairConsumed, List<String> allowed,
+                                         LanguageRegistry registry) {
+        var input = ctx.input;
         for (int i = 0; i + 1 < words.size(); i++) {
             var w1 = words.get(i);
             var w2 = words.get(i + 1);
@@ -82,16 +100,16 @@ public final class LanguageExtractor implements Extractor {
             var pairLang = registry.find(combined).orElse(null);
             if (pairLang == null || !isAllowed(pairLang, allowed)) continue;
             ctx.matches.add(new Match(LANGUAGE, pairLang, w1.start(), w2.end(),
-                input.substring(w1.start(), w2.end()), 1000, Set.of(), false));
+                    input.substring(w1.start(), w2.end()), 1000, Set.of(), false));
             pairConsumed.add(i);
             pairConsumed.add(i + 1);
             i++;
         }
+    }
 
-        // Two-word subtitle-affix pass for entries like "custom subbed" /
-        // "soft subs". Match consecutive words separated only by sep chars
-        // and emit a single private subtitle marker spanning both words so
-        // the preceding language can rename despite the inner non-sep word.
+    private void extractTwoWordSubtitleAffixes(ParseContext ctx, List<Words.Word> words,
+                                               Set<Integer> pairConsumed, AffixConfiguration affixes) {
+        var input = ctx.input;
         for (int i = 0; i + 1 < words.size(); i++) {
             if (pairConsumed.contains(i)) continue;
             var w1 = words.get(i);
@@ -99,7 +117,7 @@ public final class LanguageExtractor implements Extractor {
             String gap = input.substring(w1.end(), w2.start());
             if (!gap.chars().allMatch(c -> Seps.isSep((char) c))) continue;
             var combined = (w1.value() + " " + w2.value()).toLowerCase(Locale.ROOT);
-            if (matchesAny(combined, subtitlePrefixes) || matchesAny(combined, subtitleSuffixes)) {
+            if (matchesAny(combined, affixes.subtitlePrefixes) || matchesAny(combined, affixes.subtitleSuffixes)) {
                 ctx.matches.add(new Match(MARKER_PREFIX, input.substring(w1.start(), w2.end()),
                         w1.start(), w2.end(), input.substring(w1.start(), w2.end()),
                         1000, Set.of(), true));
@@ -107,77 +125,124 @@ public final class LanguageExtractor implements Extractor {
                 pairConsumed.add(i + 1);
             }
         }
+    }
 
+    private void extractSingleWordLanguages(ParseContext ctx, List<Words.Word> words,
+                                            Set<Integer> pairConsumed, Set<Integer> countryWordConsumed,
+                                            List<String> allowed, LanguageRegistry registry,
+                                            AffixConfiguration affixes) {
+        var input = ctx.input;
         for (int wi = 0; wi < words.size(); wi++) {
-            if (pairConsumed.contains(wi)) continue;
-            if (countryWordConsumed.contains(wi)) continue;
+            if (pairConsumed.contains(wi) || countryWordConsumed.contains(wi)) continue;
+
             Words.Word word = words.get(wi);
             var lower = word.value().toLowerCase(Locale.ROOT);
+
             if (lower.chars().allMatch(Character::isDigit)) continue;
 
-            // 1. Standalone-word affix → emit a private prefix marker; rename happens in postprocess.
-            if (matchesAny(lower, subtitlePrefixes) || matchesAny(lower, subtitleSuffixes)) {
-                ctx.matches.add(new Match(MARKER_PREFIX, word.value(),
-                        word.start(), word.end(), word.value(), 1000, Set.of(), true));
+            if (tryProcessSubtitleAffix(ctx, word, lower, affixes)) continue;
+            if (tryProcessLanguageAffix(ctx, word, lower, affixes, allowed, registry)) continue;
+            if (tryProcessDirectLanguage(ctx, words, wi, word, lower, input, allowed, registry, countryWordConsumed))
                 continue;
-            }
 
-            // 1a. Standalone language-affix (e.g. "dublado", "dubbed") with no language
-            // attached → emit language=Undetermined. Mirrors python's behavior.
-            if (matchesAny(lower, languageAffixes)) {
-                var und = registry.find("und").orElse(null);
-                if (und != null && isAllowed(und, allowed)) {
-                    ctx.matches.add(new Match(LANGUAGE, und, word.start(), word.end(),
-                            word.value(), 1000, Set.of(), false));
-                    continue;
-                }
-            }
+            tryProcessAffixStripping(ctx, word, lower, affixes, allowed, registry);
+        }
+    }
 
-            // 2. Direct match on the whole word.
-            var lang = registry.find(lower).orElse(null);
-            if (lang != null && isAllowed(lang, allowed)) {
-                // 2a. Check for a trailing country code via hyphen: '-' + exactly 2 alpha chars at word
-                // boundary. Only '-' is accepted as separator — dots/underscores/spaces can separate
-                // unrelated tokens (e.g. "en.va" in "Elle.s.en.va"). Mirrors Python guessit's
-                // LanguageCountry rule which uses '-' as the explicit locale connector.
-                Language langWithCountry = lang;
-                int matchEnd = word.end();
-                if (word.end() + 3 <= input.length() && input.charAt(word.end()) == '-') {
-                    String countryToken = input.substring(word.end() + 1, word.end() + 3);
-                    if (countryToken.matches("[A-Za-z]{2}")
-                            && (word.end() + 3 == input.length() || Seps.isSep(input.charAt(word.end() + 3)))) {
-                        var resolved = registry.findCountry(countryToken.toUpperCase(Locale.ROOT)).orElse(null);
-                        if (resolved != null) {
-                            langWithCountry = new Language(lang.alpha2(), lang.alpha3(), lang.name(), resolved);
-                            matchEnd = word.end() + 3;
-                            // Mark the word covering the country token as consumed so it isn't
-                            // also matched as a separate language (e.g. "br" → Portuguese alias).
-                            if (wi + 1 < words.size()) {
-                                var nextWord = words.get(wi + 1);
-                                if (nextWord.start() == word.end() + 1 && nextWord.end() == word.end() + 3) {
-                                    countryWordConsumed.add(wi + 1);
-                                }
-                            }
-                        }
-                    }
-                }
-                ctx.matches.add(new Match(LANGUAGE, langWithCountry, word.start(), matchEnd,
-                        input.substring(word.start(), matchEnd), 1000, Set.of(), false));
-                continue;
-            }
+    private boolean tryProcessSubtitleAffix(ParseContext ctx, Words.Word word, String lower,
+                                            AffixConfiguration affixes) {
+        if (matchesAny(lower, affixes.subtitlePrefixes) || matchesAny(lower, affixes.subtitleSuffixes)) {
+            ctx.matches.add(new Match(MARKER_PREFIX, word.value(),
+                    word.start(), word.end(), word.value(), 1000, Set.of(), true));
+            return true;
+        }
+        return false;
+    }
 
-            // 3. In-word prefix / suffix strip → emit at the whole-word span (raw includes affix).
-            if (tryStripAffix(ctx, word, lower, subtitlePrefixes, true, allowed, registry, SUBTITLE_LANGUAGE))
-                continue;
-            if (tryStripAffix(ctx, word, lower, languagePrefixes, true, allowed, registry, LANGUAGE)) continue;
-            if (tryStripAffix(ctx, word, lower, subtitleSuffixes, false, allowed, registry, SUBTITLE_LANGUAGE))
-                continue;
-            tryStripAffix(ctx, word, lower, languageSuffixes, false, allowed, registry, LANGUAGE);
+    private boolean tryProcessLanguageAffix(ParseContext ctx, Words.Word word, String lower,
+                                            AffixConfiguration affixes, List<String> allowed,
+                                            LanguageRegistry registry) {
+        if (matchesAny(lower, affixes.languageAffixes)) {
+            var und = registry.find("und").orElse(null);
+            if (und != null && isAllowed(und, allowed)) {
+                ctx.matches.add(new Match(LANGUAGE, und, word.start(), word.end(),
+                        word.value(), 1000, Set.of(), false));
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean tryProcessDirectLanguage(ParseContext ctx, List<Words.Word> words, int wi,
+                                             Words.Word word, String lower, String input,
+                                             List<String> allowed, LanguageRegistry registry,
+                                             Set<Integer> countryWordConsumed) {
+        var lang = registry.find(lower).orElse(null);
+        if (lang == null || !isAllowed(lang, allowed)) return false;
+
+        var result = tryParseCountryCode(words, wi, word, input, lang, registry);
+        if (result.hasCountry) {
+            countryWordConsumed.add(wi + 1);
         }
 
-        // Standalone language-suffix word (e.g. "AUDIO" in "SPANISH.AUDIO-NEWPCT"):
-        // emit a private language.suffix match abutting the prior language match
-        // so RG detection treats it as the scene-prev boundary.
+        ctx.matches.add(new Match(LANGUAGE, result.language, word.start(), result.matchEnd,
+                input.substring(word.start(), result.matchEnd), 1000, Set.of(), false));
+        return true;
+    }
+
+    private record LanguageWithCountryResult(Language language, int matchEnd, boolean hasCountry) {
+    }
+
+    private LanguageWithCountryResult tryParseCountryCode(List<Words.Word> words, int wi,
+                                                          Words.Word word, String input,
+                                                          Language lang, LanguageRegistry registry) {
+        // Check if we have space for "-XX" pattern
+        if (word.end() + 3 > input.length() || input.charAt(word.end()) != '-') {
+            return new LanguageWithCountryResult(lang, word.end(), false);
+        }
+
+        String countryToken = input.substring(word.end() + 1, word.end() + 3);
+        if (!countryToken.matches("[A-Za-z]{2}")) {
+            return new LanguageWithCountryResult(lang, word.end(), false);
+        }
+
+        // Verify separator after country code
+        boolean validEnd = word.end() + 3 == input.length() || Seps.isSep(input.charAt(word.end() + 3));
+        if (!validEnd) {
+            return new LanguageWithCountryResult(lang, word.end(), false);
+        }
+
+        var resolved = registry.findCountry(countryToken.toUpperCase(Locale.ROOT)).orElse(null);
+        if (resolved == null) {
+            return new LanguageWithCountryResult(lang, word.end(), false);
+        }
+
+        Language langWithCountry = new Language(lang.alpha2(), lang.alpha3(), lang.name(), resolved);
+        int matchEnd = word.end() + 3;
+
+        // Mark next word as consumed if it matches the country token
+        boolean hasCountryWord = wi + 1 < words.size()
+                && words.get(wi + 1).start() == word.end() + 1
+                && words.get(wi + 1).end() == word.end() + 3;
+
+        return new LanguageWithCountryResult(langWithCountry, matchEnd, hasCountryWord);
+    }
+
+    private void tryProcessAffixStripping(ParseContext ctx, Words.Word word, String lower,
+                                          AffixConfiguration affixes, List<String> allowed,
+                                          LanguageRegistry registry) {
+        if (tryStripAffix(ctx, word, lower, affixes.subtitlePrefixes, true, allowed, registry, SUBTITLE_LANGUAGE))
+            return;
+        if (tryStripAffix(ctx, word, lower, affixes.languagePrefixes, true, allowed, registry, LANGUAGE))
+            return;
+        if (tryStripAffix(ctx, word, lower, affixes.subtitleSuffixes, false, allowed, registry, SUBTITLE_LANGUAGE))
+            return;
+        tryStripAffix(ctx, word, lower, affixes.languageSuffixes, false, allowed, registry, LANGUAGE);
+    }
+
+    private void extractLanguageSuffixes(ParseContext ctx, List<Words.Word> words,
+                                         List<String> languageSuffixes) {
+        var input = ctx.input;
         for (Words.Word word : words) {
             var lower = word.value().toLowerCase(Locale.ROOT);
             if (!matchesAny(lower, languageSuffixes)) continue;
@@ -393,136 +458,239 @@ public final class LanguageExtractor implements Extractor {
     }
 
     private static boolean renameAdjacentLanguagesAfter(ParseContext ctx, Match marker) {
-        // Find languages immediately after the marker.
         var input = ctx.input;
         var langs = ctx.matches.named(LANGUAGE).toList();
 
-        // Group-aware: when the marker abuts a bracketed group, the releaser
-        // intended every language inside that group to be a subtitle language
-        // (e.g. "VOSTFR [EN.FR.DE]"), so promote them all rather than just the
-        // first one.
+        // Try to handle group-aware promotion first
+        if (tryRenameLanguagesInAdjacentGroup(ctx, marker, langs, input)) {
+            return true;
+        }
+
+        // Find the next language after the marker
+        var next = findNextLanguageAfterMarker(langs, marker, input);
+        if (next == null) {
+            return false;
+        }
+
+        renameToSubtitle(ctx, next);
+
+        // Handle consecutive languages within enclosing group
+        renameConsecutiveLanguagesInEnclosingGroup(ctx, marker, next, langs, input);
+
+        return true;
+    }
+
+    private static boolean tryRenameLanguagesInAdjacentGroup(ParseContext ctx, Match marker,
+                                                             List<Match> langs, String input) {
+        Marker nextGroup = findNextGroupMarker(ctx, marker);
+        if (nextGroup == null) {
+            return false;
+        }
+
+        if (!Seps.betweenIsSeps(input, marker.end(), nextGroup.start())) {
+            return false;
+        }
+
+        var inGroup = findLanguagesInGroup(langs, nextGroup);
+        if (inGroup.isEmpty()) {
+            return false;
+        }
+
+        for (var l : inGroup) {
+            renameToSubtitle(ctx, l);
+        }
+        return true;
+    }
+
+    private static Marker findNextGroupMarker(ParseContext ctx, Match marker) {
         Marker nextGroup = null;
         for (var g : ctx.markers) {
             if (!"group".equals(g.name())) continue;
             if (g.start() < marker.end()) continue;
-            if (nextGroup == null || g.start() < nextGroup.start()) nextGroup = g;
-        }
-        if (nextGroup != null && Seps.betweenIsSeps(input, marker.end(), nextGroup.start())) {
-            final Marker fg = nextGroup;
-            var inGroup = langs.stream()
-                    .filter(l -> l.start() >= fg.start() && l.end() <= fg.end())
-                    .toList();
-            if (!inGroup.isEmpty()) {
-                for (var l : inGroup) renameToSubtitle(ctx, l);
-                return true;
+            if (nextGroup == null || g.start() < nextGroup.start()) {
+                nextGroup = g;
             }
         }
+        return nextGroup;
+    }
 
+    private static List<Match> findLanguagesInGroup(List<Match> langs, Marker group) {
+        return langs.stream()
+                .filter(l -> l.start() >= group.start() && l.end() <= group.end())
+                .toList();
+    }
+
+    private static Match findNextLanguageAfterMarker(List<Match> langs, Match marker, String input) {
         var next = langs.stream()
                 .filter(l -> l.start() >= marker.end())
                 .min(Comparator.comparingInt(Match::start))
                 .orElse(null);
-        if (next == null) return false;
-        if (!Seps.betweenIsSeps(input, marker.end(), next.start())) return false;
-        renameToSubtitle(ctx, next);
-        // When the marker sits inside a group, promote every consecutive
-        // sep-bordered language that follows within the same group as well
-        // (mirrors python's marker-then-multi-language list inside brackets,
-        // e.g. "[... - Sub Ita Eng]").
-        Marker enclosingTmp = null;
-        for (var g : ctx.markers) {
-            if (!"group".equals(g.name())) continue;
-            if (g.start() <= marker.start() && g.end() >= marker.end()) {
-                if (enclosingTmp == null || g.end() - g.start() < enclosingTmp.end() - enclosingTmp.start()) {
-                    enclosingTmp = g;
-                }
-            }
+
+        if (next == null) {
+            return null;
         }
-        final Marker enclosing = enclosingTmp;
-        if (enclosing != null) {
-            int[] prevEnd = {next.end()};
-            var sortedAfter = langs.stream()
-                .filter(l -> l.start() > next.start() && l.end() <= enclosing.end())
+
+        if (!Seps.betweenIsSeps(input, marker.end(), next.start())) {
+            return null;
+        }
+
+        return next;
+    }
+
+    private static void renameConsecutiveLanguagesInEnclosingGroup(ParseContext ctx, Match marker,
+                                                                   Match firstLanguage,
+                                                                   List<Match> langs, String input) {
+        Marker enclosing = findSmallestEnclosingGroup(ctx, marker);
+        if (enclosing == null) {
+            return;
+        }
+
+        var sortedAfter = langs.stream()
+                .filter(l -> l.start() > firstLanguage.start() && l.end() <= enclosing.end())
                 .sorted(Comparator.comparingInt(Match::start))
                 .toList();
-            for (var l : sortedAfter) {
-                if (!Seps.betweenIsSeps(input, prevEnd[0], l.start())) break;
-                renameToSubtitle(ctx, l);
-                prevEnd[0] = l.end();
+
+        int prevEnd = firstLanguage.end();
+        for (var l : sortedAfter) {
+            if (!Seps.betweenIsSeps(input, prevEnd, l.start())) {
+                break;
+            }
+            renameToSubtitle(ctx, l);
+            prevEnd = l.end();
+        }
+    }
+
+    private static Marker findSmallestEnclosingGroup(ParseContext ctx, Match marker) {
+        Marker smallest = null;
+        for (var g : ctx.markers) {
+            if (!"group".equals(g.name())) continue;
+            if (g.start() > marker.start() || g.end() < marker.end()) continue;
+        
+            if (smallest == null || (g.end() - g.start() < smallest.end() - smallest.start())) {
+                smallest = g;
+            }
+        }
+        return smallest;
+    }
+
+    private static boolean isStandaloneAffix(ParseContext ctx, Match marker) {
+        if (!isMarkerValidInGroups(ctx, marker)) {
+            return false;
+        }
+
+        var bounds = findFilepartBounds(ctx, marker);
+        var adjacentMatches = findAdjacentMatches(ctx, marker, bounds);
+
+        String beforeGap = ctx.input.substring(adjacentMatches.prevEnd, marker.start());
+        String afterGap = ctx.input.substring(marker.end(), adjacentMatches.nextStart);
+
+        boolean beforeOk = isAllSeparators(beforeGap);
+        boolean afterOk = isAllSeparators(afterGap) ||
+                isTrailingReleaseGroup(afterGap, adjacentMatches.nextStart, bounds.rightBound);
+
+        return beforeOk && afterOk;
+    }
+
+    private static boolean isMarkerValidInGroups(ParseContext ctx, Match marker) {
+        for (var g : ctx.markers) {
+            if (!"group".equals(g.name())) continue;
+            if (marker.start() < g.start() || marker.end() > g.end()) continue;
+
+            if (!isMarkerStandaloneInGroup(ctx.input, marker, g)) {
+                return false;
             }
         }
         return true;
     }
 
-    private static boolean isStandaloneAffix(ParseContext ctx, Match marker) {
-        var input = ctx.input;
-        // Reject when inside a group that contains additional non-sep content
-        // beyond the marker itself (e.g. "[ShinBunBu-Subs]").
-        for (var g : ctx.markers) {
-            if (!"group".equals(g.name())) continue;
-            if (marker.start() < g.start() || marker.end() > g.end()) continue;
-            int innerStart = Math.min(g.start() + 1, marker.start());
-            int innerEnd = Math.max(g.end() - 1, marker.end());
-            if (innerStart >= marker.start() && innerEnd <= marker.end()) {
-                // marker fills the entire group — fall through to outer-bound check
-                continue;
-            }
-            String before = innerStart < marker.start()
-                ? input.substring(innerStart, marker.start()) : "";
-            String after = innerEnd > marker.end()
-                ? input.substring(marker.end(), innerEnd) : "";
-            if (!before.chars().allMatch(c -> Seps.isSep((char) c))
-                || !after.chars().allMatch(c -> Seps.isSep((char) c))) {
-                return false;
-            }
+    private static boolean isMarkerStandaloneInGroup(String input, Match marker, Marker group) {
+        int innerStart = Math.min(group.start() + 1, marker.start());
+        int innerEnd = Math.max(group.end() - 1, marker.end());
+
+        // Marker fills the entire group
+        if (innerStart >= marker.start() && innerEnd <= marker.end()) {
+            return true;
         }
-        // Determine bounds: nearest match end before, nearest match start after.
+
+        String before = innerStart < marker.start()
+                ? input.substring(innerStart, marker.start()) : "";
+        String after = innerEnd > marker.end()
+                ? input.substring(marker.end(), innerEnd) : "";
+
+        return isAllSeparators(before) && isAllSeparators(after);
+    }
+
+    private record FilepartBounds(int leftBound, int rightBound) {
+    }
+
+    private static FilepartBounds findFilepartBounds(ParseContext ctx, Match marker) {
         int leftBound = 0;
-        int rightBound = input.length();
+        int rightBound = ctx.input.length();
+
         for (var fp : ctx.markers) {
             if (!"path".equals(fp.name())) continue;
             if (marker.start() >= fp.start() && marker.end() <= fp.end()) {
-                leftBound = fp.start();
-                rightBound = fp.end();
-                break;
+                return new FilepartBounds(fp.start(), fp.end());
             }
         }
-        int prevEnd = leftBound;
-        int nextStart = rightBound;
+        return new FilepartBounds(leftBound, rightBound);
+    }
+
+    private record AdjacentMatches(int prevEnd, int nextStart) {
+    }
+
+    private static AdjacentMatches findAdjacentMatches(ParseContext ctx, Match marker,
+                                                       FilepartBounds bounds) {
+        int prevEnd = bounds.leftBound;
+        int nextStart = bounds.rightBound;
+
         for (var m : ctx.matches.all().toList()) {
             if (m == marker) continue;
-            if (m.isPrivate() && !LANGUAGE.equals(m.name())) {
-                // ignore private markers (incl. self) for this check
-                continue;
+            if (m.isPrivate() && !LANGUAGE.equals(m.name())) continue;
+
+            if (m.end() <= marker.start() && m.end() > prevEnd) {
+                prevEnd = m.end();
             }
-            if (m.end() <= marker.start() && m.end() > prevEnd) prevEnd = m.end();
-            if (m.start() >= marker.end() && m.start() < nextStart) nextStart = m.start();
-        }
-        String beforeGap = input.substring(prevEnd, marker.start());
-        String afterGap = input.substring(marker.end(), nextStart);
-        boolean beforeOk = beforeGap.chars().allMatch(c -> Seps.isSep((char) c));
-        boolean afterOk = afterGap.chars().allMatch(c -> Seps.isSep((char) c));
-        // Relax afterGap when the only non-sep content is a trailing
-        // dash-bound release-group token at the very end of the filepart
-        // (e.g. "...7.1 subs -DDR", "...AAC.ESub-DDR"). Mirrors python's
-        // SubtitleSuffix behaviour: subs marker promotes to subtitle_language
-        // =und, and the trailing -RG remains a release-group candidate.
-        if (!afterOk && nextStart == rightBound) {
-            // Allow shape: optional seps + '-' + [A-Za-z0-9]+ + optional seps
-            String trimmed = afterGap.replaceAll("^[\\s._\\[\\](){}+*|=~#/\\\\,;:]+", "");
-            if (trimmed.startsWith("-")) {
-                String rest = trimmed.substring(1);
-                rest = rest.replaceAll("^[\\s._\\[\\](){}+*|=~#/\\\\,;:]+", "");
-                int wordEnd = 0;
-                while (wordEnd < rest.length()
-                    && Character.isLetterOrDigit(rest.charAt(wordEnd))) wordEnd++;
-                if (wordEnd > 0) {
-                    String tail = rest.substring(wordEnd);
-                    if (tail.chars().allMatch(c -> Seps.isSep((char) c))) afterOk = true;
-                }
+            if (m.start() >= marker.end() && m.start() < nextStart) {
+                nextStart = m.start();
             }
         }
-        return beforeOk && afterOk;
+
+        return new AdjacentMatches(prevEnd, nextStart);
+    }
+
+    private static boolean isAllSeparators(String text) {
+        return text.chars().allMatch(c -> Seps.isSep((char) c));
+    }
+
+    private static boolean isTrailingReleaseGroup(String afterGap, int nextStart, int rightBound) {
+        if (nextStart != rightBound) {
+            return false;
+        }
+
+        String trimmed = afterGap.replaceAll("^[\\s._\\[\\](){}+*|=~#/\\\\,;:]+", "");
+        if (!trimmed.startsWith("-")) {
+            return false;
+        }
+
+        String rest = trimmed.substring(1)
+                .replaceAll("^[\\s._\\[\\](){}+*|=~#/\\\\,;:]+", "");
+
+        int wordEnd = findAlphanumericEnd(rest);
+        if (wordEnd == 0) {
+            return false;
+        }
+    
+        String tail = rest.substring(wordEnd);
+        return isAllSeparators(tail);
+    }
+    
+    private static int findAlphanumericEnd(String text) {
+        int wordEnd = 0;
+        while (wordEnd < text.length() && Character.isLetterOrDigit(text.charAt(wordEnd))) {
+            wordEnd++;
+        }
+        return wordEnd;
     }
 
     private static boolean renameAdjacentLanguagesBefore(ParseContext ctx, Match marker) {
