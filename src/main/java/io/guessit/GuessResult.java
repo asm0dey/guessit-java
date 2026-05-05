@@ -32,7 +32,7 @@ public record GuessResult(
     @Opt String type,
     @Opt List<Language> language, @Opt List<Language> subtitleLanguage,
     @Opt List<Country> country,
-    @Opt String source, @Opt List<String> other,
+    @Opt String source, @Opt List<String> sourceList, @Opt List<String> other,
     @Opt List<String> videoCodec, @Opt List<String> audioCodec,
     @Opt List<String> audioChannels, @Opt List<String> audioProfile,
     @Opt List<String> videoProfile, @Opt List<String> videoApi,
@@ -68,7 +68,8 @@ public record GuessResult(
         putList(m, "language", language);
         putList(m, "subtitle_language", subtitleLanguage);
         putList(m, "country", country);
-        putIfNotNull(m, "source", source);
+        if (sourceList != null && !sourceList.isEmpty()) m.put("source", sourceList.size() == 1 ? sourceList.getFirst() : sourceList);
+        else if (source != null) m.put("source", source);
         putList(m, "other", other);
         putList(m, "video_codec", videoCodec);
         putList(m, "audio_codec", audioCodec);
@@ -142,7 +143,8 @@ public record GuessResult(
             case "language" -> singleOrList(language);
             case "subtitle_language" -> singleOrList(subtitleLanguage);
             case "country" -> singleOrList(country);
-            case "source" -> source;
+            case "source" -> sourceList != null && !sourceList.isEmpty()
+                ? (sourceList.size() == 1 ? sourceList.getFirst() : sourceList) : source;
             case "other" -> singleOrList(other);
             case "video_codec" -> singleOrList(videoCodec);
             case "audio_codec" -> singleOrList(audioCodec);

@@ -50,7 +50,7 @@ final class YmlExpected {
             case "language" -> b.language(asLanguages(v));
             case "subtitle_language" -> b.subtitleLanguage(asLanguages(v));
             case "country" -> b.country(asCountries(v));
-            case "source" -> b.source(asString(v));
+            case "source" -> setSource(b, v);
             case "other" -> b.other(asStrings(v));
             case "video_codec" -> b.videoCodec(asStrings(v));
             case "audio_codec" -> b.audioCodec(asStrings(v));
@@ -96,6 +96,14 @@ final class YmlExpected {
         var ints = asInts(v);
         if (ints.size() == 1) b.episode(ints.getFirst());
         else b.episodeList(ints);
+    }
+
+    private static void setSource(GuessResultBuilder b, Object v) {
+        if (v instanceof List<?> l) {
+            var strs = l.stream().map(Object::toString).toList();
+            if (strs.size() == 1) b.source(strs.getFirst());
+            else b.sourceList(strs);
+        } else b.source(asString(v));
     }
 
     private static void setPart(GuessResultBuilder b, Object v) {

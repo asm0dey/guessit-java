@@ -519,6 +519,12 @@ class ProbeTest {
     }
 
     @Test
+    void multipleSourceMatches_emitAsList() {
+        var r = Guessit.parse("dvd ts").toMap();
+        assertThat(r.get("source")).isEqualTo(java.util.List.of("DVD", "Telesync"));
+    }
+
+    @Test
     void multiplePartMatches_emitAsList() {
         var r = Guessit.parse("Show.Name.Part.1.and.Part.2.Blah-Group").toMap();
         assertThat(r.get("title")).isEqualTo("Show Name");

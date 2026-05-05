@@ -143,7 +143,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "language" -> b.language(asLangList(e.getValue()));
                 case "subtitle_language" -> b.subtitleLanguage(asLangList(e.getValue()));
                 case "country" -> b.country(asCountryList(e.getValue()));
-                case "source" -> b.source(asString(e.getValue().getFirst()));
+                case "source" -> applyStringList(e.getValue(), b::source, b::sourceList);
                 case "other" -> b.other(dedupedStringList(e.getValue()));
                 case "video_codec" -> b.videoCodec(dedupedStringList(e.getValue()));
                 case "audio_codec" -> b.audioCodec(dedupedStringList(e.getValue()));
@@ -220,6 +220,18 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             return;
         }
         var values = ms.stream().map(OutputBuilder::asInt).toList();
+        var distinct = values.stream().distinct().toList();
+        if (distinct.size() == 1) single.accept(distinct.getFirst());
+        else list.accept(values);
+    }
+
+    private static void applyStringList(List<Match> ms, Consumer<String> single,
+                                        Consumer<List<String>> list) {
+        if (ms.size() == 1) {
+            single.accept(asString(ms.getFirst()));
+            return;
+        }
+        var values = ms.stream().map(OutputBuilder::asString).toList();
         var distinct = values.stream().distinct().toList();
         if (distinct.size() == 1) single.accept(distinct.getFirst());
         else list.accept(values);

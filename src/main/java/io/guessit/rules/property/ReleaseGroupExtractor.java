@@ -252,10 +252,13 @@ public final class ReleaseGroupExtractor implements Extractor {
         // Trailing source must abut rangeEnd via separator-only suffix.
         var tail = input.substring(trailing.end(), rangeEnd);
         if (!tail.isEmpty() && tail.chars().anyMatch(c -> Character.isLetterOrDigit((char) c))) return;
-        // Must be preceded by a separator (i.e. dash form like "...x264-SDTV").
+        // Must be preceded by a dash (i.e. dash form like "...x264-SDTV").
+        // Other separators (space, dot) don't carry the demote-to-RG signal —
+        // python only treats trailing source as RG candidate in dash form.
+        // Without this restriction, "dvd ts" loses its source=Telesync.
         if (trailing.start() == 0) return;
         char prevCh = input.charAt(trailing.start() - 1);
-        if (Character.isLetterOrDigit(prevCh)) return;
+        if (prevCh != '-') return;
         ctx.matches.remove(trailing);
     }
 

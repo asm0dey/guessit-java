@@ -45,7 +45,7 @@ class YmlParityTest {
             Map.entry("language", new String[]{"language"}),
             Map.entry("subtitle_language", new String[]{"subtitleLanguage"}),
             Map.entry("country", new String[]{"country"}),
-            Map.entry("source", new String[]{"source"}),
+            Map.entry("source", new String[]{"source", "sourceList"}),
             Map.entry("other", new String[]{"other"}),
             Map.entry("video_codec", new String[]{"videoCodec"}),
             Map.entry("audio_codec", new String[]{"audioCodec"}),
