@@ -136,7 +136,22 @@ public final class TitleExtractor implements Extractor {
             } else {
                 var titles = checkTitlesInFilepart(ctx, serieNameFilepart, this::serieNameIgnored);
                 if (titles != null && titles.titles.size() == 1) {
-                    for (var t : titles.titles) {
+                    // Mirror python: filename hole positioned BEFORE the episode
+                    // marker is the show title (e.g. "Show-E01.mkv"); a hole
+                    // AFTER the episode marker is the episode title (e.g.
+                    // "E01-episode title.mkv"). Without this split, both shapes
+                    // emit episode_title, leaving the show title from an outer
+                    // generic dir like "Some Dummy Directory" instead of the
+                    // filename's own "Some Series".
+                    var ep = ctx.matches.range(serieNameFilepart.start(), serieNameFilepart.end(),
+                            m -> "episode".equals(m.name())).findFirst().orElse(null);
+                    var t = titles.titles.getFirst();
+                    var holeBeforeEpisode = ep != null && t.end() <= ep.start();
+                    if (holeBeforeEpisode) {
+                        toAppend.add(new Match(TITLE, t.value(), t.start(), t.end(),
+                            t.raw(), t.priority(), Set.of(TITLE, "filepart-title"), false));
+                        filenameProvidesTitle = true;
+                    } else {
                         toAppend.add(new Match("episode_title", t.value(), t.start(), t.end(),
                             t.raw(), t.priority(), Set.of(TITLE), false));
                     }

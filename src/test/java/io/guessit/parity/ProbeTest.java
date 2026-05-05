@@ -451,6 +451,24 @@ class ProbeTest {
     }
 
     @Test
+    void filenameHoleBeforeEpisodeMarker_isTitleNotEpisodeTitle() {
+        var r = Guessit.parse("Some Dummy Directory/Season 02/Some Series-E01.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("Some Series");
+        assertThat(r.get("season")).isEqualTo(2);
+        assertThat(r.get("episode")).isEqualTo(1);
+        assertThat(r.get("episode_title")).isNull();
+    }
+
+    @Test
+    void filenameHoleBeforeEpisodeMarker_dedupesWithOuterTitle() {
+        var r = Guessit.parse("Some Series/Season 02/Some Series-E01.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("Some Series");
+        assertThat(r.get("season")).isEqualTo(2);
+        assertThat(r.get("episode")).isEqualTo(1);
+        assertThat(r.get("episode_title")).isNull();
+    }
+
+    @Test
     void torrentingPrefix_titleSkipsFromWord() {
         var r = Guessit.parse(
             "From [ WWW.TORRENTING.COM ] - White.Rabbit.Project.S01E08.1080p.NF.WEBRip.DD5.1.x264-ViSUM/"
