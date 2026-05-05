@@ -205,6 +205,15 @@ class ProbeTest {
     }
 
     @Test
+    void germanCustomSubbed_subtitleLanguage() {
+        var r = Guessit.parse(
+            "Show.Name.S04E21.Aint.Nothing.Like.the.Real.Thing.German.Custom.Subbed.720p.HDTV.x264.iNTERNAL-BaCKToRG").toMap();
+        assertThat(r.get("subtitle_language")).isNotNull();
+        assertThat(r.get("language")).isNull();
+        assertThat(r.get("episode_title")).isEqualTo("Aint Nothing Like the Real Thing");
+    }
+
+    @Test
     void huaMulan_hrAsReleaseGroup() {
         var r = Guessit.parse("Hua.Mulan.BRRIP.MP4.x264.720p-HR.avi").toMap();
         assertThat(r.get("title")).isEqualTo("Hua Mulan");

@@ -88,6 +88,26 @@ public final class LanguageExtractor implements Extractor {
             i++;
         }
 
+        // Two-word subtitle-affix pass for entries like "custom subbed" /
+        // "soft subs". Match consecutive words separated only by sep chars
+        // and emit a single private subtitle marker spanning both words so
+        // the preceding language can rename despite the inner non-sep word.
+        for (int i = 0; i + 1 < words.size(); i++) {
+            if (pairConsumed.contains(i)) continue;
+            var w1 = words.get(i);
+            var w2 = words.get(i + 1);
+            String gap = input.substring(w1.end(), w2.start());
+            if (!gap.chars().allMatch(c -> Seps.isSep((char) c))) continue;
+            var combined = (w1.value() + " " + w2.value()).toLowerCase(Locale.ROOT);
+            if (matchesAny(combined, subtitlePrefixes) || matchesAny(combined, subtitleSuffixes)) {
+                ctx.matches.add(new Match(MARKER_PREFIX, input.substring(w1.start(), w2.end()),
+                        w1.start(), w2.end(), input.substring(w1.start(), w2.end()),
+                        1000, Set.of(), true));
+                pairConsumed.add(i);
+                pairConsumed.add(i + 1);
+            }
+        }
+
         for (int wi = 0; wi < words.size(); wi++) {
             if (pairConsumed.contains(wi)) continue;
             if (countryWordConsumed.contains(wi)) continue;
