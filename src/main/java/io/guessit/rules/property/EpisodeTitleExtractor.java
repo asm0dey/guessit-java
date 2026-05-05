@@ -215,6 +215,9 @@ public final class EpisodeTitleExtractor implements Extractor {
         }
     }
 
+    static void filepart3EpisodeTitleStatic(ParseContext ctx) { new EpisodeTitleExtractor().filepart3EpisodeTitle(ctx); }
+    static void filepart2EpisodeTitleStatic(ParseContext ctx) { new EpisodeTitleExtractor().filepart2EpisodeTitle(ctx); }
+
     private void filepart3EpisodeTitle(ParseContext ctx) {
         if (ctx.matches.tagged("filepart-title").findAny().isPresent()) return;
         var paths = Markers.named(ctx.markers, "path").toList();

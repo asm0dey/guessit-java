@@ -92,6 +92,15 @@ public final class TitleExtractor implements Extractor {
     public void postProcess(ParseContext ctx) {
         var hasExpected = ctx.matches.named(TITLE).anyMatch(m -> m.tags().contains("expected"));
         if (!hasExpected) {
+            // Mirror python: Filepart3/2EpisodeTitle seed a title at the
+            // outer/subdir hole BEFORE TitleFromPosition runs. Without this,
+            // titleFromPosition would pick the directory's first hole as
+            // title and leave the filename without one — preventing
+            // EpisodeTitleExtractor.episodeTitleFromPosition from finding
+            // the post-episode hole as episode_title (e.g. "Psy Vs Psy" in
+            // "Psych.S02E03.Psy.Vs.Psy.Français.srt").
+            EpisodeTitleExtractor.filepart3EpisodeTitleStatic(ctx);
+            EpisodeTitleExtractor.filepart2EpisodeTitleStatic(ctx);
             titleFromPosition(ctx);
         }
         preferTitleWithYear(ctx);

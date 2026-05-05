@@ -358,6 +358,25 @@ class ProbeTest {
     }
 
     @Test
+    void psychVsPsy_episodeTitleAfterEpisodeMatch() {
+        var r = Guessit.parse(
+            "series/Psych/Psych S02 Season 2 Complete English DVD/"
+                + "Psych.S02E03.Psy.Vs.Psy.Français.srt").toMap();
+        assertThat(r.get("title")).isEqualTo("Psych");
+        assertThat(r.get("episode_title")).isEqualTo("Psy Vs Psy");
+        assertThat(r.get("episode")).isEqualTo(3);
+    }
+
+    @Test
+    void psychMillionYears_episodeTitleAfterEpisodeMatch() {
+        var r = Guessit.parse(
+            "series/Psych/Psych S02 Season 2 Complete English DVD/"
+                + "Psych.S02E02.65.Million.Years.Off.avi").toMap();
+        assertThat(r.get("title")).isEqualTo("Psych");
+        assertThat(r.get("episode_title")).isEqualTo("65 Million Years Off");
+    }
+
+    @Test
     void mindField_altTitleNotConvertedWhenAdjacentMatchUnrelated() {
         var r = Guessit.parse(
             "Mind.Field.S02E06.The.Power.of.Suggestion.1440p.H264.WEBDL.Subtitles/"
