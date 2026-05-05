@@ -22,9 +22,11 @@ public final class PrintTrace implements Trace {
         sb.append("+name=").append(m.name());
         if (m.priority() != 1000) sb.append("+priority=").append(m.priority());
         if (!m.tags().isEmpty()) {
+            var sorted = new java.util.ArrayList<>(m.tags());
+            java.util.Collections.sort(sorted);
             sb.append("+tags=[");
             boolean first = true;
-            for (var t : m.tags()) {
+            for (var t : sorted) {
                 if (!first) sb.append(',');
                 sb.append(t);
                 first = false;

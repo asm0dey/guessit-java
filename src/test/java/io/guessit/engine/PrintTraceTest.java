@@ -35,17 +35,13 @@ class PrintTraceTest {
     }
 
     @Test
-    void includesTagsWhenPresent() {
+    void rendersTagsAlphabeticallySorted() {
         var tags = new java.util.LinkedHashSet<String>();
         tags.add("weak-episode");
         tags.add("weak-duplicate");
         var m = Match.of("season", 20, 11, 13, "20").withTags(tags);
-        var formatted = PrintTrace.formatMatch(m);
-        assertThat(formatted)
-            .startsWith("20:(11,13)+name=season+tags=[")
-            .endsWith("]");
-        assertThat(formatted).contains("weak-episode");
-        assertThat(formatted).contains("weak-duplicate");
+        assertThat(PrintTrace.formatMatch(m))
+            .isEqualTo("20:(11,13)+name=season+tags=[weak-duplicate,weak-episode]");
     }
 
     @Test

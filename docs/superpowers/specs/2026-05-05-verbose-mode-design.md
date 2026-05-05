@@ -117,15 +117,16 @@ is to convert it to a class.
 
 - `+priority=` shown only when `priority != 1000` (default).
 - `+tags=` shown only when tags are non-empty; tags joined by `,` in
-  insertion order, wrapped in `[]`.
+  ASCII-sorted order (deterministic across runs because `Match.tags()`
+  storage is an unordered immutable `Set`), wrapped in `[]`.
 - `+private` shown only when `isPrivate` is true.
 
 Examples:
 
 ```
 2020:(11,15)+name=year
-20:(11,13)+name=season+tags=[weak-episode,weak-duplicate]
-2020:(11,15)+private+name=weak_duplicate+tags=[weak-episode,weak-duplicate]
+20:(11,13)+name=season+tags=[weak-duplicate,weak-episode]
+2020:(11,15)+private+name=weak_duplicate+tags=[weak-duplicate,weak-episode]
 ```
 
 ### Output layout
