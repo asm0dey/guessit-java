@@ -4,6 +4,7 @@ import io.guessit.config.ConfigLoader;
 import io.guessit.config.OptionsConfig;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.Pipeline;
+import io.guessit.engine.Trace;
 import io.guessit.rules.Rules;
 
 public final class Guessit {
@@ -27,8 +28,15 @@ public final class Guessit {
     }
 
     public GuessResult guess(String input) {
+        return guess(input, Trace.NOOP);
+    }
+
+    public GuessResult guess(String input, Trace trace) {
         var ctx = new ParseContext(input, options, config);
+        ctx.trace = trace;
+        trace.input(input);
         pipeline.run(ctx);
+        trace.result(ctx.result);
         return ctx.result;
     }
 
