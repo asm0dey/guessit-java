@@ -496,6 +496,17 @@ class ProbeTest {
     }
 
     @Test
+    void nameOnlyOption_treatsSlashAsLiteral() {
+        var opts = io.guessit.OptionsBuilder.options().nameOnly(true).build();
+        var r = io.guessit.Guessit.parse("Paparazzi - Timsit/Lindon (MKV 1080p tvripHD)", opts).toMap();
+        assertThat(r.get("title")).isEqualTo("Paparazzi");
+        assertThat(r.get("alternative_title")).isEqualTo(java.util.List.of("Timsit", "Lindon"));
+        assertThat(r.get("screen_size")).isEqualTo("1080p");
+        assertThat(r.get("container")).isEqualTo("mkv");
+        assertThat(r.get("source")).isEqualTo("HDTV");
+    }
+
+    @Test
     void websiteFollowedByDate_demotesToTitle() {
         var r = Guessit.parse(
             "PlayboyPlus.com_16.01.23.Eleni.Corfiate.Playboy.Romania.XXX.iMAGESET-OHRLY"

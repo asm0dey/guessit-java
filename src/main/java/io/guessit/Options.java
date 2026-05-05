@@ -25,6 +25,7 @@ public record Options(
     List<Path> configPaths,
     boolean noUserConfig,
     boolean noDefaultConfig,
+    boolean nameOnly,
     Map<String, Object> raw
 ) {
     public Options {

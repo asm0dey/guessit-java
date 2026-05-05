@@ -121,7 +121,7 @@ public final class YmlTestLoader {
     private static final class OptionsAccum {
         String type, name;
         Boolean dateYearFirst, dateDayFirst, episodePreferNumber, enforceListWhenSingle;
-        boolean noUserConfig, noDefaultConfig;
+        boolean noUserConfig, noDefaultConfig, nameOnly;
         final List<String> expectedTitle = new ArrayList<>();
         final List<String> expectedGroup = new ArrayList<>();
         final List<String> excludes = new ArrayList<>();
@@ -141,6 +141,7 @@ public final class YmlTestLoader {
                     .episodePreferNumber(episodePreferNumber).enforceListWhenSingle(enforceListWhenSingle)
                     .configPaths(configPaths)
                     .noUserConfig(noUserConfig).noDefaultConfig(noDefaultConfig)
+                    .nameOnly(nameOnly)
                     .raw(raw)
                     .build();
         }
@@ -172,10 +173,11 @@ public final class YmlTestLoader {
                 case "--date-day-first", "-D" -> a.dateDayFirst = true;
                 case "--no-default-config" -> a.noDefaultConfig = true;
                 case "--no-user-config" -> a.noUserConfig = true;
+                case "--name-only", "-n" -> a.nameOnly = true;
                 case "--type", "-t" -> {
                     if (i + 1 < tokens.length) a.type = tokens[++i];
                 }
-                case "--name", "-n" -> {
+                case "--name" -> {
                     if (i + 1 < tokens.length) a.name = tokens[++i];
                 }
                 case "--expected-title", "-T" -> {

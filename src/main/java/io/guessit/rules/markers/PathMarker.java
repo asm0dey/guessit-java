@@ -18,6 +18,10 @@ public final class PathMarker implements MarkerProducer {
     public void produce(ParseContext ctx) {
         var input = ctx.input;
         ctx.markers.add(new Marker("whole", 0, input.length(), input));
+        if (ctx.options != null && ctx.options.nameOnly()) {
+            ctx.markers.add(new Marker("path", 0, input.length(), input));
+            return;
+        }
         int start = 0;
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
