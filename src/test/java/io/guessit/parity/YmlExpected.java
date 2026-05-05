@@ -138,8 +138,7 @@ final class YmlExpected {
         var out = new ArrayList<Language>();
         for (var e : asIterable(v)) {
             if (e instanceof Language l) { out.add(l); continue; }
-            var lang = reg.find(e.toString()).orElse(null);
-            if (lang != null) out.add(lang);
+            reg.find(e.toString()).ifPresent(out::add);
         }
         return out;
     }
@@ -149,8 +148,7 @@ final class YmlExpected {
         var out = new ArrayList<Country>();
         for (var e : asIterable(v)) {
             if (e instanceof Country c) { out.add(c); continue; }
-            var c = reg.findCountry(e.toString()).orElse(null);
-            if (c != null) out.add(c);
+            reg.findCountry(e.toString()).ifPresent(out::add);
         }
         return out;
     }

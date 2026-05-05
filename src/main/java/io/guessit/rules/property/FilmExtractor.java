@@ -18,7 +18,6 @@ public final class FilmExtractor implements Extractor {
     private static final Pattern P = Pattern.compile("(?i)f(?<n>\\d{1,2})");
 
     @Override public String name() { return "film"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {

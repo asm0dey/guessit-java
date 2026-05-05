@@ -180,6 +180,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // Extract frame_rate from surviving screen_size raw strings (e.g., "1080p24" → "24").
         var allNames = ctx.matches.all().map(Match::name).toList();
+        //noinspection StatementWithEmptyBody
         if (allNames.stream().anyMatch(n -> n.equals("frame_rate"))) {
             // Already have a standalone frame_rate match — no need to re-parse.
         } else {

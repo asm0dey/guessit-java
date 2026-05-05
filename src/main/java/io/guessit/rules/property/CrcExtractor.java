@@ -44,6 +44,7 @@ public final class CrcExtractor implements Extractor {
      * from later mistaking the false SxxExx pair for a real one and
      * dropping legitimate weak-episode candidates outside the crc32 span.
      */
+    @SuppressWarnings("JavadocReference")
     private void dropSeasonEpisodeInsideCrc(ParseContext ctx) {
         var crcSpans = ctx.matches.named("crc32")
             .map(m -> new int[]{m.start(), m.end()})

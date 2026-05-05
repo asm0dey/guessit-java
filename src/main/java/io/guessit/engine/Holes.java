@@ -113,6 +113,6 @@ public final class Holes {
         current.end = pos;
         if (!current.isEmpty()) ret.add(current);
         current = null;
-        return current;
+        return null;
     }
 }

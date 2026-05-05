@@ -91,6 +91,7 @@ public final class EpisodeTitleExtractor implements Extractor {
         var paths = ctx.markers.stream().filter(m -> "path".equals(m.name())).toList();
         var titleExtractor = new TitleExtractor();
         var hasCrc = ctx.matches.named("crc32").findAny().isPresent();
+        boolean isMovie = "movie".equals(predictedType(ctx));
         for (var fp : Markers.markerSorted(paths, ctx.matches)) {
             var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> TITLE.equals(m.name())).findAny().isPresent();
             if (!hasTitle) continue;
@@ -99,10 +100,56 @@ public final class EpisodeTitleExtractor implements Extractor {
             if (titles == null) continue;
             for (var t : titles.titles()) {
                 var prev = ctx.matches.previous(t, m -> PREVIOUS_NAMES.contains(m.name()));
-                if (prev.isPresent() || hasCrc) ctx.matches.add(t);
+                if (prev.isEmpty() && !hasCrc) continue;
+                // Movie context: skip holes wedged between two structural
+                // properties (e.g. "...source SPLIT SCENES container..."
+                // → SPLIT SCENES is noise, not an alt-title). Holes that
+                // are still in the "title region" (before any source/codec/
+                // etc. trailing property) survive and reach TypeProcessor's
+                // demote-to-alt path.
+                if (isMovie && wedgedBetweenProperties(ctx, fp, t)) continue;
+                ctx.matches.add(t);
             }
             for (var r : titles.toRemove()) ctx.matches.remove(r);
         }
+    }
+
+    /** True when both sides of a candidate hole within {@code filepart} are
+     *  bounded by trailing structural property matches (source / video_codec /
+     *  audio_codec / screen_size / etc.). Such holes are noise, not titles. */
+    private static boolean wedgedBetweenProperties(ParseContext ctx, Marker filepart, Match candidate) {
+        Set<String> trailingNames = Set.of("source", "video_codec", "audio_codec",
+            "screen_size", "audio_channels", "audio_profile", "video_profile",
+            "streaming_service", "container");
+        boolean propBefore = ctx.matches.all().anyMatch(m -> trailingNames.contains(m.name())
+                && m.start() >= filepart.start() && m.end() <= candidate.start());
+        boolean propAfter = ctx.matches.all().anyMatch(m -> trailingNames.contains(m.name())
+                && m.start() >= candidate.end() && m.end() <= filepart.end());
+        return propBefore && propAfter;
+    }
+
+    /** Mirror of TypeProcessor.decide for early type prediction inside
+     *  EpisodeTitleExtractor.postProcess (TypeProcessor itself runs later in
+     *  the PostPhase). Returns "movie" or "episode". */
+    private static String predictedType(ParseContext ctx) {
+        var optType = ctx.options.type();
+        if (optType != null) return optType;
+        if (anyNamed(ctx, EPISODE) || anyNamed(ctx, SEASON)
+                || anyNamed(ctx, "episode_details") || anyNamed(ctx, "absolute_episode")) {
+            return EPISODE;
+        }
+        if (anyNamed(ctx, "film")) return "movie";
+        boolean hasYear = anyNamed(ctx, "year");
+        if (anyNamed(ctx, "date") && !hasYear) return EPISODE;
+        if (anyNamed(ctx, "bonus") && !hasYear) return EPISODE;
+        boolean hasCrc = anyNamed(ctx, "crc32");
+        boolean anyAnimeRg = ctx.matches.named("release_group").anyMatch(m -> m.tags().contains("anime"));
+        if (hasCrc && anyAnimeRg) return EPISODE;
+        return "movie";
+    }
+
+    private static boolean anyNamed(ParseContext ctx, String name) {
+        return ctx.matches.named(name).anyMatch(m -> !m.isPrivate());
     }
 
     private void alternativeTitleReplace(ParseContext ctx) {

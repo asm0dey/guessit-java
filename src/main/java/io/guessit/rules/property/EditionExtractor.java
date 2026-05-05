@@ -105,14 +105,13 @@ public final class EditionExtractor implements Extractor {
 
     private static Set<String> parseTags(Object t) {
         return switch (t) {
-            case null -> Set.of();
             case String s -> Set.of(s);
             case List<?> l -> {
                 var out = new HashSet<String>();
                 for (var v : l) if (v != null) out.add(v.toString());
                 yield Set.copyOf(out);
             }
-            default -> Set.of();
+            case null, default -> Set.of();
         };
     }
 
@@ -124,7 +123,6 @@ public final class EditionExtractor implements Extractor {
                 case "null" -> _ -> true;
                 case "import:seps_after" -> Validators.sepsAfter(input);
                 case "import:seps_before" -> Validators.sepsBefore(input);
-                case "import:seps_surround" -> Validators.sepsSurround(input);
                 default -> Validators.sepsSurround(input);
             };
         }

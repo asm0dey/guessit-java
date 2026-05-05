@@ -13,11 +13,8 @@ package io.guessit.engine;
  * </ul>
  */
 public record Marker(String name, int start, int end, String raw) {
-    /** True if {@code pos} falls within this marker's half-open span. */
-    public boolean contains(int pos) { return pos >= start && pos < end; }
 
     /** True if the {@code [s, e)} span lies entirely inside this marker. */
     public boolean covers(int s, int e) { return s >= start && e <= end; }
 
-    public int length() { return end - start; }
 }

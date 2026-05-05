@@ -12,7 +12,7 @@ class YmlTestLoaderTest {
     void loadsBasicCase() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/basic.yml");
         assertEquals(1, cases.size());
-        var c = cases.get(0);
+        var c = cases.getFirst();
         assertEquals("Movie.Name.2020.1080p.mkv", c.input());
         assertEquals(2020, c.expected().get("year"));
         assertEquals("Movie Name", c.expected().get("title"));
@@ -35,7 +35,7 @@ class YmlTestLoaderTest {
     void loadsCaseWithOptions() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/options.yml");
         assertEquals(1, cases.size());
-        var c = cases.get(0);
+        var c = cases.getFirst();
         assertNotNull(c.options());
         assertEquals(Boolean.TRUE, c.options().episodePreferNumber());
         assertFalse(c.expected().containsKey("options"));
@@ -46,7 +46,7 @@ class YmlTestLoaderTest {
     void loadsEmptyExpected() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/empty.yml");
         assertEquals(1, cases.size());
-        assertTrue(cases.get(0).expected().isEmpty());
+        assertTrue(cases.getFirst().expected().isEmpty());
     }
 
     @Test

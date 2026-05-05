@@ -14,7 +14,7 @@ class ChainTest {
         var tail = Pattern.compile("(?i)-?e(?<episode>\\d+)");
         var runs = new Chain(head).tail(tail, Chain.Repeater.STAR).scan("S01E02-E03");
         assertEquals(1, runs.size());
-        var run = runs.get(0);
+        var run = runs.getFirst();
         assertEquals(0, run.start());
         assertEquals(10, run.end());
         assertEquals(List.of("01"), run.captures("season"));

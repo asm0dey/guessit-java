@@ -165,7 +165,6 @@ public final class OtherExtractor implements Extractor {
                 case "null" -> _ -> true;
                 case "import:seps_after" -> Validators.sepsAfter(input);
                 case "import:seps_before" -> Validators.sepsBefore(input);
-                case "import:seps_surround" -> Validators.sepsSurround(input);
                 default -> Validators.sepsSurround(input);
             };
         }

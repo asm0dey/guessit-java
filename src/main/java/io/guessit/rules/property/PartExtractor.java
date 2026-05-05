@@ -16,7 +16,6 @@ public final class PartExtractor implements Extractor {
         "(?i)(?:pt|part)[" + Abbreviations.SEPS_NO_FS_CLASS + "]?(?<n>" + Numerals.NUMERAL + ")");
 
     @Override public String name() { return "part"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {

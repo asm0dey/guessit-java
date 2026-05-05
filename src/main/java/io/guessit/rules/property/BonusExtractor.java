@@ -20,7 +20,6 @@ public final class BonusExtractor implements Extractor {
     private static final Pattern P = Pattern.compile("(?i)x(?<n>\\d+)");
 
     @Override public String name() { return "bonus"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {

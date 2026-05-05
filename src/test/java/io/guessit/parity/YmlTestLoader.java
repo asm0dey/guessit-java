@@ -73,7 +73,7 @@ public final class YmlTestLoader {
             topLevel.remove("__default__");
         }
 
-        var pending = new ArrayList<Object>();
+        var pending = new ArrayList<>();
         for (var entry : topLevel.entrySet()) {
             var k = entry.getKey();
             var v = entry.getValue();

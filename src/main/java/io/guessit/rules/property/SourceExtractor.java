@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.engine.*;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -217,11 +218,11 @@ public final class SourceExtractor implements Extractor {
         var sepsBefore = Validators.sepsBefore(input);
         var sepsAfter = Validators.sepsAfter(input);
         for (var s : sources) {
-            if (!sepsBefore.test(s) && !hasNeighborTag(ctx, s.start() - 1, "source-prefix")) {
+            if (!sepsBefore.test(s) && noNeighborTag(ctx, s.start() - 1, "source-prefix")) {
                 toRemove.add(s);
                 continue;
             }
-            if (!sepsAfter.test(s) && !hasNeighborTag(ctx, s.end(), "source-suffix")) toRemove.add(s);
+            if (!sepsAfter.test(s) && noNeighborTag(ctx, s.end(), "source-suffix")) toRemove.add(s);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
@@ -315,7 +316,7 @@ public final class SourceExtractor implements Extractor {
         for (var m : ctx.matches.all().toList()) {
             if (m.start() >= s && m.end() <= e) matchesInRange.add(m);
         }
-        matchesInRange.sort((a, b) -> Integer.compare(a.start(), b.start()));
+        matchesInRange.sort(Comparator.comparingInt(Match::start));
         for (var m : matchesInRange) {
             while (pos < m.start()) {
                 if (!Seps.isSep(input.charAt(pos))) return false;
@@ -330,7 +331,7 @@ public final class SourceExtractor implements Extractor {
         return true;
     }
 
-    private static boolean hasNeighborTag(ParseContext ctx, int pos, String tag) {
-        return ctx.matches.all().anyMatch(m -> m.tags().contains(tag) && m.start() <= pos && pos <= m.end());
+    private static boolean noNeighborTag(ParseContext ctx, int pos, String tag) {
+        return ctx.matches.all().noneMatch(m -> m.tags().contains(tag) && m.start() <= pos && pos <= m.end());
     }
 }

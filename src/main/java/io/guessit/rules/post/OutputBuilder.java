@@ -27,15 +27,6 @@ import java.util.function.Consumer;
  * the extractors that produced the values.
  */
 public final class OutputBuilder implements Consumer<ParseContext> {
-    /**
-     * Properties that are "coupled" by span position: when one is excluded, the other
-     * at the same span should also be excluded. Mirrors Python guessit behaviour where
-     * disabling {@code season} or {@code episode} disables the combined SxxExx extractor.
-     */
-    private static final java.util.Map<String, String> COUPLED_EXCLUSION = java.util.Map.of(
-            "season", "episode",
-            "episode", "season"
-    );
 
     /**
      * Properties that always cascade: excluding the parent always excludes the child

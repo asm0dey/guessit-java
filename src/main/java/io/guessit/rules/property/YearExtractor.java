@@ -78,7 +78,7 @@ public final class YearExtractor implements Extractor {
                 // Drop the FIRST ungrouped year so it can fall into the title hole;
                 // the second year is the actual release year. Mirrors python
                 // KeepMarkedYearInFilepart: "Keep first year for title".
-                toRemove.add(ungrouped.get(0));
+                toRemove.add(ungrouped.getFirst());
                 if (ungrouped.size() > 2) toRemove.addAll(ungrouped.subList(2, ungrouped.size()));
             }
 

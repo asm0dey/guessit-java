@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -98,12 +99,12 @@ public final class WebsiteExtractor implements Extractor {
         }
 
         // Match website URL patterns
-        matchPattern(ctx, input, pattern1, validator);
-        matchPattern(ctx, input, pattern2, validator);
-        matchPattern(ctx, input, pattern3, validator);
+        matchPattern(ctx, input, pattern1);
+        matchPattern(ctx, input, pattern2);
+        matchPattern(ctx, input, pattern3);
     }
 
-    private static void matchPattern(ParseContext ctx, String input, Pattern p, java.util.function.Predicate<Match> validator) {
+    private static void matchPattern(ParseContext ctx, String input, Pattern p) {
         var matcher = p.matcher(input);
         while (matcher.find()) {
             int s = matcher.start(1);
@@ -180,7 +181,7 @@ public final class WebsiteExtractor implements Extractor {
     private static List<String> loadTlds() {
         var tlds = new ArrayList<String>();
         try (var is = WebsiteExtractor.class.getResourceAsStream(TLD_PATH);
-             var reader = new BufferedReader(new InputStreamReader(is))) {
+             var reader = new BufferedReader(new InputStreamReader(Objects.requireNonNull(is)))) {
             String line;
             boolean first = true;
             while ((line = reader.readLine()) != null) {

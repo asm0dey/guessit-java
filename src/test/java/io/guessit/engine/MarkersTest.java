@@ -18,7 +18,7 @@ class MarkersTest {
     @Test void atMatchReturnsContainingMarker() {
         var markers = List.of(new Marker("path", 0, 10, "0123456789"));
         var m = Match.of("x", null, 2, 5, "234");
-        assertEquals(markers.get(0), Markers.atMatch(markers, m, mk -> true).orElseThrow());
+        assertEquals(markers.getFirst(), Markers.atMatch(markers, m, mk -> true).orElseThrow());
     }
     @Test void markerSortedByDescendingMatchCount() {
         var p1 = new Marker("path", 0, 5, "0..4");

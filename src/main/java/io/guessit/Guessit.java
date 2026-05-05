@@ -35,9 +35,4 @@ public final class Guessit {
         return ctx.result;
     }
 
-    public Map<String, List<Object>> properties() {
-        // Stub: no extractors yet. Real implementation lands with rule introspection.
-        return java.util.Map.of();
-    }
-
 }

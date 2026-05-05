@@ -401,7 +401,6 @@ public final class ReleaseGroupExtractor implements Extractor {
                 }
             }
             s = sFinal;
-            e = eFinal;
             var raw = input.substring(s, e);
             var candidate = cleanGroupName(raw);
             if (!validGroupName(candidate, true)) continue;
@@ -476,7 +475,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             .filter(m -> m.start() >= candidateEnd && m.end() <= filepart.end())
             .findFirst().orElse(null);
         if (notRgAfter == null) return false;
-        return !hasLeadingTitleHole(ctx, filepart, prev.start());
+        return noLeadingTitleHole(ctx, filepart, prev.start());
     }
 
     /** Same shape as {@link #candidateIsLikelyTitle} but used by
@@ -488,13 +487,13 @@ public final class ReleaseGroupExtractor implements Extractor {
             .filter(m -> m.start() >= rightBoundary && m.end() <= filepart.end())
             .findFirst().orElse(null);
         if (notRgAfter == null) return false;
-        return !hasLeadingTitleHole(ctx, filepart, rightBoundary);
+        return noLeadingTitleHole(ctx, filepart, rightBoundary);
     }
 
-    private static boolean hasLeadingTitleHole(ParseContext ctx, Marker filepart, int rightBoundary) {
+    private static boolean noLeadingTitleHole(ParseContext ctx, Marker filepart, int rightBoundary) {
         var input = ctx.input;
         int hs = filepart.start();
-        if (rightBoundary <= hs) return false;
+        if (rightBoundary <= hs) return true;
         // Include private matches (e.g. SxxExx episodeMarker "e", chain heads)
         // so leading marker chars don't count as a title hole. Need to gauge
         // truly unmatched input.
@@ -506,15 +505,15 @@ public final class ReleaseGroupExtractor implements Extractor {
         for (var m : prevMatches) {
             if (m.start() > cursor) {
                 var gap = input.substring(cursor, m.start());
-                if (gap.chars().anyMatch(c -> !isGroupSep((char) c))) return true;
+                if (gap.chars().anyMatch(c -> !isGroupSep((char) c))) return false;
             }
             if (m.end() > cursor) cursor = m.end();
         }
         if (cursor < rightBoundary) {
             var gap = input.substring(cursor, rightBoundary);
-            return gap.chars().anyMatch(Character::isLetter);
+            return gap.chars().noneMatch(Character::isLetter);
         }
-        return false;
+        return true;
     }
 
     private static boolean overlapsNonLanguage(ParseContext ctx, int s, int e) {

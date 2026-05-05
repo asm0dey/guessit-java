@@ -13,7 +13,6 @@ public final class CdExtractor implements Extractor {
         "(?i)(?<count>\\d+)" + SEP + "cds?");
 
     @Override public String name() { return "cd"; }
-    @Override public int priority() { return 1000; }
 
     @Override
     public void extract(ParseContext ctx) {

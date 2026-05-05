@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Targeted regression checks for YML parity diffs that have been fixed.
  *  New diagnoses go here first to anchor a fix; once a parity case lands
  *  the assertion stays as a guard. */
+@SuppressWarnings("unchecked")
 class ProbeTest {
 
     @Test
@@ -202,6 +203,15 @@ class ProbeTest {
         assertThat(r.get("title")).isEqualTo("Show Name");
         assertThat((java.util.List<Integer>) r.get("absolute_episode")).containsExactlyInAnyOrder(313, 314, 315);
         assertThat(r.get("season")).isEqualTo(16);
+    }
+
+    @Test
+    void splitScenesBetweenSourceAndContainer_notAltTitle() {
+        var r = Guessit.parse(
+            "French Maid Services - Lola At Your Service WEB-DL SPLIT SCENES MP4-RARBG").toMap();
+        assertThat(r.get("title")).isEqualTo("French Maid Services");
+        assertThat(r.get("alternative_title")).isEqualTo("Lola At Your Service");
+        assertThat(r.get("release_group")).isEqualTo("RARBG");
     }
 
     @Test

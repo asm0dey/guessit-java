@@ -7,10 +7,10 @@ import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
 import static io.guessit.Guessit.parse;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SuppressWarnings("OptionalGetWithoutIsPresent")
 class AudioCodecExtractorTest {
     private static ParseContext run(String input) {
         var ctx = new ParseContext(input, Options.defaults(), ConfigLoader.load(Options.defaults()));

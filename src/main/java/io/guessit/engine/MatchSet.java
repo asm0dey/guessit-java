@@ -114,5 +114,4 @@ public final class MatchSet {
 
     public List<Match> snapshot() { return List.copyOf(matches); }
 
-    public int size() { return matches.size(); }
 }

@@ -18,8 +18,8 @@ class CommonsCsvSmokeTest {
                 CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).get())) {
             var records = parser.getRecords();
             assertEquals(1, records.size());
-            assertEquals("US", records.get(0).get("alpha2"));
-            assertEquals("United States", records.get(0).get("name"));
+            assertEquals("US", records.getFirst().get("alpha2"));
+            assertEquals("United States", records.getFirst().get("name"));
         }
     }
 
@@ -29,7 +29,7 @@ class CommonsCsvSmokeTest {
         try (var parser = CSVParser.parse(new StringReader(csv),
                 CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).get())) {
             var records = parser.getRecords();
-            assertEquals(List.of("Foo, Inc."), List.of(records.get(0).get("name")));
+            assertEquals(List.of("Foo, Inc."), List.of(records.getFirst().get("name")));
         }
     }
 }

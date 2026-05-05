@@ -1,13 +1,11 @@
 package io.guessit.rules.post;
 
-import io.guessit.engine.Marker;
 import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
 import java.util.*;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * For each property name, the first filepart's values win; later fileparts

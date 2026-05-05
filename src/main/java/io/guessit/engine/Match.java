@@ -67,8 +67,6 @@ public record Match(
 
     public int length() { return end - start; }
 
-    public int[] span() { return new int[]{start, end}; }
-
     /** True if the spans of this match and {@code other} share at least one position. */
     public boolean overlaps(Match other) {
         return this.start < other.end && other.start < this.end;
