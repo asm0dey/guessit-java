@@ -52,7 +52,8 @@
       "mcp__idea__get_run_configurations",
       "mcp__idea__list_database_connections",
       "mcp__idea__xdebug_list_breakpoints",
-      "Bash(read f *)"
+      "Bash(read f *)",
+      "Bash(uvx guessit *)"
     ]
   }
 }

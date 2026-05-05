@@ -3,7 +3,6 @@ package io.guessit.rules.property;
 import io.guessit.engine.*;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -99,48 +98,9 @@ public final class ReleaseGroupExtractor implements Extractor {
     @Override
     public void postProcess(ParseContext ctx) {
         if (ctx.matches.named(RELEASE_GROUP).findAny().isPresent()) return;
-        if (detectScene(ctx)) { preferOuterFolderCasing(ctx); return; }
-        if (detectDashSeparated(ctx)) { preferOuterFolderCasing(ctx); return; }
-        if (detectAnimeBrackets(ctx)) preferOuterFolderCasing(ctx);
-    }
-
-    /**
-     * After a release_group match has been emitted (by any detect* method), check
-     * whether an outer filepart (smaller start) also contains the same name with
-     * different casing. If so, replace the value with the outer-folder casing.
-     * Mirrors Python's ScenicReleaseGroup walking all fileparts and preferring
-     * the upper folder when both have the same name.
-     */
-    private static void preferOuterFolderCasing(ParseContext ctx) {
-        var rg = ctx.matches.named(RELEASE_GROUP).findFirst().orElse(null);
-        if (rg == null) return;
-        String currentVal = rg.value().toString();
-        String lowerVal = currentVal.toLowerCase(Locale.ROOT);
-        // Walk all fileparts; prefer the one with the smallest start (upper folder)
-        // that also contains the same group name case-insensitively.
-        String bestCasing = null;
-        int bestStart = rg.start(); // default: current match position
-        for (var filepart : pathFilepartsRightmostFirst(ctx)) {
-            // Only check fileparts that are outer (smaller start) than the current match
-            if (filepart.start() >= rg.start()) continue;
-            var part = ctx.input.substring(filepart.start(), filepart.end());
-            int idx = part.toLowerCase(Locale.ROOT).indexOf(lowerVal);
-            if (idx >= 0) {
-                // Verify it's a word boundary (surrounded by seps or filepart edges)
-                int absStart = filepart.start() + idx;
-                int absEnd = absStart + currentVal.length();
-                boolean leftOk = absStart == filepart.start() || Seps.isSep(ctx.input.charAt(absStart - 1));
-                boolean rightOk = absEnd == filepart.end() || Seps.isSep(ctx.input.charAt(absEnd));
-                if (leftOk && rightOk && absStart < bestStart) {
-                    bestCasing = ctx.input.substring(absStart, absEnd);
-                    bestStart = absStart;
-                }
-            }
-        }
-        if (bestCasing != null && !bestCasing.equals(currentVal)) {
-            ctx.matches.remove(rg);
-            ctx.matches.add(rg.withValue(bestCasing));
-        }
+        if (detectScene(ctx)) return;
+        if (detectDashSeparated(ctx)) return;
+        detectAnimeBrackets(ctx);
     }
 
     private boolean detectDashSeparated(ParseContext ctx) {
@@ -542,13 +502,76 @@ public final class ReleaseGroupExtractor implements Extractor {
             .anyMatch(m -> m.start() < e && s < m.end());
     }
 
-    /** Path markers in marker_sorted order (rightmost first when counts tie),
-     *  so filename wins over parent dir for release-group detection. */
+    /** Path markers in marker_sorted order: most-valuable filepart first
+     *  (most distinct match names; rightmost wins on tie). Mirrors python's
+     *  marker_sorted used by SceneReleaseGroup so the filepart with the
+     *  richest match set claims the release_group, including its casing.
+     *
+     *  <p>Adds a synthetic "episode_title" weight when a filepart has a
+     *  text-bearing hole between an episode/season match and the next
+     *  source/codec/screen_size/other match. Java's RG postProcess runs
+     *  before EpisodeTitleExtractor.postProcess, so episode_title isn't yet
+     *  emitted; python's RG sees it because EpisodeTitleFromPosition runs
+     *  first. Counting the hole equalizes the comparison. */
     private static List<Marker> pathFilepartsRightmostFirst(ParseContext ctx) {
         var paths = new java.util.ArrayList<Marker>();
         for (var m : ctx.markers) if ("path".equals(m.name())) paths.add(m);
-        java.util.Collections.reverse(paths);
-        return paths;
+        return markerSortedWithEpisodeTitleHint(paths, ctx);
+    }
+
+    private static final Set<String> EP_TITLE_NEXT_NAMES = Set.of(
+        "screen_size", "source", "video_codec", "audio_codec", "other",
+        "container", "streaming_service");
+
+    private static java.util.function.Predicate<Match> markerWeightPredicate() {
+        return m -> !m.isPrivate()
+            && !"proper_count".equals(m.name())
+            && !"title".equals(m.name())
+            && !("container".equals(m.name()) && m.tags().contains("extension"))
+            && !("other".equals(m.name()) && "Rip".equals(m.value()));
+    }
+
+    private static int filepartWeight(Marker fp, ParseContext ctx) {
+        var pred = markerWeightPredicate();
+        var weight = (int) ctx.matches.range(fp.start(), fp.end(), pred)
+            .map(Match::name).distinct().count();
+        if (hasEpisodeTitleHole(fp, ctx)) weight++;
+        return weight;
+    }
+
+    private static boolean hasEpisodeTitleHole(Marker fp, ParseContext ctx) {
+        var ep = ctx.matches.all()
+            .filter(m -> "episode".equals(m.name()) || "season".equals(m.name()))
+            .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+            .reduce((a, b) -> a.end() >= b.end() ? a : b)
+            .orElse(null);
+        if (ep == null) return false;
+        var next = ctx.matches.all()
+            .filter(m -> EP_TITLE_NEXT_NAMES.contains(m.name()))
+            .filter(m -> m.start() >= ep.end() && m.end() <= fp.end())
+            .reduce((a, b) -> a.start() <= b.start() ? a : b)
+            .orElse(null);
+        if (next == null) return false;
+        var gap = ctx.input.substring(ep.end(), next.start());
+        for (int i = 0; i < gap.length(); i++) {
+            if (Character.isLetter(gap.charAt(i))) return true;
+        }
+        return false;
+    }
+
+    private static List<Marker> markerSortedWithEpisodeTitleHint(List<Marker> paths, ParseContext ctx) {
+        var indexed = new java.util.ArrayList<Integer>();
+        for (var i = 0; i < paths.size(); i++) indexed.add(i);
+        indexed.sort((a, b) -> {
+            var wa = filepartWeight(paths.get(a), ctx);
+            var wb = filepartWeight(paths.get(b), ctx);
+            var byWeight = Integer.compare(wb, wa);
+            if (byWeight != 0) return byWeight;
+            return Integer.compare(b, a);
+        });
+        var ret = new java.util.ArrayList<Marker>();
+        for (var i : indexed) ret.add(paths.get(i));
+        return ret;
     }
 
     private static List<Marker> pathFilepartsLeftmostFirst(ParseContext ctx) {

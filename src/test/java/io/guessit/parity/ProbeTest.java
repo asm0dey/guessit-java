@@ -484,4 +484,24 @@ class ProbeTest {
         assertThat(r.get("title")).isEqualTo("White Rabbit Project");
         assertThat(r.get("website")).isEqualTo("WWW.TORRENTING.COM");
     }
+
+    @Test
+    void releaseGroupCasing_innerWinsWhenMoreValuableViaSampleTag() {
+        var r = Guessit.parse(
+            "WWIIs.Most.Daring.Raids.S01E04.Storming.Mussolinis.Island.1080p.WEB.h264-EDHD/"
+                + "wwiis.most.daring.raids.s01e04.storming.mussolinis.island.1080p.web.h.264-edhd-sample.mkv"
+        ).toMap();
+        assertThat(r.get("release_group")).isEqualTo("edhd");
+        assertThat(r.get("other")).isEqualTo("Sample");
+    }
+
+    @Test
+    void releaseGroupCasing_outerWinsWhenItHasEpisodeTitleHole() {
+        var r = Guessit.parse(
+            "Scrubs/SEASON-06/Scrubs.S06E09.My.Perspective.DVDRip.XviD-WAT/"
+                + "scrubs.s06e09.dvdrip.xvid-wat.avi"
+        ).toMap();
+        assertThat(r.get("release_group")).isEqualTo("WAT");
+        assertThat(r.get("episode_title")).isEqualTo("My Perspective");
+    }
 }
