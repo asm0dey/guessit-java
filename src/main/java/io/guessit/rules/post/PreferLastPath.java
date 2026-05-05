@@ -71,6 +71,22 @@ public final class PreferLastPath implements PostProcessor {
             // them lets the inner filepart's title (often poorer casing or
             // has a release-group prefix like "blow-…") win.
             .filter(m -> !("title".equals(m.name()) && m.tags().contains("equivalent-ignore")))
+            // Preserve outer SxxExx-tagged season/episode when the last
+            // filepart only has non-SxxExx matches for that name. Palindrome-
+            // tail filenames produce bogus weak-episode/weak-duplicate matches
+            // in the inner filepart (e.g. "5102.sregnesseM..." → season=51);
+            // they shouldn't displace the real outer S01E07.
+            // RemoveLessSpecificSeasonEpisode handles the proper marker_sorted
+            // comparison later.
+            .filter(m -> {
+                if (!"season".equals(m.name()) && !"episode".equals(m.name())) return true;
+                if (!m.tags().contains("SxxExx")) return true;
+                return ctx.matches.snapshot().stream()
+                    .filter(s -> !s.isPrivate())
+                    .filter(s -> m.name().equals(s.name()))
+                    .filter(s -> s.start() >= last.start() && s.end() <= last.end())
+                    .anyMatch(s -> s.tags().contains("SxxExx"));
+            })
             .toList();
         for (var m : toDrop) ctx.matches.remove(m);
     }

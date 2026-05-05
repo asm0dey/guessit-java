@@ -519,6 +519,29 @@ class ProbeTest {
     }
 
     @Test
+    void palindromeTail_outerSxxExxWinsAgainstWeakInnerSeasonEpisode() {
+        var r = Guessit.parse(
+            "The.Messengers.2015.S01E07.1080p.WEB-DL.DD5.1.H264.Nlsubs-Q/"
+                + "QoQ-sbuSLN.462.H.1.5DD.LD-BEW.p0801.70E10S.5102.sregnesseM.ehT.mkv"
+        ).toMap();
+        assertThat(r.get("season")).isEqualTo(1);
+        assertThat(r.get("episode")).isEqualTo(7);
+        assertThat(r.get("release_group")).isEqualTo("Q");
+    }
+
+    @Test
+    void trailingLanguageDash_promotesToReleaseGroup() {
+        var r = Guessit.parse(
+            "/Finding.Carter.S02E01.Love.the.Way.You.Lie.1080p.WEB-DL.AAC2.0.H.264-NL/"
+                + "LN-462.H.0.2CAA.LD-BEW.p0801.eiL.uoY.yaW.eht.evoL.10E20S.retraC.gnidniF.mkv"
+        ).toMap();
+        assertThat(r.get("season")).isEqualTo(2);
+        assertThat(r.get("episode")).isEqualTo(1);
+        assertThat(r.get("release_group")).isEqualTo("NL");
+        assertThat(r.get("language")).isNull();
+    }
+
+    @Test
     void releaseGroupCasing_outerWinsWhenItHasEpisodeTitleHole() {
         var r = Guessit.parse(
             "Scrubs/SEASON-06/Scrubs.S06E09.My.Perspective.DVDRip.XviD-WAT/"

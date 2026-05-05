@@ -136,7 +136,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 if (s < e) {
                     var raw = input.substring(s, e);
                     var candidate = cleanGroupName(raw);
-                    if (validGroupName(candidate, false) && !overlapsNonLanguageExceptHd(ctx, s, e)
+                    if (validGroupName(candidate, false, true) && !overlapsNonLanguageExceptHd(ctx, s, e)
                         && !overlapsSubtitleLanguage(ctx, s, e)
                         && hasDotSeparatedPredecessors(ctx, filepart.start(), s)) {
                         if (isProbableLanguagePrefix(candidate)) continue;
@@ -304,7 +304,31 @@ public final class ReleaseGroupExtractor implements Extractor {
             while (trailSeps < gap.length() - leadSeps && isGroupSep(gap.charAt(gap.length() - 1 - trailSeps))) trailSeps++;
             int s = prev.end() + leadSeps;
             int e = rangeEnd - trailSeps;
-            if (e <= s) continue;
+            if (e <= s) {
+                // No trailing hole — but the SCENE_PREV match itself sits at
+                // the trim end. Mirror python's DashSeparatedReleaseGroup
+                // at_end branch: when prev is a non-private language /
+                // subtitle_language / country match preceded by `-` and
+                // followed by nothing (or just a trim-stripped extension),
+                // promote it to release_group. Drives Finding.Carter
+                // ".../-NL/LN-..." → release_group=NL.
+                if (prev.end() == rangeEnd
+                        && (LANGUAGE.equals(prev.name())
+                            || SUBTITLE_LANGUAGE.equals(prev.name())
+                            || "country".equals(prev.name()))
+                        && prev.start() > filepart.start()
+                        && input.charAt(prev.start() - 1) == '-'
+                        && hasDotSeparatedPredecessors(ctx, filepart.start(), prev.start())) {
+                    var rawPrev = input.substring(prev.start(), prev.end());
+                    if (validGroupName(rawPrev, false, true)) {
+                        ctx.matches.remove(prev);
+                        ctx.matches.add(new Match(RELEASE_GROUP, rawPrev, prev.start(), prev.end(),
+                            rawPrev, 1500, java.util.Set.of("scene"), false));
+                        return true;
+                    }
+                }
+                continue;
+            }
             // When the gap starts with a stray closing bracket, the scene_prev
             // sat inside a preceding "[...]" decoration. Skip past the bracket
             // and any seps; if what follows is just a plain trailing token
@@ -841,8 +865,17 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     private static boolean validGroupName(String s, boolean allowSpaces) {
+        return validGroupName(s, allowSpaces, false);
+    }
+
+    /** When {@code atEnd} is true, single-character candidates are accepted
+     *  (mirrors python's DashSeparatedReleaseGroup.is_valid: the {@code len <= 1}
+     *  reject only fires for the not-at-end branch — trailing-dash candidates
+     *  rely on the dot-separated-chain walk for validity). */
+    private static boolean validGroupName(String s, boolean allowSpaces, boolean atEnd) {
         var t = s.trim();
-        if (t.length() < 2) return false;
+        if (t.isEmpty()) return false;
+        if (!atEnd && t.length() < 2) return false;
         if (!allowSpaces && t.contains(" ")) return false;
         return !t.chars().allMatch(Character::isDigit);
     }

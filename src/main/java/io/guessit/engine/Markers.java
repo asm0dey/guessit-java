@@ -26,28 +26,32 @@ public final class Markers {
     }
 
     public static List<Marker> markerSorted(List<Marker> paths, MatchSet matches) {
-        var indexed = new ArrayList<Integer>();
-        for (var i = 0; i < paths.size(); i++) indexed.add(i);
-
         // exclusion predicate matching Python's marker_comparator_predicate
-        java.util.function.Predicate<Match> predicate = m ->
+        return markerSorted(paths, matches, m ->
             !m.isPrivate()
             && !m.name().equals("proper_count")
             && !m.name().equals("title")
             && !(m.name().equals("container") && m.tags().contains("extension"))
-            && !(m.name().equals("other") && "Rip".equals(m.value()));
+            && !(m.name().equals("other") && "Rip".equals(m.value())));
+    }
+
+    /** Like {@link #markerSorted(List, MatchSet)} but with a custom counting
+     *  predicate. Mirrors python's {@code marker_sorted(markers, matches, predicate)}.
+     */
+    public static List<Marker> markerSorted(List<Marker> paths, MatchSet matches,
+                                            java.util.function.Predicate<Match> predicate) {
+        var indexed = new ArrayList<Integer>();
+        for (var i = 0; i < paths.size(); i++) indexed.add(i);
 
         indexed.sort((a, b) -> {
             var pa = paths.get(a);
             var pb = paths.get(b);
-            // unique match names for each marker
             var wa = (int) matches.range(pa.start(), pa.end(), predicate)
                 .map(Match::name).distinct().count();
             var wb = (int) matches.range(pb.start(), pb.end(), predicate)
                 .map(Match::name).distinct().count();
             var byWeight = Integer.compare(wb, wa);
             if (byWeight != 0) return byWeight;
-            // tiebreaker: rightmost path first (reverse index)
             return Integer.compare(b, a);
         });
         var ret = new ArrayList<Marker>();
