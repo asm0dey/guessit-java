@@ -205,6 +205,15 @@ class ProbeTest {
     }
 
     @Test
+    void subInGroup_promotesAllConsecutiveLanguagesAfter() {
+        var r = Guessit.parse(
+            "Show Name S01e10[Mux - 1080p - H264 - Ita Eng Ac3 - Sub Ita Eng]DLMux By GiuseppeTnT Littlelinx").toMap();
+        @SuppressWarnings("unchecked")
+        var subs = (java.util.List<io.guessit.lang.Language>) r.get("subtitle_language");
+        assertThat(subs).extracting(io.guessit.lang.Language::alpha3).containsExactlyInAnyOrder("ita", "eng");
+    }
+
+    @Test
     void barFoodChristmasSpecial_episodeTypeViaSpecialDetail() {
         var r = Guessit.parse("BarFood christmas special HDTV",
             io.guessit.Options.builder().expectedTitle(java.util.List.of("BarFood")).build()).toMap();

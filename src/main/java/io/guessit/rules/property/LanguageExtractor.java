@@ -425,6 +425,32 @@ public final class LanguageExtractor implements Extractor {
         if (next == null) return false;
         if (!betweenIsSeps(input, marker.end(), next.start())) return false;
         renameToSubtitle(ctx, next);
+        // When the marker sits inside a group, promote every consecutive
+        // sep-bordered language that follows within the same group as well
+        // (mirrors python's marker-then-multi-language list inside brackets,
+        // e.g. "[... - Sub Ita Eng]").
+        Marker enclosingTmp = null;
+        for (var g : ctx.markers) {
+            if (!"group".equals(g.name())) continue;
+            if (g.start() <= marker.start() && g.end() >= marker.end()) {
+                if (enclosingTmp == null || g.end() - g.start() < enclosingTmp.end() - enclosingTmp.start()) {
+                    enclosingTmp = g;
+                }
+            }
+        }
+        final Marker enclosing = enclosingTmp;
+        if (enclosing != null) {
+            int[] prevEnd = {next.end()};
+            var sortedAfter = langs.stream()
+                .filter(l -> l.start() > next.start() && l.end() <= enclosing.end())
+                .sorted(Comparator.comparingInt(Match::start))
+                .toList();
+            for (var l : sortedAfter) {
+                if (!betweenIsSeps(input, prevEnd[0], l.start())) break;
+                renameToSubtitle(ctx, l);
+                prevEnd[0] = l.end();
+            }
+        }
         return true;
     }
 
