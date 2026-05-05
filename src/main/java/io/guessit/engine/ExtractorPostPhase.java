@@ -15,6 +15,12 @@ public record ExtractorPostPhase(List<Extractor> extractors) implements Phase {
 
     @Override
     public void apply(ParseContext ctx) {
-        for (var e : extractors) e.postProcess(ctx);
+        ctx.trace.phase("extractor_post");
+        for (var e : extractors) {
+            var before = ctx.matches.snapshot();
+            ctx.trace.step("post", e.name());
+            e.postProcess(ctx);
+            TraceDiff.emit(before, ctx.matches.snapshot(), ctx.trace);
+        }
     }
 }
