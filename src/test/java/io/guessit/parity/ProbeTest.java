@@ -451,6 +451,14 @@ class ProbeTest {
     }
 
     @Test
+    void wwiis_episodeTitleUpgradedFromOuterTitlecase() {
+        var r = Guessit.parse("WWIIs.Most.Daring.Raids.S01E04.Storming.Mussolinis.Island.1080p.WEB.h264-EDHD"
+            + "/wwiis.most.daring.raids.s01e04.storming.mussolinis.island.1080p.web.h.264-edhd-sample.mkv").toMap();
+        assertThat(r.get("title")).isEqualTo("wwiis most daring raids");
+        assertThat(r.get("episode_title")).isEqualTo("Storming Mussolinis Island");
+    }
+
+    @Test
     void filenameHoleBeforeEpisodeMarker_isTitleNotEpisodeTitle() {
         var r = Guessit.parse("Some Dummy Directory/Season 02/Some Series-E01.mkv").toMap();
         assertThat(r.get("title")).isEqualTo("Some Series");

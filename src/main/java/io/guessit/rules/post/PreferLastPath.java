@@ -17,6 +17,10 @@ import java.util.HashSet;
  * source for the work itself, so let it win whenever it spoke up.
  */
 public final class PreferLastPath implements PostProcessor {
+    private static final java.util.Set<String> TITLE_FAMILY =
+        java.util.Set.of("title", "alternative_title", "episode_title");
+
+
     @Override
     public void process(ParseContext ctx) {
         var paths = ctx.markers.stream()
@@ -47,6 +51,21 @@ public final class PreferLastPath implements PostProcessor {
             // inner filepart's lower-cased title (e.g. "blow-how to be single"
             // for ".../How.To.Be.Single...-BLOW/blow-how.to.be.single...mkv").
             .filter(m -> !inLastValues.get(m.name()).contains(m.value()))
+            // For title-family names, treat case-insensitively-equal values
+            // as duplicates so the outer's titlecase variant survives when
+            // the filename has the same string in lowercase. Without this,
+            // outer's "Storming Mussolinis Island" gets dropped in favor of
+            // the inner filepart's lowercase, and EquivalentHoles can't
+            // upgrade because the better-cased value is already gone.
+            .filter(m -> {
+                if (!TITLE_FAMILY.contains(m.name())) return true;
+                if (!(m.value() instanceof String mv)) return true;
+                var inLast = inLastValues.get(m.name());
+                for (var v : inLast) {
+                    if (v instanceof String s && s.equalsIgnoreCase(mv)) return false;
+                }
+                return true;
+            })
             // Preserve titles that survived preferTitleWithYear: they were
             // picked because their filepart has a year-in-group. Dropping
             // them lets the inner filepart's title (often poorer casing or

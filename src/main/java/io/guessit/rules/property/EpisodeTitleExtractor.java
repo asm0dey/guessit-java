@@ -108,8 +108,24 @@ public final class EpisodeTitleExtractor implements Extractor {
         for (var t : titles) values.add(t.value());
         if (values.size() < 2) return;
         for (var t : titles) {
-            var prev = ctx.matches.previous(t, m -> EPISODE.equals(m.name()));
-            if (prev.isPresent()) {
+            // Mirror python rebulk's previous(): only the matches ending at
+            // the *immediately preceding* end position count. Anything else
+            // (e.g. an outer-dir episode marker masked by a release_group
+            // ending closer to the title) does not qualify. Without this,
+            // titles in a filename whose own episode marker comes AFTER them
+            // get demoted because Java's MatchSet.previous() walks past
+            // intervening matches to find the episode anywhere upstream.
+            int prevEnd = ctx.matches.snapshot().stream()
+                .filter(m -> !m.isPrivate())
+                .mapToInt(Match::end)
+                .filter(e -> e <= t.start())
+                .max().orElse(-1);
+            if (prevEnd < 0) continue;
+            final int pe = prevEnd;
+            var hasEpisodeAtPrevEnd = ctx.matches.snapshot().stream()
+                .filter(m -> !m.isPrivate())
+                .anyMatch(m -> m.end() == pe && EPISODE.equals(m.name()));
+            if (hasEpisodeAtPrevEnd) {
                 ctx.matches.replace(t, new Match(EPISODE_TITLE, t.value(), t.start(), t.end(),
                     t.raw(), t.priority(), t.tags(), t.isPrivate()));
             }
@@ -128,6 +144,7 @@ public final class EpisodeTitleExtractor implements Extractor {
             var titles = titleExtractor.checkTitlesInFilepart(ctx, fp,
                 TitleExtractor::isIgnored, EPISODE_TITLE, List.of(TITLE), null, true);
             if (titles == null) continue;
+            boolean addedAny = false;
             for (var t : titles.titles()) {
                 var prev = ctx.matches.previous(t, m -> PREVIOUS_NAMES.contains(m.name()));
                 if (prev.isEmpty() && !hasCrc) continue;
@@ -139,8 +156,16 @@ public final class EpisodeTitleExtractor implements Extractor {
                 // demote-to-alt path.
                 if (isMovie && wedgedBetweenProperties(ctx, fp, t)) continue;
                 ctx.matches.add(t);
+                addedAny = true;
             }
             for (var r : titles.toRemove()) ctx.matches.remove(r);
+            // Mirror python TitleBaseRule.when: break after the first
+            // filepart that yields titles. Without this, a later filepart's
+            // hole that EquivalentHoles would otherwise upgrade gets
+            // pre-occupied by an episode_title match, preventing case
+            // upgrades like "storming mussolinis island" → "Storming
+            // Mussolinis Island" from the outer-dir titlecase hole.
+            if (addedAny) break;
         }
     }
 
