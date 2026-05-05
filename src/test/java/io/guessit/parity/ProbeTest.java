@@ -442,6 +442,15 @@ class ProbeTest {
     }
 
     @Test
+    void seasonOnlyHead_dropsTrailingWeakBeforeEpisodeWord() {
+        var r = Guessit.parse("Show Name - S32-Dummy 45-Ep 6478").toMap();
+        assertThat(r.get("title")).isEqualTo("Show Name");
+        assertThat(r.get("season")).isEqualTo(32);
+        assertThat(r.get("episode")).isEqualTo(6478);
+        assertThat(r.get("episode_title")).isEqualTo("Dummy 45");
+    }
+
+    @Test
     void torrentingPrefix_titleSkipsFromWord() {
         var r = Guessit.parse(
             "From [ WWW.TORRENTING.COM ] - White.Rabbit.Project.S01E08.1080p.NF.WEBRip.DD5.1.x264-ViSUM/"

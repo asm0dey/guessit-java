@@ -133,8 +133,44 @@ public final class WeakEpisodeExtractor implements Extractor {
                 }
             }
         }
-        // Drop weaks if a SxxExx-tagged episode exists in the same filepart (RemoveWeakIfSxxExx).
-        boolean strongPresent = ctx.matches.named(EPISODE).anyMatch(m -> m.tags().contains("SxxExx"));
+        // Drop weaks if any SxxExx-tagged match exists in the same filepart
+        // (RemoveWeakIfSxxExx). Python checks ANY non-private match with the
+        // SxxExx tag — a season-only match (e.g. "S32" without explicit
+        // episode) is enough to suppress trailing weak episode candidates.
+        // Skip SxxExx matches that overlap a title span: they're going to be
+        // dropped by the title (e.g. expected_title="Show Name S2" subsumes
+        // the S2 season match), so they don't actually anchor an SxxExx.
+        var titleSpans = ctx.matches.named("title")
+            .map(m -> new int[]{m.start(), m.end()}).toList();
+        var fileparts = io.guessit.engine.Markers.named(ctx.markers, "path").toList();
+        // Episode-level SxxExx (e.g. S02E05) anchors weak removal across ALL
+        // fileparts: an inner filepart's bare numeric ("160725_02.mkv") must
+        // not steal the outer's canonical episode via PreferLastPath.
+        boolean anyEpisodeSxxExx = ctx.matches.named(EPISODE)
+            .anyMatch(m -> !m.isPrivate() && m.tags().contains("SxxExx")
+                && titleSpans.stream().noneMatch(t -> t[0] <= m.start() && m.end() <= t[1]));
+        // Season-only SxxExx (e.g. S01 with no Exx) only anchors weak
+        // removal within its own filepart — sibling fileparts retain their
+        // weak_duplicate matches (e.g. inner "show.name.0106.…" carries the
+        // real episode number when outer only declared the season).
+        var seasonStrongSpans = ctx.matches.all()
+            .filter(m -> !m.isPrivate() && m.tags().contains("SxxExx")
+                && "season".equals(m.name())
+                && titleSpans.stream().noneMatch(t -> t[0] <= m.start() && m.end() <= t[1]))
+            .map(m -> new int[]{m.start(), m.end()})
+            .toList();
+        java.util.function.Predicate<Match> strongInFilepart = w -> {
+            if (anyEpisodeSxxExx) return true;
+            for (var fp : fileparts) {
+                if (w.start() < fp.start() || w.end() > fp.end()) continue;
+                for (var sp : seasonStrongSpans) {
+                    if (sp[0] >= fp.start() && sp[1] <= fp.end()) return true;
+                }
+                return false;
+            }
+            return !seasonStrongSpans.isEmpty();
+        };
+        boolean strongPresent = weaks.stream().anyMatch(strongInFilepart);
         if (strongPresent) {
             // Mirror Python's RemoveWeakIfSxxExx + RenameToAbsoluteEpisode +
             // EpisodeNumberSeparatorRange. For each non-leading weak:
@@ -152,6 +188,16 @@ public final class WeakEpisodeExtractor implements Extractor {
                 .filter(w -> w.start() != 0 && w.value() instanceof Integer i && i >= 100)
                 .count();
             for (var weak : weaks) {
+                if (!strongInFilepart.test(weak)) continue;
+                // Keep weak if it sits at the start of its filepart (mirror python's
+                // RemoveWeakIfSxxExx: leading weak_episode at filepart.start survives).
+                boolean leading = false;
+                for (var fp : fileparts) {
+                    if (weak.start() == fp.start() && weak.end() <= fp.end()) {
+                        leading = true; break;
+                    }
+                }
+                if (leading) continue;
                 if (weak.start() == 0) continue;
                 int v = weak.value() instanceof Integer i ? i : -1;
                 Match prev = null;
