@@ -186,7 +186,7 @@ public final class LanguageExtractor implements Extractor {
                     .matches
                     .named(LANGUAGE)
                     .filter(m -> m.end() <= ws)
-                    .filter(m -> betweenIsSeps(input, m.end(), ws))
+                    .filter(m -> Seps.betweenIsSeps(input, m.end(), ws))
                     .max(Comparator.comparingInt(Match::end))
                     .ifPresent(
                             _ -> ctx.matches.add(new Match(LANGUAGE_SUFFIX,
@@ -407,7 +407,7 @@ public final class LanguageExtractor implements Extractor {
             if (g.start() < marker.end()) continue;
             if (nextGroup == null || g.start() < nextGroup.start()) nextGroup = g;
         }
-        if (nextGroup != null && betweenIsSeps(input, marker.end(), nextGroup.start())) {
+        if (nextGroup != null && Seps.betweenIsSeps(input, marker.end(), nextGroup.start())) {
             final Marker fg = nextGroup;
             var inGroup = langs.stream()
                     .filter(l -> l.start() >= fg.start() && l.end() <= fg.end())
@@ -423,7 +423,7 @@ public final class LanguageExtractor implements Extractor {
                 .min(Comparator.comparingInt(Match::start))
                 .orElse(null);
         if (next == null) return false;
-        if (!betweenIsSeps(input, marker.end(), next.start())) return false;
+        if (!Seps.betweenIsSeps(input, marker.end(), next.start())) return false;
         renameToSubtitle(ctx, next);
         // When the marker sits inside a group, promote every consecutive
         // sep-bordered language that follows within the same group as well
@@ -446,7 +446,7 @@ public final class LanguageExtractor implements Extractor {
                 .sorted(Comparator.comparingInt(Match::start))
                 .toList();
             for (var l : sortedAfter) {
-                if (!betweenIsSeps(input, prevEnd[0], l.start())) break;
+                if (!Seps.betweenIsSeps(input, prevEnd[0], l.start())) break;
                 renameToSubtitle(ctx, l);
                 prevEnd[0] = l.end();
             }
@@ -532,7 +532,7 @@ public final class LanguageExtractor implements Extractor {
                 .max(Comparator.comparingInt(Match::end))
                 .orElse(null);
         if (prev == null) return false;
-        if (!betweenIsSeps(input, prev.end(), marker.start())) return false;
+        if (!Seps.betweenIsSeps(input, prev.end(), marker.start())) return false;
         renameToSubtitle(ctx, prev);
         return true;
     }
@@ -571,9 +571,5 @@ public final class LanguageExtractor implements Extractor {
         }
     }
 
-    private static boolean betweenIsSeps(String input, int start, int end) {
-        if (start >= end) return true;
-        for (int i = start; i < end; i++) if (!Seps.isSep(input.charAt(i))) return false;
-        return true;
-    }
 }
+

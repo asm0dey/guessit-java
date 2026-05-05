@@ -206,7 +206,7 @@ public final class EditionExtractor implements Extractor {
             .filter(m -> m.tags().contains("streaming_service.suffix"))
             .filter(m -> m.start() >= s.end())
             .min(java.util.Comparator.comparingInt(Match::start))
-            .map(n -> betweenIsSeps(input, s.end(), n.start())
+            .map(n -> Seps.betweenIsSeps(input, s.end(), n.start())
                     && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1))))
             .orElse(false);
         if (nextOk) return true;
@@ -215,7 +215,7 @@ public final class EditionExtractor implements Extractor {
             .filter(m -> m.tags().contains("streaming_service.prefix"))
             .filter(m -> m.end() <= s.start())
             .max(java.util.Comparator.comparingInt(Match::end))
-            .map(p -> betweenIsSeps(input, p.end(), s.start())
+            .map(p -> Seps.betweenIsSeps(input, p.end(), s.start())
                     && (s.end() >= input.length() || Seps.isSep(input.charAt(s.end()))))
             .orElse(false);
     }
@@ -255,7 +255,7 @@ public final class EditionExtractor implements Extractor {
         if (prev != null) prevEnd = prev.end();
         if (prevGroup != null && prevGroup.end() > prevEnd) prevEnd = prevGroup.end();
         if (prevEnd < 0) return false;
-        return betweenIsSeps(input, prevEnd, m.start());
+        return Seps.betweenIsSeps(input, prevEnd, m.start());
     }
 
     private static boolean hasAdjacentAfter(String input, Match m, List<Match> all, List<Marker> markers) {
@@ -267,14 +267,9 @@ public final class EditionExtractor implements Extractor {
         if (next != null) nextStart = next.start();
         if (nextGroup != null && nextGroup.start() < nextStart) nextStart = nextGroup.start();
         if (nextStart == Integer.MAX_VALUE) return false;
-        return betweenIsSeps(input, m.end(), nextStart);
+        return Seps.betweenIsSeps(input, m.end(), nextStart);
     }
 
-    private static boolean betweenIsSeps(String input, int s, int e) {
-        if (s >= e) return true;
-        for (int i = s; i < e; i++) if (!Seps.isSep(input.charAt(i))) return false;
-        return true;
-    }
 
     private static void dedupSameSpan(ParseContext ctx) {
         var seen = new HashSet<String>();

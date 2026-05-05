@@ -98,13 +98,7 @@ public final class WeakEpisodeExtractor implements Extractor {
         // the input is an anime release ("Show.Name.2.-.10.(2016).[HorribleSubs]
         // [WEBRip]..[HD.720p]"). In that shape weak-episodes carry the
         // absolute episode number, even with a year present, so don't purge.
-        boolean animeContext = false;
-        for (var mk : ctx.markers) {
-            if (!"group".equals(mk.name())) continue;
-            boolean hasScreenInGroup = ctx.matches.named("screen_size")
-                    .anyMatch(m -> m.start() >= mk.start() && m.end() <= mk.end());
-            if (hasScreenInGroup) { animeContext = true; break; }
-        }
+        boolean animeContext = hasScreenSizeInGroup(ctx);
         if (!rangePairedWeakPresent && !animeContext
                 && ctx.matches.named("year").findAny().isPresent()
                 && !EPISODE.equals(ctx.options.type())) {
@@ -239,6 +233,21 @@ public final class WeakEpisodeExtractor implements Extractor {
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    /**
+     * True when any group marker contains a screen_size match — an anime-release
+     * signal. Shared with {@link WeakDuplicateExtractor}.
+     */
+    static boolean hasScreenSizeInGroup(ParseContext ctx) {
+        for (var mk : ctx.markers) {
+            if (!"group".equals(mk.name())) continue;
+            if (ctx.matches.named("screen_size")
+                    .anyMatch(m -> m.start() >= mk.start() && m.end() <= mk.end())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasRangePairedWeakEpisodes(ParseContext ctx) {

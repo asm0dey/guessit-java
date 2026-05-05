@@ -39,4 +39,14 @@ public final class Seps {
         }
         return sb.toString();
     }
+
+    /**
+     * True when every character in {@code input[start, end)} is a separator.
+     * An empty or degenerate range ({@code start >= end}) is trivially true.
+     */
+    public static boolean betweenIsSeps(String input, int start, int end) {
+        if (start >= end) return true;
+        for (int i = start; i < end; i++) if (!Seps.isSep(input.charAt(i))) return false;
+        return true;
+    }
 }

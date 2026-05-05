@@ -267,7 +267,6 @@ public final class OtherExtractor implements Extractor {
         validateStreamingServiceNeighbor(ctx);
         validateHardcodedSubs(ctx);
         validateAtEnd(ctx);
-        renameAnother();
         dedupSameSpan(ctx);
     }
 
@@ -288,10 +287,10 @@ public final class OtherExtractor implements Extractor {
             .toList()) {
             boolean keep = false;
             for (var sl : subLangs) {
-                if (sl.start() >= hc.end() && betweenIsSeps(input, hc.end(), sl.start())) {
+                if (sl.start() >= hc.end() && Seps.betweenIsSeps(input, hc.end(), sl.start())) {
                     keep = true; break;
                 }
-                if (sl.end() <= hc.start() && betweenIsSeps(input, sl.end(), hc.start())) {
+                if (sl.end() <= hc.start() && Seps.betweenIsSeps(input, sl.end(), hc.start())) {
                     keep = true; break;
                 }
             }
@@ -323,7 +322,7 @@ public final class OtherExtractor implements Extractor {
                     var next = ssMatches.stream()
                         .filter(s -> s.start() >= m.end())
                         .min(Comparator.comparingInt(Match::start)).orElse(null);
-                    if (next != null && betweenIsSeps(input, m.end(), next.start())) continue;
+                    if (next != null && Seps.betweenIsSeps(input, m.end(), next.start())) continue;
                 }
                 toRemove.add(m);
             } else if (!sepsBefore) {
@@ -331,7 +330,7 @@ public final class OtherExtractor implements Extractor {
                     var prev = ssMatches.stream()
                         .filter(s -> s.end() <= m.start())
                         .max(Comparator.comparingInt(Match::end)).orElse(null);
-                    if (prev != null && betweenIsSeps(input, prev.end(), m.start())) continue;
+                    if (prev != null && Seps.betweenIsSeps(input, prev.end(), m.start())) continue;
                 }
                 toRemove.add(m);
             }
@@ -339,11 +338,6 @@ public final class OtherExtractor implements Extractor {
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
-    private static boolean betweenIsSeps(String input, int s, int e) {
-        if (s >= e) return true;
-        for (int i = s; i < e; i++) if (!Seps.isSep(input.charAt(i))) return false;
-        return true;
-    }
 
     private static void validateHasNeighbor(ParseContext ctx) {
         removeUnlessNeighbor(ctx, "has-neighbor", true, true);
@@ -385,7 +379,7 @@ public final class OtherExtractor implements Extractor {
         if (prev != null) prevEnd = prev.end();
         if (prevGroup != null && prevGroup.end() > prevEnd) prevEnd = prevGroup.end();
         if (prevEnd < 0) return false;
-        return betweenIsSeps(input, prevEnd, m.start());
+        return Seps.betweenIsSeps(input, prevEnd, m.start());
     }
 
     private static boolean hasAdjacentAfter(String input, Match m, List<Match> all, List<Marker> markers) {
@@ -397,7 +391,7 @@ public final class OtherExtractor implements Extractor {
         if (next != null) nextStart = next.start();
         if (nextGroup != null && nextGroup.start() < nextStart) nextStart = nextGroup.start();
         if (nextStart == Integer.MAX_VALUE) return false;
-        return betweenIsSeps(input, m.end(), nextStart);
+        return Seps.betweenIsSeps(input, m.end(), nextStart);
     }
 
 
@@ -415,7 +409,7 @@ public final class OtherExtractor implements Extractor {
                 .max(Comparator.comparingInt(Match::end))
                 .orElse(null);
             if (src == null) { toRemove.add(sc); continue; }
-            if (!betweenIsSeps(input, src.end(), sc.start())) toRemove.add(sc);
+            if (!Seps.betweenIsSeps(input, src.end(), sc.start())) toRemove.add(sc);
         }
         for (var m : toRemove) ctx.matches.remove(m);
     }
@@ -475,9 +469,6 @@ public final class OtherExtractor implements Extractor {
         return false;
     }
 
-    private static void renameAnother() {
-        // Currently we already emit `another` capture as `other` directly; nothing to rename.
-    }
 
     private static void dedupSameSpan(ParseContext ctx) {
         // Drop duplicate "other" matches with same span and same value (can happen

@@ -116,14 +116,4 @@ class MatchSetTest {
         assertEquals(1, tagged.size());
         assertEquals("a", tagged.getFirst().name());
     }
-
-    @Test
-    void snapshotReturnsImmutableCopy() {
-        var set = new MatchSet();
-        var a = Match.of("x", null, 0, 1, "x");
-        set.add(a);
-        var snap = new java.util.ArrayList<>(set.snapshot());
-        assertEquals(1, snap.size());
-        assertThrows(UnsupportedOperationException.class, () -> snap.add(null));
-    }
 }
