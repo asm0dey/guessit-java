@@ -29,6 +29,7 @@ public final class ParseContext {
     public final OptionsConfig config;
     public final MatchSet matches = new MatchSet();
     public final List<Marker> markers = new ArrayList<>();
+    public Trace trace = Trace.NOOP;
     public GuessResultBuilder resultBuilder = GuessResultBuilder.result();
     /** Final assembled result; written by {@link OutputPhase}. */
     public GuessResult result;
