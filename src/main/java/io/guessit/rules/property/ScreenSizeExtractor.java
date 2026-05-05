@@ -27,6 +27,8 @@ import java.util.regex.Pattern;
 public final class ScreenSizeExtractor implements Extractor {
 
     public static final String SCREEN_SIZE = "screen_size";
+    public static final String WEAK_SCREEN_SIZE = "weak.screen_size";
+    public static final String NORMALIZED = "normalized";
 
     @Override public String name() { return SCREEN_SIZE; }
 
@@ -62,14 +64,14 @@ public final class ScreenSizeExtractor implements Extractor {
         // neighbor (date/source/other/streaming_service/video_profile).
         var weakOpts = RegexOpts.defaults()
             .withValidator(validator)
-            .withTags(Set.of("weak.screen_size"));
+            .withTags(Set.of(WEAK_SCREEN_SIZE));
         addRegex(ctx, resPrefix + heightP, weakOpts);
 
         // 4k literal → 2160p
         var fourK = StringOpts.defaults().withValidator(validator);
         for (var m : PatternMatcher.string(input, Set.of("4k"), SCREEN_SIZE, fourK)) {
             ctx.matches.add(new Match(SCREEN_SIZE, "2160p", m.start(), m.end(), m.raw(),
-                m.priority(), Set.of("normalized"), false));
+                m.priority(), Set.of(NORMALIZED), false));
         }
 
         // frame_rate standalone, with mandatory `p` or `fps` suffix.
@@ -94,7 +96,6 @@ public final class ScreenSizeExtractor implements Extractor {
         }
     }
 
-    /** PostProcessScreenSize + ScreenSizeOnlyOne. ResolveScreenSizeConflicts deferred to Plan 3. */
     @Override
     public void postProcess(ParseContext ctx) {
         var section = ctx.config.section(SCREEN_SIZE);
@@ -102,115 +103,140 @@ public final class ScreenSizeExtractor implements Extractor {
         double minAr = ((Number) section.getOrDefault("min_ar", 1.333)).doubleValue();
         double maxAr = ((Number) section.getOrDefault("max_ar", 1.898)).doubleValue();
 
-        // PostProcessScreenSize: parse raw with named groups via regex re-match on raw text.
+        normalizeScreenSizeMatches(ctx, standardHeights, minAr, maxAr);
+        resolveWeakScreenSizeConflicts(ctx);
+        extractFrameRatesFromScreenSize(ctx);
+        keepOnlyLastDistinctScreenSize(ctx);
+    }
+
+    private void normalizeScreenSizeMatches(ParseContext ctx, Set<String> standardHeights, double minAr, double maxAr) {
         var widthHeight = Pattern.compile("(?<width>\\d{3,4})\\s*[x*-]\\s*(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
-        var heightScan  = Pattern.compile("(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
+        var heightScan = Pattern.compile("(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
 
         for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
-            if (m.tags().contains("normalized")) continue;
-            boolean weak = m.tags().contains("weak.screen_size");
+            if (m.tags().contains(NORMALIZED)) continue;
+
             var wh = widthHeight.matcher(m.raw());
             if (wh.find()) {
-                int w = Integer.parseInt(wh.group("width"));
-                int h = Integer.parseInt(wh.group("height"));
-                String scan = wh.group("scan") == null ? "p" : wh.group("scan").toLowerCase(Locale.ROOT);
-                double ar = (double) w / h;
-                ctx.matches.add(new Match("aspect_ratio", Math.round(ar * 1000.0) / 1000.0,
-                    m.start(), m.end(), m.raw(), m.priority(), Set.of("derivedFrom:screen_size"), false));
-                String value = (standardHeights.contains(String.valueOf(h)) && minAr < ar && ar < maxAr)
-                    ? h + scan : w + "x" + h;
-                Set<String> nt = weak ? Set.of("normalized", "weak.screen_size") : Set.of("normalized");
-                ctx.matches.replace(m, new Match(SCREEN_SIZE, value, m.start(), m.end(), m.raw(),
-                    m.priority(), nt, false));
-                continue;
-            }
-            var hs = heightScan.matcher(m.raw());
-            if (hs.find()) {
-                String h = hs.group("height");
-                String scan = hs.group("scan") == null ? "p" : hs.group("scan").toLowerCase(Locale.ROOT);
-                Set<String> nt = weak ? Set.of("normalized", "weak.screen_size") : Set.of("normalized");
-                ctx.matches.replace(m, new Match(SCREEN_SIZE, h + scan, m.start(), m.end(), m.raw(),
-                    m.priority(), nt, false));
+                normalizeWidthHeightMatch(ctx, m, wh, standardHeights, minAr, maxAr);
+            } else {
+                var hs = heightScan.matcher(m.raw());
+                if (hs.find()) {
+                    normalizeHeightScanMatch(ctx, m, hs);
+                }
             }
         }
+    }
 
-        // ResolveScreenSizeConflicts (port of python rule): drop weak.screen_size
-        // matches that lack a strong neighbor (date/source/other/streaming_service/
-        // video_profile) — i.e. bare "720"/"1080" digits without resolution context.
+    private void normalizeWidthHeightMatch(ParseContext ctx, Match m, java.util.regex.Matcher wh,
+                                           Set<String> standardHeights, double minAr, double maxAr) {
+        int w = Integer.parseInt(wh.group("width"));
+        int h = Integer.parseInt(wh.group("height"));
+        String scan = wh.group("scan") == null ? "p" : wh.group("scan").toLowerCase(Locale.ROOT);
+        double ar = (double) w / h;
+
+        ctx.matches.add(new Match("aspect_ratio", Math.round(ar * 1000.0) / 1000.0,
+                m.start(), m.end(), m.raw(), m.priority(), Set.of("derivedFrom:screen_size"), false));
+
+        String value = (standardHeights.contains(String.valueOf(h)) && minAr < ar && ar < maxAr)
+                ? h + scan : w + "x" + h;
+        Set<String> tags = m.tags().contains(WEAK_SCREEN_SIZE)
+                ? Set.of(NORMALIZED, WEAK_SCREEN_SIZE) : Set.of(NORMALIZED);
+
+        ctx.matches.replace(m, new Match(SCREEN_SIZE, value, m.start(), m.end(), m.raw(),
+                m.priority(), tags, false));
+    }
+
+    private void normalizeHeightScanMatch(ParseContext ctx, Match m, java.util.regex.Matcher hs) {
+        String h = hs.group("height");
+        String scan = hs.group("scan") == null ? "p" : hs.group("scan").toLowerCase(Locale.ROOT);
+        Set<String> tags = m.tags().contains(WEAK_SCREEN_SIZE)
+                ? Set.of(NORMALIZED, WEAK_SCREEN_SIZE) : Set.of(NORMALIZED);
+
+        ctx.matches.replace(m, new Match(SCREEN_SIZE, h + scan, m.start(), m.end(), m.raw(),
+                m.priority(), tags, false));
+    }
+
+    private void resolveWeakScreenSizeConflicts(ParseContext ctx) {
         var weakSizes = ctx.matches.named(SCREEN_SIZE)
-            .filter(m -> m.tags().contains("weak.screen_size"))
-            .toList();
-        if (!weakSizes.isEmpty()) {
-            var strongNames = Set.of("date", "source", "other", "streaming_service", "video_profile");
-            var allMatches = ctx.matches.all().toList();
-            for (var ws : weakSizes) {
-                boolean hasNeighbor = false;
-                for (var n : allMatches) {
-                    if (n == ws) continue;
-                    if (!strongNames.contains(n.name())) continue;
-                    if (n.end() <= ws.start()) {
-                        var gap = ctx.input.substring(n.end(), ws.start());
-                        if (gap.chars().allMatch(c -> Seps.isSep((char) c))) { hasNeighbor = true; break; }
-                    } else if (n.start() >= ws.end()) {
-                        var gap = ctx.input.substring(ws.end(), n.start());
-                        if (gap.chars().allMatch(c -> Seps.isSep((char) c))) { hasNeighbor = true; break; }
-                    }
-                }
-                if (!hasNeighbor) {
-                    ctx.matches.remove(ws);
-                    // Restore: bare height that lost overlap to season/episode is
-                    // dropped (matches python's screensize-loses-to-season-episode).
-                    // Re-emit weak_episode at this span if no episode covers it,
-                    // honoring episode_prefer_number gating.
-                    boolean hasEpHere = ctx.matches.named("episode")
-                        .anyMatch(e -> e.start() == ws.start() && e.end() == ws.end());
-                    if (!hasEpHere && !"movie".equals(ctx.options.type())) {
-                        try {
-                            int v = Integer.parseInt(ws.raw());
-                            if (v >= 100 || io.guessit.rules.property.WeakEpisodeExtractor.EPISODE.equals(ctx.options.type())
-                                    || ctx.options.episodePreferNumber() != null) {
-                                ctx.matches.add(new Match("episode", v, ws.start(), ws.end(),
-                                    ws.raw(), 800, Set.of("weak-episode"), false));
-                            }
-                        } catch (NumberFormatException _) { }
-                    }
-                }
+                .filter(m -> m.tags().contains(WEAK_SCREEN_SIZE))
+                .toList();
+
+        if (weakSizes.isEmpty()) return;
+
+        var strongNames = Set.of("date", "source", "other", "streaming_service", "video_profile");
+        var allMatches = ctx.matches.all().toList();
+
+        for (var ws : weakSizes) {
+            if (!hasStrongNeighbor(ws, allMatches, strongNames, ctx.input)) {
+                ctx.matches.remove(ws);
+                restoreWeakEpisodeIfNeeded(ctx, ws);
             }
         }
+    }
 
-        // Extract frame_rate from surviving screen_size raw strings (e.g., "1080p24" → "24").
-        var allNames = ctx.matches.all().map(Match::name).toList();
-        //noinspection StatementWithEmptyBody
-        if (allNames.stream().anyMatch(n -> n.equals("frame_rate"))) {
-            // Already have a standalone frame_rate match — no need to re-parse.
-        } else {
-            for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
-                var fr = FRAME_RATE_PATTERN.matcher(m.raw());
-                if (fr.find()) {
-                    var rawFr = fr.group("fr");
-                    int val = Integer.parseInt(rawFr.replaceAll("\\..*$", ""));
-                    ctx.matches.add(new Match("frame_rate", val,
+    private boolean hasStrongNeighbor(Match ws, List<Match> allMatches, Set<String> strongNames, String input) {
+        for (var n : allMatches) {
+            if (n == ws || !strongNames.contains(n.name())) continue;
+
+            if (n.end() <= ws.start() && isGapOnlySeparators(input, n.end(), ws.start())) return true;
+            if (n.start() >= ws.end() && isGapOnlySeparators(input, ws.end(), n.start())) return true;
+        }
+        return false;
+    }
+
+    private boolean isGapOnlySeparators(String input, int start, int end) {
+        return input.substring(start, end).chars().allMatch(c -> Seps.isSep((char) c));
+    }
+
+    private void restoreWeakEpisodeIfNeeded(ParseContext ctx, Match ws) {
+        boolean hasEpHere = ctx.matches.named("episode")
+                .anyMatch(e -> e.start() == ws.start() && e.end() == ws.end());
+
+        if (!hasEpHere && !"movie".equals(ctx.options.type())) {
+            try {
+                int v = Integer.parseInt(ws.raw());
+                if (v >= 100 || io.guessit.rules.property.WeakEpisodeExtractor.EPISODE.equals(ctx.options.type())
+                        || ctx.options.episodePreferNumber() != null) {
+                    ctx.matches.add(new Match("episode", v, ws.start(), ws.end(),
+                            ws.raw(), 800, Set.of("weak-episode"), false));
+                }
+            } catch (NumberFormatException _) {
+            }
+        }
+    }
+
+    private void extractFrameRatesFromScreenSize(ParseContext ctx) {
+        boolean hasFrameRate = ctx.matches.all().anyMatch(m -> "frame_rate".equals(m.name()));
+        if (hasFrameRate) return;
+
+        for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
+            var fr = FRAME_RATE_PATTERN.matcher(m.raw());
+            if (fr.find()) {
+                var rawFr = fr.group("fr");
+                int val = Integer.parseInt(rawFr.replaceAll("\\..*$", ""));
+                ctx.matches.add(new Match("frame_rate", val,
                         m.start() + fr.start("fr"), m.start() + fr.end("fr"),
                         rawFr, m.priority(), Set.of("coexist", "derivedFrom:screen_size"), false));
-                }
             }
         }
+    }
 
-        // ScreenSizeOnlyOne: per filepart, keep last screen_size only when distinct values present.
+    private void keepOnlyLastDistinctScreenSize(ParseContext ctx) {
         for (var filepart : ctx.markers) {
             if (!"path".equals(filepart.name()) && !"whole".equals(filepart.name())) continue;
+
             var inPart = ctx.matches.named(SCREEN_SIZE)
-                .filter(m -> filepart.covers(m.start(), m.end()))
-                .sorted((a, b) -> {
-                    if (a.start() != b.start()) return Integer.compare(b.start(), a.start());
-                    return Integer.compare(b.end(), a.end());
-                })
+                    .filter(m -> filepart.covers(m.start(), m.end()))
+                .sorted((a, b) -> a.start() != b.start() 
+                    ? Integer.compare(b.start(), a.start())
+                    : Integer.compare(b.end(), a.end()))
                 .toList();
-            if (inPart.size() <= 1) continue;
-            var distinct = inPart.stream().map(m -> String.valueOf(m.value())).distinct().count();
-            if (distinct > 1) {
-                for (int i = 1; i < inPart.size(); i++) {
-                    ctx.matches.remove(inPart.get(i));
+        
+            if (inPart.size() > 1) {
+                long distinct = inPart.stream().map(m -> String.valueOf(m.value())).distinct().count();
+                if (distinct > 1) {
+                    inPart.subList(1, inPart.size()).forEach(ctx.matches::remove);
                 }
             }
         }

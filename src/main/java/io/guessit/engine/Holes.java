@@ -112,7 +112,6 @@ public final class Holes {
     private static Hole closeHole(Hole current, int pos, ArrayList<Hole> ret) {
         current.end = pos;
         if (!current.isEmpty()) ret.add(current);
-        current = null;
         return null;
     }
 }

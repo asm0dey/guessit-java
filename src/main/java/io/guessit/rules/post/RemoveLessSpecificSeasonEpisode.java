@@ -1,6 +1,5 @@
 package io.guessit.rules.post;
 
-import io.guessit.engine.Marker;
 import io.guessit.engine.Markers;
 import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
@@ -34,7 +33,7 @@ public final class RemoveLessSpecificSeasonEpisode implements PostProcessor {
             .toList();
         if (paths.isEmpty()) return;
 
-        var reversed = new ArrayList<Marker>(paths);
+        var reversed = new ArrayList<>(paths);
         Collections.reverse(reversed);
         var sorted = Markers.markerSorted(reversed, ctx.matches,
             m -> targetName.equals(m.name()) && m.tags().contains("SxxExx"));

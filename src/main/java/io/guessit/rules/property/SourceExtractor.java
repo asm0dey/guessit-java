@@ -300,36 +300,64 @@ public final class SourceExtractor implements Extractor {
 
     private static boolean validRange(ParseContext ctx, int s, int e) {
         if (s >= e) return true;
-        // Reject if any non-private public match in this range is not a screen_size, color_depth,
-        // or another 'uhdbluray-neighbor' tagged other.
+
+        if (!allMatchesAreAllowed(ctx, s, e)) {
+            return false;
+        }
+
+        return !hasNonSeparatorHoles(ctx, s, e);
+    }
+
+    private static boolean allMatchesAreAllowed(ParseContext ctx, int s, int e) {
         for (var m : ctx.matches.all().toList()) {
             if (m.isPrivate()) continue;
             if (m.start() < s || m.end() > e) continue;
-            if ("screen_size".equals(m.name())) continue;
-            if ("color_depth".equals(m.name())) continue;
-            if (OTHER.equals(m.name()) && m.tags().contains("uhdbluray-neighbor")) continue;
-            return false;
+            if (!isAllowedMatch(m)) {
+                return false;
+            }
         }
-        // Reject if there is a non-sep "hole" not covered by any match
+        return true;
+    }
+
+    private static boolean isAllowedMatch(Match m) {
+        if ("screen_size".equals(m.name())) return true;
+        if ("color_depth".equals(m.name())) return true;
+        return OTHER.equals(m.name()) && m.tags().contains("uhdbluray-neighbor");
+    }
+
+    private static boolean hasNonSeparatorHoles(ParseContext ctx, int s, int e) {
         var input = ctx.input;
-        int pos = s;
-        var matchesInRange = new ArrayList<Match>();
-        for (var m : ctx.matches.all().toList()) {
-            if (m.start() >= s && m.end() <= e) matchesInRange.add(m);
-        }
+        var matchesInRange = collectMatchesInRange(ctx, s, e);
         matchesInRange.sort(Comparator.comparingInt(Match::start));
+
+        int pos = s;
         for (var m : matchesInRange) {
-            while (pos < m.start()) {
-                if (!Seps.isSep(input.charAt(pos))) return false;
-                pos++;
+            if (isNotOnlySeparators(input, pos, m.start())) {
+                return true;
             }
             pos = Math.max(pos, m.end());
         }
-        while (pos < e) {
-            if (!Seps.isSep(input.charAt(pos))) return false;
-            pos++;
+
+        return isNotOnlySeparators(input, pos, e);
+    }
+
+    private static List<Match> collectMatchesInRange(ParseContext ctx, int s, int e) {
+        var matchesInRange = new ArrayList<Match>();
+        for (var m : ctx.matches.all().toList()) {
+            if (m.start() >= s && m.end() <= e) {
+                matchesInRange.add(m);
+            }
         }
-        return true;
+        return matchesInRange;
+    }
+
+    private static boolean isNotOnlySeparators(String input, int start, int end) {
+        for (int pos = start; pos < end; pos++) {
+            if (!Seps.isSep(input.charAt(pos))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean noNeighborTag(ParseContext ctx, int pos, String tag) {

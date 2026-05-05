@@ -53,50 +53,72 @@ public final class EditionExtractor implements Extractor {
 
     private static void emitSpec(ParseContext ctx, String input, String key, Object spec) {
         if (spec instanceof String s) {
-            // A plain string entry: the string is both the pattern and the value
-            // (e.g. "Director's Definitive Cut": "ddc")
-            if (s.startsWith("re:")) {
-                emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags());
-            } else {
-                emitString(ctx, input, key, s, SENTINEL, defaultTags());
-            }
+            handleStringSpec(ctx, input, key, s);
             return;
         }
         if (!(spec instanceof Map<?, ?> m)) return;
 
-        // Determine the emitted value(s). When `value` is a List the entry is
-        // a multi-edition compound (keys like "_Ultimate_Collector").
         Object valueOverride = m.get("value");
         if (valueOverride instanceof List<?> multiValues) {
-            // Emit one match per value in the list for compound entries.
-            var tags = parseTags(m.get("tags"));
-            Object regexList = m.get("regex");
-            for (var val : multiValues) {
-                var v = val.toString();
-                if (regexList instanceof String s) emitRegex(ctx, input, v, s, SENTINEL, tags);
-                else if (regexList instanceof List<?> l)
-                    for (var p : l) emitRegex(ctx, input, v, p.toString(), SENTINEL, tags);
-            }
+            handleMultiValueSpec(ctx, input, m, multiValues);
             return;
         }
 
-        String editionValue = key.startsWith("_") ? null : key;
-        if (valueOverride instanceof String s) editionValue = s;
+        String editionValue = determineEditionValue(key, valueOverride);
         if (editionValue == null) return;
 
         var tags = parseTags(m.get("tags"));
         Object validatorSrc = m.containsKey("validator") ? m.get("validator") : SENTINEL;
 
-        Object stringList = m.get("string");
+        emitPatterns(ctx, input, editionValue, m.get("string"), m.get("regex"), validatorSrc, tags);
+    }
+
+    private static void handleStringSpec(ParseContext ctx, String input, String key, String s) {
+        if (s.startsWith("re:")) {
+            emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags());
+        } else {
+            emitString(ctx, input, key, s, SENTINEL, defaultTags());
+        }
+    }
+
+    private static void handleMultiValueSpec(ParseContext ctx, String input, Map<?, ?> m, List<?> multiValues) {
+        var tags = parseTags(m.get("tags"));
         Object regexList = m.get("regex");
+        for (var val : multiValues) {
+            var v = val.toString();
+            emitRegexPatterns(ctx, input, v, regexList, SENTINEL, tags);
+        }
+    }
 
-        if (stringList instanceof String s) emitString(ctx, input, editionValue, s, validatorSrc, tags);
-        else if (stringList instanceof List<?> l)
+    private static String determineEditionValue(String key, Object valueOverride) {
+        String editionValue = key.startsWith("_") ? null : key;
+        if (valueOverride instanceof String s) editionValue = s;
+        return editionValue;
+    }
+
+    private static void emitPatterns(ParseContext ctx, String input, String editionValue,
+                                     Object stringList, Object regexList,
+                                     Object validatorSrc, Set<String> tags) {
+        emitStringPatterns(ctx, input, editionValue, stringList, validatorSrc, tags);
+        emitRegexPatterns(ctx, input, editionValue, regexList, validatorSrc, tags);
+    }
+
+    private static void emitStringPatterns(ParseContext ctx, String input, String editionValue,
+                                           Object stringList, Object validatorSrc, Set<String> tags) {
+        if (stringList instanceof String s) {
+            emitString(ctx, input, editionValue, s, validatorSrc, tags);
+        } else if (stringList instanceof List<?> l) {
             for (var p : l) emitString(ctx, input, editionValue, p.toString(), validatorSrc, tags);
+        }
+    }
 
-        if (regexList instanceof String s) emitRegex(ctx, input, editionValue, s, validatorSrc, tags);
-        else if (regexList instanceof List<?> l)
+    private static void emitRegexPatterns(ParseContext ctx, String input, String editionValue,
+                                          Object regexList, Object validatorSrc, Set<String> tags) {
+        if (regexList instanceof String s) {
+            emitRegex(ctx, input, editionValue, s, validatorSrc, tags);
+        } else if (regexList instanceof List<?> l) {
             for (var p : l) emitRegex(ctx, input, editionValue, p.toString(), validatorSrc, tags);
+        }
     }
 
     private static final Object SENTINEL = new Object();

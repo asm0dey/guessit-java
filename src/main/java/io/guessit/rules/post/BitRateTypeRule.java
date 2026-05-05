@@ -8,6 +8,7 @@ import io.guessit.util.BitRate;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * PostPhase processor that converts {@code audio_bit_rate} matches to
@@ -39,47 +40,52 @@ public final class BitRateTypeRule implements PostPhase.PostProcessor {
                 .toList();
 
         var toRename = new ArrayList<Match>();
-
         for (var br : bitRates) {
-            // Find the nearest preceding match with a video-context name.
-            Match prev = null;
-            for (var m : allMatches) {
-                if (m.end() > br.start()) break;
-                if (VIDEO_CONTEXT.contains(m.name())) prev = m;
-            }
-            if (prev == null) continue;
-
-            // Gap between prev and br must be all separators.
-            var gap1 = ctx.input.substring(prev.end(), br.start());
-            if (!allSeps(gap1)) continue;
-
-            // Check if there's an audio_codec immediately after.
-            Match nextAudioCodec = null;
-            for (var m : allMatches) {
-                if (m.start() < br.end()) continue;
-                if ("audio_codec".equals(m.name())) {
-                    var gap2 = ctx.input.substring(br.end(), m.start());
-                    if (allSeps(gap2)) nextAudioCodec = m;
-                }
-                break; // only look at the very next match
-            }
-
-            if (nextAudioCodec != null && br.value() instanceof BitRate bitRate) {
-                var fmt = bitRate.format();
-                if (fmt.endsWith("Kbps")) continue; // keep as audio
-                if (fmt.endsWith("Mbps")) {
-                    double mag = bitRate.value();
-                    if (mag < 10.0) continue; // keep as audio
-                }
-            }
-
-
-            toRename.add(br);
+            if (shouldRenameToVideo(ctx, br, allMatches)) toRename.add(br);
         }
-
         for (var m : toRename) {
             ctx.matches.replace(m, m.withName("video_bit_rate"));
         }
+    }
+
+    /** True iff {@code br} sits in a video context (preceded by source/screen_size/codec
+     *  with sep-only gap) AND the trailing audio_codec exception doesn't keep it as audio. */
+    private static boolean shouldRenameToVideo(ParseContext ctx, Match br, List<Match> allMatches) {
+        var prev = nearestPrecedingVideoContext(allMatches, br);
+        if (prev == null) return false;
+        if (!allSeps(ctx.input.substring(prev.end(), br.start()))) return false;
+
+        var nextAudioCodec = adjacentTrailingAudioCodec(ctx, allMatches, br);
+        return !shouldKeepAsAudio(br, nextAudioCodec);
+    }
+
+    private static Match nearestPrecedingVideoContext(List<Match> allMatches, Match br) {
+        Match prev = null;
+        for (var m : allMatches) {
+            if (m.end() > br.start()) break;
+            if (VIDEO_CONTEXT.contains(m.name())) prev = m;
+        }
+        return prev;
+    }
+
+    /** First match starting at or after {@code br.end()}; returns it only if
+     *  it is an {@code audio_codec} reachable through a sep-only gap. */
+    private static Match adjacentTrailingAudioCodec(ParseContext ctx, List<Match> allMatches, Match br) {
+        for (var m : allMatches) {
+            if (m.start() < br.end()) continue;
+            if (!"audio_codec".equals(m.name())) return null;
+            return allSeps(ctx.input.substring(br.end(), m.start())) ? m : null;
+        }
+        return null;
+    }
+
+    /** Audio-codec exception: trailing audio_codec + Kbps or Mbps&lt;10 keeps as audio. */
+    private static boolean shouldKeepAsAudio(Match br, Match nextAudioCodec) {
+        if (nextAudioCodec == null) return false;
+        if (!(br.value() instanceof BitRate bitRate)) return false;
+        var fmt = bitRate.format();
+        if (fmt.endsWith("Kbps")) return true;
+        return fmt.endsWith("Mbps") && bitRate.value() < 10.0;
     }
 
     private static boolean allSeps(String s) {

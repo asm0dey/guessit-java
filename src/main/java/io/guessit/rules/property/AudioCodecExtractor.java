@@ -37,97 +37,123 @@ public final class AudioCodecExtractor implements Extractor {
         loadGroup(ctx, "audio_channels", asMap(section.get("audio_channels")));
     }
 
-    /** AudioValidatorRule — drop audio matches not surrounded by seps unless touching another audio match. */
+    /**
+     * AudioValidatorRule — drop audio matches not surrounded by seps unless touching another audio match.
+     */
     @Override
     public void postProcess(ParseContext ctx) {
-        var input = ctx.input;
         var audio = ctx.matches.all().filter(m -> AUDIO_PROPS.contains(m.name())).toList();
+
+        removeInvalidAudioMatches(ctx, audio);
+        removeWeakAudioChannels(ctx, audio);
+        removeOrphanedAudioProfiles(ctx);
+        removeConflictingHighQualityMatches(ctx);
+    }
+
+    private void removeInvalidAudioMatches(ParseContext ctx, List<Match> audio) {
+        var input = ctx.input;
         var toRemove = new ArrayList<Match>();
         for (var a : audio) {
-            boolean before = a.start() == 0 || Seps.isSep(input.charAt(a.start() - 1))
-                || audio.stream().anyMatch(o -> o != a && o.end() == a.start());
-            boolean after = a.end() == input.length() || Seps.isSep(input.charAt(a.end()))
-                || audio.stream().anyMatch(o -> o != a && o.start() == a.end());
+            boolean before = isValidBoundary(input, a, audio, true);
+            boolean after = isValidBoundary(input, a, audio, false);
             if (!before || !after) toRemove.add(a);
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
 
-        // RemoveWeakAudioChannels: drop weak-audio_channels matches unless adjacent
-        // to an audio_codec match on the left side.
-        var weakChannels = ctx.matches.all()
-            .filter(m -> m.name().equals("audio_channels") && m.tags().contains("weak-audio_channels"))
-            .toList();
-        for (var wc : weakChannels) {
-            boolean hasCodecBefore = audio.stream().anyMatch(o ->
-                o.name().equals(AUDIO_CODEC) && o.end() == wc.start());
-            if (!hasCodecBefore) ctx.matches.remove(wc);
-        }
-
-        // AudioProfileRule: drop audio_profile matches tagged audio_profile.rule when there's
-        // no matching audio_codec (specified in the same tag set) anywhere in the input.
-        // AudioProfileRule: profiles like "Master Audio" only make sense alongside their
-        // declared parent codec (e.g. DTS-HD). The config tags such matches with
-        // both "audio_profile.rule" and the required codec name; remove the
-        // profile when the parent codec didn't survive.
-        var profilesWithRule = ctx.matches.named(AUDIO_PROFILE)
-            .filter(m -> m.tags().contains("audio_profile.rule"))
-            .toList();
-        var codecMatches = ctx.matches.named(AUDIO_CODEC).toList();
-        for (var prof : profilesWithRule) {
-            String requiredCodec = null;
-            for (var t : prof.tags()) {
-                if ("audio_profile.rule".equals(t)) continue;
-                requiredCodec = t;
-                break;
-            }
-            if (requiredCodec == null) continue;
-            final String reqCodec = requiredCodec;
-            // Mirror python AudioProfileRule: codec must sit at the immediately
-            // adjacent match position (previous or next), not anywhere in input.
-            // "Adjacent" follows python rebulk semantics: the closest match
-            // position by step (one position is the set of all matches ending
-            // at that index, or starting at that index).
-            boolean atSpan = codecMatches.stream().anyMatch(c ->
-                c.start() == prof.start() && c.end() == prof.end()
-                && reqCodec.equals(String.valueOf(c.value())));
-            if (atSpan) continue;
-            // Closest previous match position: walk back, find first index that
-            // has any match ending there. If a codec=reqCodec ends there, OK.
-            Integer prevIdx = ctx.matches.all()
-                .filter(o -> o != prof && o.end() <= prof.start())
-                .map(Match::end)
-                .max(Integer::compareTo).orElse(null);
-            boolean prevOk = prevIdx != null && codecMatches.stream().anyMatch(c ->
-                c.end() == prevIdx && reqCodec.equals(String.valueOf(c.value())));
-            if (prevOk) continue;
-            Integer nextIdx = ctx.matches.all()
-                .filter(o -> o != prof && o.start() >= prof.end())
-                .map(Match::start)
-                .min(Integer::compareTo).orElse(null);
-            boolean nextOk = nextIdx != null && codecMatches.stream().anyMatch(c ->
-                c.start() == nextIdx && reqCodec.equals(String.valueOf(c.value())));
-            if (nextOk) continue;
-            ctx.matches.remove(prof);
-        }
-
-        // HqConflictRule: drop other=High Quality matches whose span overlaps a
-        // surviving audio_profile=High Quality (e.g. AC3.HQ has both "other"
-        // and audio_profile candidates over the same "HQ" — the audio profile
-        // wins).
-        var hqProfileSpans = ctx.matches.named(AUDIO_PROFILE)
-            .filter(m -> "High Quality".equals(m.value()))
-            .map(m -> new int[]{m.start(), m.end()})
-            .toList();
-        if (!hqProfileSpans.isEmpty()) {
-            var hqOthers = ctx.matches.named("other")
-                .filter(m -> "High Quality".equals(m.value()))
-                .filter(m -> hqProfileSpans.stream()
-                    .anyMatch(sp -> sp[0] == m.start() && sp[1] == m.end()))
-                .toList();
-            for (var m : hqOthers) ctx.matches.remove(m);
+    private boolean isValidBoundary(String input, Match match, List<Match> audio, boolean checkStart) {
+        if (checkStart) {
+            return match.start() == 0
+                    || Seps.isSep(input.charAt(match.start() - 1))
+                    || audio.stream().anyMatch(o -> o != match && o.end() == match.start());
+        } else {
+            return match.end() == input.length()
+                    || Seps.isSep(input.charAt(match.end()))
+                    || audio.stream().anyMatch(o -> o != match && o.start() == match.end());
         }
     }
 
+    private void removeWeakAudioChannels(ParseContext ctx, List<Match> audio) {
+        var weakChannels = ctx.matches.all()
+                .filter(m -> m.name().equals("audio_channels") && m.tags().contains("weak-audio_channels"))
+                .toList();
+        for (var wc : weakChannels) {
+            boolean hasCodecBefore = audio.stream().anyMatch(o ->
+                    o.name().equals(AUDIO_CODEC) && o.end() == wc.start());
+            if (!hasCodecBefore) ctx.matches.remove(wc);
+        }
+    }
+
+    private void removeOrphanedAudioProfiles(ParseContext ctx) {
+        var profilesWithRule = ctx.matches.named(AUDIO_PROFILE)
+                .filter(m -> m.tags().contains("audio_profile.rule"))
+                .toList();
+        var codecMatches = ctx.matches.named(AUDIO_CODEC).toList();
+
+        for (var prof : profilesWithRule) {
+            String requiredCodec = extractRequiredCodec(prof);
+            if (requiredCodec == null) continue;
+
+            if (!hasAdjacentRequiredCodec(ctx, prof, codecMatches, requiredCodec)) {
+                ctx.matches.remove(prof);
+            }
+        }
+    }
+
+    private String extractRequiredCodec(Match profile) {
+        for (var t : profile.tags()) {
+            if (!"audio_profile.rule".equals(t)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    private boolean hasAdjacentRequiredCodec(ParseContext ctx, Match prof, List<Match> codecMatches, String reqCodec) {
+        if (codecAtSameSpan(prof, codecMatches, reqCodec)) return true;
+        if (codecAtPreviousPosition(ctx, prof, codecMatches, reqCodec)) return true;
+        return codecAtNextPosition(ctx, prof, codecMatches, reqCodec);
+    }
+
+    private boolean codecAtSameSpan(Match prof, List<Match> codecMatches, String reqCodec) {
+        return codecMatches.stream().anyMatch(c ->
+                c.start() == prof.start() && c.end() == prof.end()
+                        && reqCodec.equals(String.valueOf(c.value())));
+    }
+
+    private boolean codecAtPreviousPosition(ParseContext ctx, Match prof, List<Match> codecMatches, String reqCodec) {
+        Integer prevIdx = ctx.matches.all()
+                .filter(o -> o != prof && o.end() <= prof.start())
+                .map(Match::end)
+                .max(Integer::compareTo).orElse(null);
+        return prevIdx != null && codecMatches.stream().anyMatch(c ->
+                c.end() == prevIdx && reqCodec.equals(String.valueOf(c.value())));
+    }
+
+    private boolean codecAtNextPosition(ParseContext ctx, Match prof, List<Match> codecMatches, String reqCodec) {
+        Integer nextIdx = ctx.matches.all()
+                .filter(o -> o != prof && o.start() >= prof.end())
+                .map(Match::start)
+                .min(Integer::compareTo).orElse(null);
+        return nextIdx != null && codecMatches.stream().anyMatch(c ->
+                c.start() == nextIdx && reqCodec.equals(String.valueOf(c.value())));
+    }
+
+    private void removeConflictingHighQualityMatches(ParseContext ctx) {
+        var hqProfileSpans = ctx.matches.named(AUDIO_PROFILE)
+                .filter(m -> "High Quality".equals(m.value()))
+                .map(m -> new int[]{m.start(), m.end()})
+            .toList();
+    
+        if (hqProfileSpans.isEmpty()) return;
+    
+        var hqOthers = ctx.matches.named("other")
+            .filter(m -> "High Quality".equals(m.value()))
+            .filter(m -> hqProfileSpans.stream()
+                .anyMatch(sp -> sp[0] == m.start() && sp[1] == m.end()))
+            .toList();
+        for (var m : hqOthers) ctx.matches.remove(m);
+    }
     @SuppressWarnings("unchecked")
     private static Map<String, Object> asMap(Object o) {
         return o instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();

@@ -188,44 +188,68 @@ public final class OtherExtractor implements Extractor {
     }
 
     private static void emitRegex(ParseContext ctx, String input, String value, String src,
-                                   Object validatorSrc, Set<String> tags, String anotherValue,
-                                   boolean privateParent) {
+                                  Object validatorSrc, Set<String> tags, String anotherValue,
+                                  boolean privateParent) {
         Pattern p;
-        try { p = Pattern.compile(Abbreviations.dash(toJavaRegex(src)), Pattern.CASE_INSENSITIVE); }
-        catch (Exception _) { return; }
+        try {
+            p = Pattern.compile(Abbreviations.dash(toJavaRegex(src)), Pattern.CASE_INSENSITIVE);
+        } catch (Exception _) {
+            return;
+        }
         var validator = resolveValidator(input, validatorSrc);
         var matcher = p.matcher(input);
         while (matcher.find()) {
-            int s = matcher.start();
-            int e = matcher.end();
-            int anotherS = -1, anotherE = -1;
-            if (anotherValue != null) {
-                anotherS = groupStart(matcher);
-                anotherE = groupEnd(matcher);
-            }
-            // For private_parent (e.g., _HdRip), the regex captures a wider span
-            // for separator-surround validation but only the inner named groups
-            // become public matches — the parent value would otherwise pollute
-            // the output with overly broad strings.
             if (privateParent) {
-                int hdGroupS = matcher.groupCount() >= 1 ? matcher.start(1) : s;
-                int hdGroupE = matcher.groupCount() >= 1 ? matcher.end(1) : e;
-                var parent = createMatch(input, value, tags, s, e);
-                if (!validator.test(parent)) continue;
-                if (hdGroupS >= 0 && hdGroupE > hdGroupS) {
-                    ctx.matches.add(createMatch(input, value, tags, hdGroupS, hdGroupE));
-                }
-                if (anotherValue != null && anotherS >= 0 && anotherE > anotherS) {
-                    ctx.matches.add(createMatch(input, anotherValue, tags, anotherS, anotherE));
-                }
-                continue;
+                handlePrivateParentMatch(ctx, input, value, tags, anotherValue, validator, matcher);
+            } else {
+                handleStandardMatch(ctx, input, value, tags, anotherValue, validator, matcher);
             }
-            var m = createMatch(input, value, tags, s, e);
-            if (!validator.test(m)) continue;
-            ctx.matches.add(m);
-            if (anotherValue != null && anotherS >= 0 && anotherE > anotherS) {
-                ctx.matches.add(createMatch(input, anotherValue, tags, anotherS, anotherE));
-            }
+        }
+    }
+
+    private static void handlePrivateParentMatch(ParseContext ctx, String input, String value,
+                                                 Set<String> tags, String anotherValue,
+                                                 Predicate<Match> validator, Matcher matcher) {
+        int s = matcher.start();
+        int e = matcher.end();
+        var parent = createMatch(input, value, tags, s, e);
+        if (!validator.test(parent)) return;
+
+        addGroupMatchIfValid(ctx, input, value, tags, matcher, s, e);
+        addAnotherValueMatchIfPresent(ctx, input, anotherValue, tags, matcher);
+    }
+
+    private static void handleStandardMatch(ParseContext ctx, String input, String value,
+                                            Set<String> tags, String anotherValue,
+                                            Predicate<Match> validator, Matcher matcher) {
+        int s = matcher.start();
+        int e = matcher.end();
+        var m = createMatch(input, value, tags, s, e);
+        if (!validator.test(m)) return;
+
+        ctx.matches.add(m);
+        addAnotherValueMatchIfPresent(ctx, input, anotherValue, tags, matcher);
+    }
+
+    private static void addGroupMatchIfValid(ParseContext ctx, String input, String value,
+                                             Set<String> tags, Matcher matcher,
+                                             int defaultStart, int defaultEnd) {
+        int groupS = matcher.groupCount() >= 1 ? matcher.start(1) : defaultStart;
+        int groupE = matcher.groupCount() >= 1 ? matcher.end(1) : defaultEnd;
+        if (groupS >= 0 && groupE > groupS) {
+            ctx.matches.add(createMatch(input, value, tags, groupS, groupE));
+        }
+    }
+
+    private static void addAnotherValueMatchIfPresent(ParseContext ctx, String input,
+                                                      String anotherValue, Set<String> tags,
+                                                      Matcher matcher) {
+        if (anotherValue == null) return;
+
+        int anotherS = groupStart(matcher);
+        int anotherE = groupEnd(matcher);
+        if (anotherS >= 0 && anotherE > anotherS) {
+            ctx.matches.add(createMatch(input, anotherValue, tags, anotherS, anotherE));
         }
     }
 
@@ -311,33 +335,53 @@ public final class OtherExtractor implements Extractor {
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();
         var ssMatches = ctx.matches.named("streaming_service").toList();
+
         for (var m : ctx.matches.named(OTHER).toList()) {
-            boolean hasPrefix = m.tags().contains("streaming_service.prefix");
-            boolean hasSuffix = m.tags().contains("streaming_service.suffix");
-            if (!hasPrefix && !hasSuffix) continue;
-            boolean sepsAfter = m.end() >= input.length() || Seps.isSep(input.charAt(m.end()));
-            boolean sepsBefore = m.start() == 0 || Seps.isSep(input.charAt(m.start() - 1));
-            if (!sepsAfter) {
-                if (hasPrefix) {
-                    var next = ssMatches.stream()
-                        .filter(s -> s.start() >= m.end())
-                        .min(Comparator.comparingInt(Match::start)).orElse(null);
-                    if (next != null && Seps.betweenIsSeps(input, m.end(), next.start())) continue;
-                }
-                toRemove.add(m);
-            } else if (!sepsBefore) {
-                if (hasSuffix) {
-                    var prev = ssMatches.stream()
-                        .filter(s -> s.end() <= m.start())
-                        .max(Comparator.comparingInt(Match::end)).orElse(null);
-                    if (prev != null && Seps.betweenIsSeps(input, prev.end(), m.start())) continue;
-                }
+            if (shouldRemoveStreamingServiceMatch(input, m, ssMatches)) {
                 toRemove.add(m);
             }
         }
+
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
+    private static boolean shouldRemoveStreamingServiceMatch(String input, Match m, List<Match> ssMatches) {
+        boolean hasPrefix = m.tags().contains("streaming_service.prefix");
+        boolean hasSuffix = m.tags().contains("streaming_service.suffix");
+
+        if (!hasPrefix && !hasSuffix) return false;
+
+        boolean sepsAfter = m.end() >= input.length() || Seps.isSep(input.charAt(m.end()));
+        boolean sepsBefore = m.start() == 0 || Seps.isSep(input.charAt(m.start() - 1));
+
+        if (!sepsAfter && !isValidPrefixMatch(input, m, hasPrefix, ssMatches)) {
+            return true;
+        }
+
+        return !sepsBefore && !isValidSuffixMatch(input, m, hasSuffix, ssMatches);
+    }
+
+    private static boolean isValidPrefixMatch(String input, Match m, boolean hasPrefix, List<Match> ssMatches) {
+        if (!hasPrefix) return false;
+
+        var next = ssMatches.stream()
+                .filter(s -> s.start() >= m.end())
+                .min(Comparator.comparingInt(Match::start))
+                .orElse(null);
+
+        return next != null && Seps.betweenIsSeps(input, m.end(), next.start());
+    }
+
+    private static boolean isValidSuffixMatch(String input, Match m, boolean hasSuffix, List<Match> ssMatches) {
+        if (!hasSuffix) return false;
+
+        var prev = ssMatches.stream()
+                .filter(s -> s.end() <= m.start())
+            .max(Comparator.comparingInt(Match::end))
+            .orElse(null);
+    
+        return prev != null && Seps.betweenIsSeps(input, prev.end(), m.start());
+    }
 
     private static void validateHasNeighbor(ParseContext ctx) {
         removeUnlessNeighbor(ctx, "has-neighbor", true, true);

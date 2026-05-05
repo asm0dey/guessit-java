@@ -142,10 +142,9 @@ public final class StreamingServiceExtractor implements Extractor {
                 .min().orElse(-1);
             boolean nextOk = false;
             if (nextPos >= 0) {
-                int np = nextPos;
                 boolean atPosHasSuffix = ctx.matches.all()
                     .filter(m -> m != s)
-                    .filter(m -> m.start() == np)
+                    .filter(m -> m.start() == nextPos)
                     .anyMatch(m -> m.tags().contains("streaming_service.suffix"));
                 // Holes between service.end and next position must contain
                 // only sep chars (or the next span starts inside service).
@@ -164,10 +163,9 @@ public final class StreamingServiceExtractor implements Extractor {
                 .max().orElse(-1);
             boolean prevOk = false;
             if (prevPos >= 0) {
-                int pp = prevPos;
                 boolean atPosHasPrefix = ctx.matches.all()
                     .filter(m -> m != s)
-                    .filter(m -> m.end() == pp)
+                    .filter(m -> m.end() == prevPos)
                     .anyMatch(m -> m.tags().contains("streaming_service.prefix"));
                 boolean cleanGap = prevPos >= sStart || betweenIsSeps(input, prevPos, sStart);
                 if (atPosHasPrefix && cleanGap

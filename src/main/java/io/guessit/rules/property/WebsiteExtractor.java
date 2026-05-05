@@ -142,43 +142,70 @@ public final class WebsiteExtractor implements Extractor {
         // before TitleExtractor sees it, leaving "From" as a usable title hole.
         var sites = ctx.matches.named(WEBSITE).filter(m -> !m.isPrivate()).toList();
         for (var w : sites) {
-            String val = w.value() instanceof String s ? s.toLowerCase(java.util.Locale.ROOT) : "";
-            boolean safe = safeStarts.stream().anyMatch(p -> val.startsWith(p.toLowerCase(java.util.Locale.ROOT)));
-            if (safe) continue;
-            boolean hasFollower = ctx.matches.all().anyMatch(o ->
-                ("season".equals(o.name()) || "episode".equals(o.name())
-                    || "year".equals(o.name()) || "date".equals(o.name()))
-                    && o.start() >= w.end());
-            if (!hasFollower) continue;
-            boolean inGroup = ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name())
-                && mk.start() <= w.start() && mk.end() >= w.end());
-            if (!inGroup) toRemove.add(w);
+            if (shouldRemoveUnsafeWebsite(w, ctx)) {
+                toRemove.add(w);
+            }
         }
 
         // ValidateWebsitePrefix: remove website.prefix matches that don't have
         // a website match following them without holes
         for (var m : ctx.matches.all().filter(m -> m.tags().contains("website.prefix")).toList()) {
-            var websiteMatch = ctx.matches.named(WEBSITE)
-                .filter(w -> w.start() > m.end() && !toRemove.contains(w))
-                .findFirst().orElse(null);
-            if (websiteMatch == null) {
+            if (shouldRemovePrefixMatch(m, ctx, toRemove)) {
                 toRemove.add(m);
-            } else {
-                // Mirror python ValidateWebsitePrefix: hole content cleaned of
-                // separator chars (including brackets) must be empty. Java's
-                // earlier trim() left "[" non-empty for `From [ www.x.com ]`.
-                var raw = ctx.input.substring(m.end(), websiteMatch.start());
-                var cleaned = new StringBuilder(raw.length());
-                for (int i = 0; i < raw.length(); i++) {
-                    char c = raw.charAt(i);
-                    if (!Seps.isSep(c)) cleaned.append(c);
-                }
-                if (cleaned.length() > 0) {
-                    toRemove.add(m);
-                }
             }
         }
+
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private boolean shouldRemoveUnsafeWebsite(Match w, ParseContext ctx) {
+        if (isSafeWebsite(w)) {
+            return false;
+        }
+        if (!hasFollowingSeasonEpisodeOrDate(w, ctx)) {
+            return false;
+        }
+        return !isEnclosedInGroup(w, ctx);
+    }
+
+    private boolean isSafeWebsite(Match w) {
+        String val = w.value() instanceof String s ? s.toLowerCase(java.util.Locale.ROOT) : "";
+        return safeStarts.stream().anyMatch(p -> val.startsWith(p.toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    private boolean hasFollowingSeasonEpisodeOrDate(Match w, ParseContext ctx) {
+        return ctx.matches.all().anyMatch(o ->
+                ("season".equals(o.name()) || "episode".equals(o.name())
+                        || "year".equals(o.name()) || "date".equals(o.name()))
+                        && o.start() >= w.end());
+    }
+
+    private boolean isEnclosedInGroup(Match w, ParseContext ctx) {
+        return ctx.markers.stream().anyMatch(mk -> "group".equals(mk.name())
+                && mk.start() <= w.start() && mk.end() >= w.end());
+    }
+
+    private boolean shouldRemovePrefixMatch(Match m, ParseContext ctx, ArrayList<Match> toRemove) {
+        var websiteMatch = ctx.matches.named(WEBSITE)
+                .filter(w -> w.start() > m.end() && !toRemove.contains(w))
+                .findFirst().orElse(null);
+
+        if (websiteMatch == null) {
+            return true;
+        }
+
+        return hasNonSeparatorContent(ctx.input, m.end(), websiteMatch.start());
+    }
+
+    private boolean hasNonSeparatorContent(String input, int start, int end) {
+        var raw = input.substring(start, end);
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (!Seps.isSep(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String buildOrPattern(List<String> items) {

@@ -3,7 +3,8 @@ package io.guessit.rules.post;
 import io.guessit.engine.*;
 import io.guessit.engine.PostPhase.PostProcessor;
 
-import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Port of python {@code processors.EquivalentHoles}: when a hole in any
@@ -22,31 +23,40 @@ public final class EquivalentHoles implements PostProcessor {
         for (var fp : sorted) {
             var snapshot = ctx.matches.snapshot();
             var holes = Holes.compute(ctx.input, fp.start(), fp.end(),
-                snapshot, Match::isPrivate, null, Formatters::cleanup);
+                    snapshot, Match::isPrivate, null, Formatters::cleanup);
             // Limited to title-family names: python applies this to all names,
             // but our extractors miss some matches (e.g. lowercase release_group)
             // that python finds, so a hole appears where python has a match —
             // letting the rule flip the better-cased existing value to the worse
             // one. Title casing is the primary win here anyway.
-            var names = List.of("title", "alternative_title", "episode_title");
-            for (var name : names) {
-                for (var hole : holes) {
-                    if (hole == null) continue;
-                    var hv = hole.value();
-                    if (hv == null || hv.isEmpty()) continue;
-                    var current = ctx.matches.named(name).toList();
-                    for (var m : current) {
-                        if (!(m.value() instanceof String mv)) continue;
-                        if (m.tags().contains("equivalent-ignore")) continue;
-                        if (!hv.equalsIgnoreCase(mv)) continue;
-                        var preferred = preferredString(hv, mv);
-                        if (!preferred.equals(mv)) {
-                            ctx.matches.replace(m, new Match(m.name(), preferred,
-                                m.start(), m.end(), m.raw(), m.priority(), m.tags(), m.isPrivate()));
-                        }
-                    }
-                }
-            }
+            Stream
+                    .of("title", "alternative_title", "episode_title")
+                    .flatMap(name -> holes
+                            .stream()
+                            .filter(hole -> hole != null && hole.value() != null && !hole.value().isEmpty())
+                            .flatMap(hole -> ctx.matches.named(name)
+                                    .filter(m -> m.value() instanceof String)
+                                    .filter(m -> !m.tags().contains("equivalent-ignore"))
+                                    .filter(m -> hole.value().equalsIgnoreCase((String) m.value()))
+                                    .map(m -> {
+                                        var mv = (String) m.value();
+                                        var preferred = preferredString(hole.value(), mv);
+                                        return preferred.equals(mv) ? null :
+                                                new Object[]{
+                                                        m,
+                                                        new Match(
+                                                                m.name(),
+                                                                preferred,
+                                                                m.start(),
+                                                                m.end(),
+                                                                m.raw(),
+                                                                m.priority(),
+                                                                m.tags(),
+                                                                m.isPrivate())
+                                                };
+                                    })
+                                    .filter(Objects::nonNull)))
+                    .forEach(pair -> ctx.matches.replace((Match) pair[0], (Match) pair[1]));
         }
     }
 
@@ -71,7 +81,9 @@ public final class EquivalentHoles implements PostProcessor {
         return hasLetter;
     }
 
-    /** Mirror of python {@code str.istitle}. */
+    /**
+     * Mirror of python {@code str.istitle}.
+     */
     static boolean isTitleCase(String s) {
         var hasCased = false;
         var prevCased = false;

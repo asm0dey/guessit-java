@@ -11,6 +11,7 @@ public final class CdExtractor implements Extractor {
         "(?i)cd" + SEP + "(?<cd>\\d+)(?:" + SEP + "of" + SEP + "(?<count>\\d+))?");
     private static final Pattern CD_COUNT = Pattern.compile(
         "(?i)(?<count>\\d+)" + SEP + "cds?");
+    public static final String COUNT = "count";
 
     @Override public String name() { return "cd"; }
 
@@ -27,11 +28,11 @@ public final class CdExtractor implements Extractor {
             if (cd <= 0 || cd >= 100) continue;
             ctx.matches.add(new Match("cd", cd,
                 m.start("cd"), m.end("cd"), m.group("cd"), priority(), Set.of(), false));
-            if (m.group("count") != null) {
-                var c = Integer.parseInt(m.group("count"));
+            if (m.group(COUNT) != null) {
+                var c = Integer.parseInt(m.group(COUNT));
                 if (c > 0 && c < 100) {
                     ctx.matches.add(new Match("cd_count", c,
-                        m.start("count"), m.end("count"), m.group("count"),
+                        m.start(COUNT), m.end(COUNT), m.group(COUNT),
                         priority(), Set.of(), false));
                 }
             }
@@ -41,14 +42,14 @@ public final class CdExtractor implements Extractor {
         while (m.find()) {
             var head = new Match("cd_count", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
-            var c = Integer.parseInt(m.group("count"));
+            var c = Integer.parseInt(m.group(COUNT));
             if (c <= 0 || c >= 100) continue;
             ctx.matches.add(new Match("cd_count", c,
-                m.start("count"), m.end("count"), m.group("count"),
+                m.start(COUNT), m.end(COUNT), m.group(COUNT),
                 priority(), Set.of(), false));
             // Cover the trailing "cd"/"cds" literal with a private marker so
             // it doesn't leak into a title/alt-title hole.
-            int litStart = m.end("count");
+            int litStart = m.end(COUNT);
             int litEnd = m.end();
             while (litStart < litEnd && Seps.isSep(input.charAt(litStart))) litStart++;
             if (litEnd > litStart) {

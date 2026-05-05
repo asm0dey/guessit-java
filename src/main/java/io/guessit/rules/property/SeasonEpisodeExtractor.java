@@ -41,7 +41,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
     private static final java.util.Set<String> MARKER_SEPS = Set.of("e", "ex", "xe", "ep", "x", "d", "s");
     private static final int MAX_RANGE_GAP = 1;
     private static final Pattern HEAD_NUM_X = Pattern.compile(
-        "(?i)(?<season>\\d+)[ ]?(?<episodeMarker>x)[ ]?(?<episode>\\d+)");
+            "(?i)(?<season>\\d+) ?(?<episodeMarker>x) ?(?<episode>\\d+)");
     // Episode-only chain: matches "E01E02E03", "1e18", "e112" without an explicit
     // S<season> head. Optional season prefix captured but only emitted when present.
     private static final Pattern HEAD_E = Pattern.compile(
@@ -95,12 +95,12 @@ public final class SeasonEpisodeExtractor implements Extractor {
                 m.group(), 1000, Set.of(SXX_EXX), false);
             if (!seps.test(head)) continue;
             String cg = ctx.nextCoexistGroupTag();
-            int sStart = m.start("season");
-            int sEnd = m.end("season");
+            int sStart = m.start(SEASON);
+            int sEnd = m.end(SEASON);
             int aStart = m.start("all");
             int aEnd = m.end("all");
-            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group("season")),
-                sStart, sEnd, m.group("season"), 1000,
+            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group(SEASON)),
+                sStart, sEnd, m.group(SEASON), 1000,
                 Set.of(SXX_EXX, COEXIST, cg), false));
             ctx.matches.add(new Match("other", "Complete",
                 aStart, aEnd, m.group("all"), 1000,
@@ -125,8 +125,8 @@ public final class SeasonEpisodeExtractor implements Extractor {
             // consumed and doesn't leak into the title hole.
             ctx.matches.add(new Match("seasonHead", null, m.start(), m.end(),
                 m.group(), 1000, Set.of(SXX_EXX), true));
-            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group("season")),
-                m.start("season"), m.end("season"), m.group("season"), 1000,
+            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group(SEASON)),
+                m.start(SEASON), m.end(SEASON), m.group(SEASON), 1000,
                 Set.of(SXX_EXX, COEXIST, cg), false));
             ctx.matches.add(new Match("other", "Extras",
                 m.start("extras"), m.end("extras"), m.group("extras"), 1000,
@@ -136,78 +136,140 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     private void runChain(ParseContext ctx, Chain chain, String input, boolean withEpisode, boolean skipScreenSize, boolean isWeakEChain) {
         var seps = Validators.sepsSurround(input);
-        var screenSizeSpans = skipScreenSize
-            ? ctx.matches.named("screen_size").map(m -> new int[]{m.start(), m.end()}).toList()
-            : List.<int[]>of();
-        // The "e-only" chain (HEAD_E) is treated as a weak chain in Python — its
-        // matches do not carry the SxxExx tag and therefore do not block weak-
-        // episode promotion or trigger RemoveWeakIfSxxExx semantics. It also
-        // skips runs that overlap an existing SxxExx span to avoid duplicating
-        // episode matches already produced by HEAD_S_E / HEAD_NUM_X.
-        var existingSxxExx = isWeakEChain
-            ? ctx.matches.all()
-                .filter(m -> m.tags().contains(SXX_EXX))
-                .map(m -> new int[]{m.start(), m.end()})
-                .toList()
-            : List.<int[]>of();
+        var screenSizeSpans = getScreenSizeSpans(ctx, skipScreenSize);
+        var existingSxxExx = getExistingSxxExxSpans(ctx, isWeakEChain);
+
         for (var run : chain.scan(input, this::effectiveRunEnd)) {
-            if (skipScreenSize && overlapsAny(run.start(), run.end(), screenSizeSpans)) continue;
-            if (isWeakEChain && overlapsAny(run.start(), run.end(), existingSxxExx)) continue;
-            var seasonValues = run.captures(SEASON);
-            var episodeValues = run.captures(EPISODE);
-            var seasonSpans = run.spans(SEASON);
-            var episodeSpans = run.spans(EPISODE);
-            var episodeSeparators = run.captures("episodeSeparator");
-            var episodeMarkers = run.captures("episodeMarker");
-            var seasonSeparators = run.captures("seasonSeparator");
-            // Note: descending values are pruned by longestValidTail below — let
-            // it trim to the longest valid prefix instead of skipping the whole run.
-            // Mirror Python rebulk's repeater('*'): when ordering_validator rejects the
-            // full chain, fall back to the longest valid prefix of tail repeats.
-            int validTails = longestValidTail(episodeValues, episodeSeparators);
-            if (!episodeValues.isEmpty() && validTails < episodeValues.size() - 1) {
-                int keep = validTails + 1;
-                episodeValues = episodeValues.subList(0, keep);
-                episodeSpans = episodeSpans.subList(0, keep);
-                episodeSeparators = episodeSeparators.subList(0, Math.max(0, keep - 1));
-            }
-            int validSeasonTails = longestValidTail(seasonValues, seasonSeparators);
-            if (!seasonValues.isEmpty() && validSeasonTails < seasonValues.size() - 1) {
-                int keep = validSeasonTails + 1;
-                seasonValues = seasonValues.subList(0, keep);
-                seasonSpans = seasonSpans.subList(0, keep);
-            }
-            int runEnd = run.end();
-            if (!episodeSpans.isEmpty()) {
-                runEnd = Math.min(runEnd, episodeSpans.getLast()[1]);
-            } else if (!seasonSpans.isEmpty()) {
-                runEnd = Math.min(runEnd, seasonSpans.getLast()[1]);
-            }
+            if (shouldSkipRun(run, skipScreenSize, screenSizeSpans, isWeakEChain, existingSxxExx)) continue;
+
+            var trimmedRun = trimRunToValidTails(run);
+            int runEnd = calculateRunEnd(run, trimmedRun.episodeSpans, trimmedRun.seasonSpans);
+
             var headMatch = new Match("seasonHead", null, run.start(), runEnd,
-                input.substring(run.start(), runEnd), 1000, Set.of(SXX_EXX), true);
+                    input.substring(run.start(), runEnd), 1000, Set.of(SXX_EXX), true);
             if (!seps.test(headMatch)) continue;
+
             ctx.matches.add(headMatch);
-            boolean discRun = episodeMarkers.stream().anyMatch(s -> s.equalsIgnoreCase("d"))
-                || episodeSeparators.stream().anyMatch(s -> s.equalsIgnoreCase("d"));
-            String cg = withEpisode && !seasonValues.isEmpty() && !episodeValues.isEmpty()
+            emitSeasonAndEpisodeMatches(ctx, input, withEpisode, trimmedRun);
+        }
+    }
+
+    private List<int[]> getScreenSizeSpans(ParseContext ctx, boolean skipScreenSize) {
+        return skipScreenSize
+                ? ctx.matches.named("screen_size").map(m -> new int[]{m.start(), m.end()}).toList()
+                : List.of();
+    }
+
+    private List<int[]> getExistingSxxExxSpans(ParseContext ctx, boolean isWeakEChain) {
+        return isWeakEChain
+                ? ctx.matches.all()
+                  .filter(m -> m.tags().contains(SXX_EXX))
+                  .map(m -> new int[]{m.start(), m.end()})
+                  .toList()
+                : List.of();
+    }
+
+    private boolean shouldSkipRun(Chain.Run run, boolean skipScreenSize, List<int[]> screenSizeSpans,
+                                  boolean isWeakEChain, List<int[]> existingSxxExx) {
+        if (skipScreenSize && overlapsAny(run.start(), run.end(), screenSizeSpans)) return true;
+        return isWeakEChain && overlapsAny(run.start(), run.end(), existingSxxExx);
+    }
+
+    private static class TrimmedRunData {
+        List<String> seasonValues;
+        List<String> episodeValues;
+        List<int[]> seasonSpans;
+        List<int[]> episodeSpans;
+        List<String> episodeSeparators;
+        List<String> episodeMarkers;
+
+        TrimmedRunData(List<String> seasonValues, List<String> episodeValues,
+                       List<int[]> seasonSpans, List<int[]> episodeSpans,
+                       List<String> episodeSeparators, List<String> episodeMarkers) {
+            this.seasonValues = seasonValues;
+            this.episodeValues = episodeValues;
+            this.seasonSpans = seasonSpans;
+            this.episodeSpans = episodeSpans;
+            this.episodeSeparators = episodeSeparators;
+            this.episodeMarkers = episodeMarkers;
+        }
+    }
+
+    private TrimmedRunData trimRunToValidTails(Chain.Run run) {
+        var seasonValues = run.captures(SEASON);
+        var episodeValues = run.captures(EPISODE);
+        var seasonSpans = run.spans(SEASON);
+        var episodeSpans = run.spans(EPISODE);
+        var episodeSeparators = run.captures("episodeSeparator");
+        var episodeMarkers = run.captures("episodeMarker");
+        var seasonSeparators = run.captures("seasonSeparator");
+
+        // Trim episode values to longest valid tail
+        int validTails = longestValidTail(episodeValues, episodeSeparators);
+        if (!episodeValues.isEmpty() && validTails < episodeValues.size() - 1) {
+            int keep = validTails + 1;
+            episodeValues = episodeValues.subList(0, keep);
+            episodeSpans = episodeSpans.subList(0, keep);
+            episodeSeparators = episodeSeparators.subList(0, Math.max(0, keep - 1));
+        }
+
+        // Trim season values to longest valid tail
+        int validSeasonTails = longestValidTail(seasonValues, seasonSeparators);
+        if (!seasonValues.isEmpty() && validSeasonTails < seasonValues.size() - 1) {
+            int keep = validSeasonTails + 1;
+            seasonValues = seasonValues.subList(0, keep);
+            seasonSpans = seasonSpans.subList(0, keep);
+        }
+
+        return new TrimmedRunData(seasonValues, episodeValues, seasonSpans,
+                episodeSpans, episodeSeparators, episodeMarkers);
+    }
+
+    private int calculateRunEnd(Chain.Run run, List<int[]> episodeSpans, List<int[]> seasonSpans) {
+        int runEnd = run.end();
+        if (!episodeSpans.isEmpty()) {
+            runEnd = Math.min(runEnd, episodeSpans.getLast()[1]);
+        } else if (!seasonSpans.isEmpty()) {
+            runEnd = Math.min(runEnd, seasonSpans.getLast()[1]);
+        }
+        return runEnd;
+    }
+
+    private void emitSeasonAndEpisodeMatches(ParseContext ctx, String input, boolean withEpisode, TrimmedRunData data) {
+        boolean discRun = data.episodeMarkers.stream().anyMatch(s -> s.equalsIgnoreCase("d"))
+                || data.episodeSeparators.stream().anyMatch(s -> s.equalsIgnoreCase("d"));
+        String cg = withEpisode && !data.seasonValues.isEmpty() && !data.episodeValues.isEmpty()
                 ? ctx.nextCoexistGroupTag() : null;
-            for (int i = 0; i < seasonValues.size(); i++) {
-                int[] sp = seasonSpans.get(i);
-                var stags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
-                ctx.matches.add(new Match(SEASON, Integer.valueOf(seasonValues.get(i)),
+
+        emitSeasonMatches(ctx, input, data.seasonValues, data.seasonSpans, cg);
+
+        if (withEpisode) {
+            emitEpisodeMatches(ctx, input, data.episodeValues, data.episodeSpans, cg, discRun);
+        }
+    }
+
+    private void emitSeasonMatches(ParseContext ctx, String input, List<String> seasonValues,
+                                   List<int[]> seasonSpans, String cg) {
+        for (int i = 0; i < seasonValues.size(); i++) {
+            int[] sp = seasonSpans.get(i);
+            var stags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
+            ctx.matches.add(new Match(SEASON, Integer.valueOf(seasonValues.get(i)),
                     sp[0], sp[1], input.substring(sp[0], sp[1]), 1000, stags, false));
-            }
-            if (withEpisode) {
-                Set<String> baseTags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
-                Set<String> tags = discRun
-                    ? java.util.stream.Stream.concat(baseTags.stream(), java.util.stream.Stream.of("disc-marker")).collect(java.util.stream.Collectors.toUnmodifiableSet())
-                    : baseTags;
-                for (int i = 0; i < episodeValues.size(); i++) {
-                    int[] ep = episodeSpans.get(i);
-                    ctx.matches.add(new Match(EPISODE, Integer.valueOf(episodeValues.get(i)),
-                        ep[0], ep[1], input.substring(ep[0], ep[1]), 1000, tags, false));
-                }
-            }
+        }
+    }
+
+    private void emitEpisodeMatches(ParseContext ctx, String input, List<String> episodeValues,
+                                    List<int[]> episodeSpans, String cg, boolean discRun) {
+        Set<String> baseTags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
+        Set<String> tags = discRun
+            ? java.util.stream.Stream.concat(baseTags.stream(), java.util.stream.Stream.of("disc-marker"))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet())
+            : baseTags;
+    
+        for (int i = 0; i < episodeValues.size(); i++) {
+            int[] ep = episodeSpans.get(i);
+            ctx.matches.add(new Match(EPISODE, Integer.valueOf(episodeValues.get(i)),
+                ep[0], ep[1], input.substring(ep[0], ep[1]), 1000, tags, false));
         }
     }
 
@@ -393,60 +455,79 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     private void removeInvalidSecondaryChain(ParseContext ctx, String prop) {
         var matches = ctx.matches.named(prop)
-            .sorted(java.util.Comparator.comparingInt(Match::start)).toList();
+                .sorted(java.util.Comparator.comparingInt(Match::start)).toList();
         if (matches.size() <= 1) return;
+
         boolean strongSeen = matches.stream().anyMatch(m -> m.tags().contains(SXX_EXX));
         if (!strongSeen) return;
-        // Latest SxxExx end — trailing weak matches (after this) MAY be absolute_episode
-        // candidates. Exempt them only when no media property (screen_size, source,
-        // codec, etc.) sits between the weak match and end of input — otherwise
-        // they're title-bordering noise (e.g. "TEST.S01E10.24.1080p..."  where 24
-        // is the episode_title, not an absolute episode).
-        int strongMaxEnd = matches.stream()
-            .filter(m -> m.tags().contains(SXX_EXX))
-            .mapToInt(Match::end).max().orElse(Integer.MAX_VALUE);
-        var mediaNames = Set.of("screen_size", "source", "video_codec",
-            "audio_codec", "audio_channels", "audio_profile", "video_profile",
-            "streaming_service");
-        var mediaSpans = ctx.matches.all()
-            .filter(m -> mediaNames.contains(m.name()))
-            .toList();
+
+        int strongMaxEnd = calculateStrongMaxEnd(matches);
+        var mediaSpans = collectMediaSpans(ctx);
         var toRemove = new ArrayList<Match>();
+
         for (var m : matches) {
-            if (m.tags().contains(SXX_EXX)) continue;
-            // weak-duplicate matches are paired (s+e from compact NNNN/NNN)
-            // breaking the pair via this rule corrupts the pair logic in
-            // WeakDuplicateExtractor.postProcess. Let that pass decide.
-            if (m.tags().contains("weak-duplicate")) continue;
-            boolean isWeak = m.tags().contains("weak-episode") || m.tags().contains("weak-duplicate");
-            if (isWeak && m.start() >= strongMaxEnd) {
-                final Match weak = m;
-                boolean mediaAfter = mediaSpans.stream().anyMatch(media -> media.start() >= weak.end());
-                if (!mediaAfter) continue;
+            if (shouldRemoveMatch(m, matches, strongMaxEnd, mediaSpans, ctx.input)) {
+                toRemove.add(m);
             }
-            // Keep ≥100 weak-episode candidates that are paired with another
-            // ≥100 weak-episode by a range separator — those are absolute_episode
-            // ranges (e.g. "Show.Name.313-315.s16e03-05" → absolute=313..315).
-            // A lone "100" / "165" / "4400" here is still title noise and gets
-            // dropped.
-            if (isWeak && m.value() instanceof Integer iv && iv >= 100) {
-                final Match cur = m;
-                boolean rangePaired = matches.stream().anyMatch(other -> {
-                    if (other == cur) return false;
-                    if (!other.tags().contains("weak-episode")) return false;
-                    if (other.tags().contains("weak-duplicate")) return false;
-                    if (!(other.value() instanceof Integer ov) || ov < 100) return false;
-                    int gapStart = Math.min(cur.end(), other.end());
-                    int gapEnd = Math.max(cur.start(), other.start());
-                    if (gapEnd <= gapStart) return false;
-                    if (gapEnd - gapStart > 5) return false;
-                    String gap = ctx.input.substring(gapStart, gapEnd);
-                    return gap.matches("[ ._]*[-~][ ._]*");
-                });
-                if (rangePaired) continue;
-            }
-            toRemove.add(m);
         }
+
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private int calculateStrongMaxEnd(List<Match> matches) {
+        return matches.stream()
+                .filter(m -> m.tags().contains(SXX_EXX))
+                .mapToInt(Match::end)
+                .max()
+                .orElse(Integer.MAX_VALUE);
+    }
+
+    private List<Match> collectMediaSpans(ParseContext ctx) {
+        var mediaNames = Set.of("screen_size", "source", "video_codec",
+                "audio_codec", "audio_channels", "audio_profile", "video_profile",
+                "streaming_service");
+        return ctx.matches.all()
+                .filter(m -> mediaNames.contains(m.name()))
+                .toList();
+    }
+
+    private boolean shouldRemoveMatch(Match m, List<Match> allMatches,
+                                      int strongMaxEnd, List<Match> mediaSpans, String input) {
+        if (m.tags().contains(SXX_EXX)) return false;
+        if (m.tags().contains("weak-duplicate")) return false;
+
+        boolean isWeak = m.tags().contains("weak-episode") || m.tags().contains("weak-duplicate");
+
+        if (isWeak && m.start() >= strongMaxEnd && !hasMediaAfter(m, mediaSpans)) return false;
+
+
+        return !isHighValueRangePaired(m, allMatches, input);
+    }
+
+    private boolean hasMediaAfter(Match weak, List<Match> mediaSpans) {
+        return mediaSpans.stream().anyMatch(media -> media.start() >= weak.end());
+    }
+
+    private boolean isHighValueRangePaired(Match m, List<Match> matches, String input) {
+        boolean isWeak = m.tags().contains("weak-episode") || m.tags().contains("weak-duplicate");
+        if (!isWeak) return false;
+        if (!(m.value() instanceof Integer iv) || iv < 100) return false;
+
+        return matches.stream().anyMatch(other -> isValidRangePair(m, other, input));
+    }
+
+    private boolean isValidRangePair(Match cur, Match other, String input) {
+        if (other == cur) return false;
+        if (!other.tags().contains("weak-episode")) return false;
+        if (other.tags().contains("weak-duplicate")) return false;
+        if (!(other.value() instanceof Integer ov) || ov < 100) return false;
+
+        int gapStart = Math.min(cur.end(), other.end());
+        int gapEnd = Math.max(cur.start(), other.start());
+        if (gapEnd <= gapStart) return false;
+        if (gapEnd - gapStart > 5) return false;
+    
+        String gap = input.substring(gapStart, gapEnd);
+        return gap.matches("[ ._]*[-~][ ._]*");
     }
 }

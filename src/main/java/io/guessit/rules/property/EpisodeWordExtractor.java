@@ -5,6 +5,8 @@ import io.guessit.engine.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -43,17 +45,28 @@ public final class EpisodeWordExtractor implements Extractor {
     @Override
     public void extract(ParseContext ctx) {
         if ("movie".equals(ctx.options.type())) return;
+
+        extractSeasonMatches(ctx);
+        extractEpisodeMatches(ctx);
+        extractDetachedEpisodeCount(ctx);
+    }
+
+    private void extractSeasonMatches(ParseContext ctx) {
         var input = ctx.input;
-        var seps = Validators.sepsSurround(input);
-        // Season-word head accepts the standard separator boundaries OR a
-        // chain-tail boundary ('&', '+', '-', '~', 'a', 'and', 'et', 'to')
-        // that isn't in Seps.CHARS but is still a valid chain continuation
-        // (mirrors python's chain validator or_(seps_before, seps_after) but
-        // restricted to known season-chain operators to avoid greedily
-        // matching "Temple" as season-word "temp" + Roman L).
+        var seasonHeadValidator = createSeasonHeadValidator(input);
+        var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")"
+                + "(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+        var seasonMatcher = seasonRe.matcher(input);
+
+        while (seasonMatcher.find()) {
+            processSeasonMatch(ctx, seasonMatcher, seasonHeadValidator);
+        }
+    }
+
+    private Predicate<Match> createSeasonHeadValidator(String input) {
         var sepsBefore = Validators.sepsBefore(input);
         var sepsAfter = Validators.sepsAfter(input);
-        java.util.function.Predicate<Match> seasonHeadValidator = m -> {
+        return m -> {
             if (!sepsBefore.test(m)) return false;
             if (sepsAfter.test(m)) return true;
             int e = m.end();
@@ -61,189 +74,265 @@ public final class EpisodeWordExtractor implements Extractor {
             char c = input.charAt(e);
             return c == '&' || c == '+' || c == '~';
         };
+    }
 
-        var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")"
-            + "(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
-        // Tail captures one separator token (group 1) and the next digits (group 2).
-        // Strong:  &, +, and, et — emits as additive list, terminates further weak checks.
-        // Range:   -, ~, to, a   — expands inclusive between prev and v.
-        // Weak:    .,  , _       — only valid when 0 < v-prev <= MAX_RANGE_GAP+1.
-        var seasonTailRe = Pattern.compile(
-            "(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
-        var seasonMatcher = seasonRe.matcher(input);
-        while (seasonMatcher.find()) {
-            var raw = seasonMatcher.group();
-            var headMatch = new Match(SEASON, null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
-            if (!seasonHeadValidator.test(headMatch)) continue;
-            ctx.matches.add(headMatch);
-            int valStart = seasonMatcher.start(2);
-            int valEnd = seasonMatcher.end(2);
-            int n = parseSafe(seasonMatcher.group(2));
-            if (n < 0) continue;
-            ctx.matches.add(new Match(SEASON, n, valStart, valEnd,
-                input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
-            // "Season N of M" → season_count=M.
-            if (seasonMatcher.group(3) != null) {
-                int countStart = seasonMatcher.start(3);
-                int countEnd = seasonMatcher.end(3);
-                int c = parseSafe(seasonMatcher.group(3));
-                if (c >= 0) {
-                    ctx.matches.add(new Match("season_count", c, countStart, countEnd,
-                        seasonMatcher.group(3), 1000, Set.of(), false));
-                }
-            }
-            // Continue scanning after the first season number for additional
-            // season values: "Season 1 to 3", "Season.1.3.4", "Saison 1 a 3",
-            // "Season.1.3&5" → [1,3,5], "Season.1.2.3-5" → [1,2,3,4,5].
-            int prevVal = n;
-            int scanFrom = seasonMatcher.end();
-            // Tail digits inside an existing strong match (screen_size, year,
-            // source, video_codec, audio_codec) are part of that property,
-            // not a new season number.
-            var blockSpans = ctx.matches.all()
-                .filter(m -> {
-                    String nm = m.name();
-                    return "screen_size".equals(nm) || "year".equals(nm)
-                        || "source".equals(nm) || "video_codec".equals(nm)
-                        || "audio_codec".equals(nm) || "video_profile".equals(nm)
-                        || "audio_channels".equals(nm) || "frame_rate".equals(nm);
-                })
+    private void processSeasonMatch(ParseContext ctx, Matcher seasonMatcher,
+                                    Predicate<Match> seasonHeadValidator) {
+        var raw = seasonMatcher.group();
+        var headMatch = new Match(SEASON, null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
+        if (!seasonHeadValidator.test(headMatch)) return;
+
+        ctx.matches.add(headMatch);
+
+        int n = addSeasonValue(ctx, seasonMatcher);
+        if (n < 0) return;
+
+        addSeasonCount(ctx, seasonMatcher);
+        processSeasonTail(ctx, seasonMatcher, n);
+    }
+
+    private int addSeasonValue(ParseContext ctx, Matcher seasonMatcher) {
+        int valStart = seasonMatcher.start(2);
+        int valEnd = seasonMatcher.end(2);
+        int n = parseSafe(seasonMatcher.group(2));
+        if (n < 0) return -1;
+
+        ctx.matches.add(new Match(SEASON, n, valStart, valEnd,
+                ctx.input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
+        return n;
+    }
+
+    private void addSeasonCount(ParseContext ctx, Matcher seasonMatcher) {
+        if (seasonMatcher.group(3) == null) return;
+
+        int countStart = seasonMatcher.start(3);
+        int countEnd = seasonMatcher.end(3);
+        int c = parseSafe(seasonMatcher.group(3));
+        if (c >= 0) {
+            ctx.matches.add(new Match("season_count", c, countStart, countEnd,
+                    seasonMatcher.group(3), 1000, Set.of(), false));
+        }
+    }
+
+    private void processSeasonTail(ParseContext ctx, Matcher seasonMatcher, int firstSeasonValue) {
+        var input = ctx.input;
+        var seasonTailRe = Pattern.compile("(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
+        var blockSpans = getBlockedSpans(ctx);
+
+        int prevVal = firstSeasonValue;
+        int scanFrom = seasonMatcher.end();
+
+        while (true) {
+            var tail = seasonTailRe.matcher(input);
+            tail.region(scanFrom, input.length());
+            if (!tail.lookingAt()) break;
+
+            var tailResult = processSeasonTailMatch(ctx, tail, prevVal, blockSpans);
+            if (!tailResult.isValid) break;
+
+            prevVal = tailResult.value;
+            scanFrom = tail.end();
+        }
+    }
+
+    private List<int[]> getBlockedSpans(ParseContext ctx) {
+        return ctx.matches.all()
+                .filter(m -> isBlockedMatchType(m.name()))
                 .map(m -> new int[]{m.start(), m.end()})
                 .toList();
-            while (true) {
-                var tail = seasonTailRe.matcher(input);
-                tail.region(scanFrom, input.length());
-                if (!tail.lookingAt()) break;
-                String sepToken = tail.group(1).strip().toLowerCase();
-                // Trim leading/trailing weak chars to extract the operator (if any).
-                String op = sepToken.replaceAll("^[. _]+|[. _]+$", "");
-                boolean strong = op.equals("&") || op.equals("+") || op.equals("and") || op.equals("et");
-                boolean range = op.equals("-") || op.equals("~") || op.equals("to") || op.equals("a");
-                int v = parseSafe(tail.group(2));
-                if (v < 0 || v <= prevVal) break;
-                int tStart = tail.start(2);
-                int tEnd = tail.end(2);
-                if (blockSpans.stream().anyMatch(sp -> sp[0] < tEnd && tStart < sp[1])) break;
-                if (!strong && !range && v - prevVal > MAX_RANGE_GAP + 1) break;
-                // Stop if the candidate digit is the head of a `\d+ of \d+`
-                // count expression (e.g. "Season.2of5.3of9" — the "3" belongs
-                // to the second NofN clause, not a new season number).
-                {
-                    var afterRe = Pattern.compile("(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
-                    if (afterRe.matcher(input).region(tEnd, input.length()).lookingAt()) break;
-                }
+    }
 
-                if (range) {
-                    // expand intermediate values privately so seasonList captures full range
-                    for (int x = prevVal + 1; x < v; x++) {
-                        ctx.matches.add(new Match(SEASON, x, tStart, tStart, "",
-                            1000, Set.of("season-word"), false));
-                    }
-                }
-                ctx.matches.add(new Match(SEASON, v, tStart, tEnd,
-                    input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
-                prevVal = v;
-                scanFrom = tail.end();
-            }
+    private boolean isBlockedMatchType(String name) {
+        return "screen_size".equals(name) || "year".equals(name)
+                || "source".equals(name) || "video_codec".equals(name)
+                || "audio_codec".equals(name) || "video_profile".equals(name)
+                || "audio_channels".equals(name) || "frame_rate".equals(name);
+    }
+
+    private static class TailResult {
+        final boolean isValid;
+        final int value;
+
+        TailResult(boolean isValid, int value) {
+            this.isValid = isValid;
+            this.value = value;
+        }
+    }
+
+    private TailResult processSeasonTailMatch(ParseContext ctx, Matcher tail,
+                                              int prevVal, List<int[]> blockSpans) {
+        String sepToken = tail.group(1).strip().toLowerCase();
+        String op = sepToken.replaceAll("^[. _]+|[. _]+$", "");
+        boolean strong = op.equals("&") || op.equals("+") || op.equals("and") || op.equals("et");
+        boolean range = op.equals("-") || op.equals("~") || op.equals("to") || op.equals("a");
+        int v = parseSafe(tail.group(2));
+
+        if (v < 0 || v <= prevVal) return new TailResult(false, prevVal);
+
+        int tStart = tail.start(2);
+        int tEnd = tail.end(2);
+
+        if (blockSpans.stream().anyMatch(sp -> sp[0] < tEnd && tStart < sp[1])) return new TailResult(false, prevVal);
+        if (!strong && !range && v - prevVal > MAX_RANGE_GAP + 1) return new TailResult(false, prevVal);
+        if (isFollowedByOfClause(ctx.input, tEnd)) return new TailResult(false, prevVal);
+
+        if (range) {
+            addRangeSeasons(ctx, prevVal, v, tStart);
         }
 
+        ctx.matches.add(new Match(SEASON, v, tStart, tEnd,
+                ctx.input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
+
+        return new TailResult(true, v);
+    }
+
+    private boolean isFollowedByOfClause(String input, int position) {
+        var afterRe = Pattern.compile("(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
+        return afterRe.matcher(input).region(position, input.length()).lookingAt();
+    }
+
+    private void addRangeSeasons(ParseContext ctx, int prevVal, int v, int tStart) {
+        for (int x = prevVal + 1; x < v; x++) {
+            ctx.matches.add(new Match(SEASON, x, tStart, tStart, "",
+                    1000, Set.of("season-word"), false));
+        }
+    }
+
+    private void extractEpisodeMatches(ParseContext ctx) {
+        var input = ctx.input;
+        var seps = Validators.sepsSurround(input);
         boolean episodeType = EPISODE.equals(ctx.options.type());
         String numToken = episodeType ? "(" + Numerals.NUMERAL + ")" : "(\\d+)";
         var epRe = Pattern.compile("(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
-            + numToken + "(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+                + numToken + "(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
         var epMatcher = epRe.matcher(input);
+
         while (epMatcher.find()) {
-            var raw = epMatcher.group();
-            var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
-            if (!seps.test(headMatch)) {
-                // Trailing alphanumeric: typical when the digit is the season
-                // number of an immediately-following SxxExx (e.g. "Ep 2x03").
-                // Emit a private span over JUST the marker word so the title
-                // hole excludes it (mirrors python where the episodeMarker
-                // child of the SxxExx chain hides the word from the hole).
-                int markerStart = epMatcher.start(1);
-                int markerEnd = epMatcher.end(1);
-                String mw = epMatcher.group(1);
-                if (mw != null && !SHORT_EPISODE_WORDS.contains(mw.toLowerCase())
-                    && markerEnd < input.length()
-                    && Seps.isSep(input.charAt(markerEnd))) {
-                    ctx.matches.add(new Match("episode_word_marker", null,
-                        markerStart, markerEnd, mw, 1000, Set.of(), true));
-                }
-                continue;
-            }
-            // Short episode markers (single char like "e") are only valid when
-            // the digit follows with no separator. Otherwise "Fumetsu no Anata
-            // e - 03" matches and clips title.
-            String marker = epMatcher.group(1);
-            if (marker != null && SHORT_EPISODE_WORDS.contains(marker.toLowerCase())) {
-                int afterMarker = epMatcher.start(1) + marker.length();
-                if (afterMarker != epMatcher.start(2)) continue;
-            }
-            int epStart = epMatcher.start(2);
-            int epEnd = epMatcher.end(2);
-            String epToken = epMatcher.group(2);
-            int ep;
-            if (episodeType) {
-                ep = parseSafe(epToken);
-                if (ep < 0) continue;
-                if (!isPureDigits(epToken)) {
-                    var token = new Match(EPISODE, ep, epStart, epEnd, epToken, 1000, Set.of(), false);
-                    // Roman / word numerals must be sep-bound (mirrors python validate_roman).
-                    // Skip the whole match — including the head — when validation fails so
-                    // the title hole isn't blocked by a phantom "Episode X" span.
-                    if (!seps.test(token)) continue;
-                }
-            } else {
-                ep = Integer.parseInt(epToken);
-            }
-            ctx.matches.add(headMatch);
-            ctx.matches.add(new Match(EPISODE, ep, epStart, epEnd,
-                input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
-            if (epMatcher.group(3) != null) {
-                int v = Integer.parseInt(epMatcher.group(3));
-                ctx.matches.add(new Match("version", v, epMatcher.start(3), epMatcher.end(3),
-                    epMatcher.group(3), 1000, Set.of(), false));
-            }
-            if (epMatcher.group(4) != null) {
-                int c = Integer.parseInt(epMatcher.group(4));
-                ctx.matches.add(new Match("episode_count", c, epMatcher.start(4), epMatcher.end(4),
-                    epMatcher.group(4), 1000, Set.of(), false));
-            }
+            processEpisodeMatch(ctx, epMatcher, seps, episodeType);
+        }
+    }
+
+    private void processEpisodeMatch(ParseContext ctx, Matcher epMatcher,
+                                     Predicate<Match> seps, boolean episodeType) {
+        var raw = epMatcher.group();
+        var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
+
+        if (!seps.test(headMatch)) {
+            handleInvalidEpisodeHead(ctx, epMatcher);
+            return;
         }
 
-        // Detached: \d+ of \d+ optionally followed by an episode-word
-        // (mirrors python episodes.py L342: "(\d+)-?of-?(\d+)-?(episode_words)?").
-        // Trailing "Ep"/"Episode" word is absorbed into the private span so
-        // it doesn't surface as the first hole and steal episode_title text
-        // (e.g. "Season.2.1of4.Ep.Title" → episode_title=Title, not "Ep Title").
-        var detached = Pattern.compile("(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
-            + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
-        var dm = detached.matcher(input);
-        while (dm.find()) {
-            var raw = dm.group();
-            var headMatch = new Match(EPISODE, null, dm.start(), dm.end(), raw, 1000, Set.of(), false);
-            if (!seps.test(headMatch)) continue;
-            // Skip if the digit at group(1) overlaps an existing season match
-            // emitted from "Season N of M" — that's the same NofN clause, not
-            // an episode/episode_count expression.
-            int dStart = dm.start(1);
-            int dEnd = dm.end(1);
-            boolean overlapsSeason = ctx.matches.range(dStart, dEnd,
-                m -> SEASON.equals(m.name()) && m.value() != null).findAny().isPresent();
-            if (overlapsSeason) continue;
-            int e = Integer.parseInt(dm.group(1));
-            int c = Integer.parseInt(dm.group(2));
-            ctx.matches.add(new Match(EPISODE, e, dm.start(1), dm.end(1),
-                dm.group(1), 1000, Set.of("episode-word"), false));
-            ctx.matches.add(new Match("episode_count", c, dm.start(2), dm.end(2),
-                dm.group(2), 1000, Set.of(), false));
-            // Private span covering the entire match so the connector "of"
-            // (and trailing episode-word, if present) doesn't surface as the
-            // first hole and steal episode_title.
-            ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
-                raw, 1000, Set.of(), true));
+        if (!validateShortEpisodeMarker(epMatcher)) return;
+
+        Integer ep = parseEpisodeNumber(epMatcher, seps, episodeType);
+        if (ep == null) return;
+
+        addEpisodeMatches(ctx, epMatcher, headMatch, ep);
+    }
+
+    private void handleInvalidEpisodeHead(ParseContext ctx, Matcher epMatcher) {
+        int markerStart = epMatcher.start(1);
+        int markerEnd = epMatcher.end(1);
+        String mw = epMatcher.group(1);
+
+        if (mw != null && !SHORT_EPISODE_WORDS.contains(mw.toLowerCase())
+                && markerEnd < ctx.input.length()
+                && Seps.isSep(ctx.input.charAt(markerEnd))) {
+            ctx.matches.add(new Match("episode_word_marker", null,
+                    markerStart, markerEnd, mw, 1000, Set.of(), true));
         }
+    }
+
+    private boolean validateShortEpisodeMarker(Matcher epMatcher) {
+        String marker = epMatcher.group(1);
+        if (marker != null && SHORT_EPISODE_WORDS.contains(marker.toLowerCase())) {
+            int afterMarker = epMatcher.start(1) + marker.length();
+            return afterMarker == epMatcher.start(2);
+        }
+        return true;
+    }
+
+    private Integer parseEpisodeNumber(Matcher epMatcher,
+                                       Predicate<Match> seps, boolean episodeType) {
+        int epStart = epMatcher.start(2);
+        int epEnd = epMatcher.end(2);
+        String epToken = epMatcher.group(2);
+
+        if (episodeType) {
+            int ep = parseSafe(epToken);
+            if (ep < 0) return null;
+
+            if (!isPureDigits(epToken)) {
+                var token = new Match(EPISODE, ep, epStart, epEnd, epToken, 1000, Set.of(), false);
+                if (!seps.test(token)) return null;
+            }
+            return ep;
+        } else {
+            return Integer.parseInt(epToken);
+        }
+    }
+
+    private void addEpisodeMatches(ParseContext ctx, Matcher epMatcher, Match headMatch, int ep) {
+        ctx.matches.add(headMatch);
+
+        int epStart = epMatcher.start(2);
+        int epEnd = epMatcher.end(2);
+        ctx.matches.add(new Match(EPISODE, ep, epStart, epEnd,
+                ctx.input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
+
+        addEpisodeVersion(ctx, epMatcher);
+        addEpisodeCountFromMatch(ctx, epMatcher);
+    }
+
+    private void addEpisodeVersion(ParseContext ctx, Matcher epMatcher) {
+        if (epMatcher.group(3) != null) {
+            int v = Integer.parseInt(epMatcher.group(3));
+            ctx.matches.add(new Match("version", v, epMatcher.start(3), epMatcher.end(3),
+                    epMatcher.group(3), 1000, Set.of(), false));
+        }
+    }
+
+    private void addEpisodeCountFromMatch(ParseContext ctx, Matcher epMatcher) {
+        if (epMatcher.group(4) != null) {
+            int c = Integer.parseInt(epMatcher.group(4));
+            ctx.matches.add(new Match("episode_count", c, epMatcher.start(4), epMatcher.end(4),
+                    epMatcher.group(4), 1000, Set.of(), false));
+        }
+    }
+
+    private void extractDetachedEpisodeCount(ParseContext ctx) {
+        var input = ctx.input;
+        var seps = Validators.sepsSurround(input);
+        var detached = Pattern.compile("(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
+                + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
+        var dm = detached.matcher(input);
+
+        while (dm.find()) {
+            processDetachedMatch(ctx, dm, seps);
+        }
+    }
+
+    private void processDetachedMatch(ParseContext ctx, Matcher dm,
+                                      Predicate<Match> seps) {
+        var raw = dm.group();
+        var headMatch = new Match(EPISODE, null, dm.start(), dm.end(), raw, 1000, Set.of(), false);
+        if (!seps.test(headMatch)) return;
+    
+        int dStart = dm.start(1);
+        int dEnd = dm.end(1);
+        boolean overlapsSeason = ctx.matches.range(dStart, dEnd,
+            m -> SEASON.equals(m.name()) && m.value() != null).findAny().isPresent();
+        if (overlapsSeason) return;
+    
+        int e = Integer.parseInt(dm.group(1));
+        int c = Integer.parseInt(dm.group(2));
+    
+        ctx.matches.add(new Match(EPISODE, e, dm.start(1), dm.end(1),
+            dm.group(1), 1000, Set.of("episode-word"), false));
+        ctx.matches.add(new Match("episode_count", c, dm.start(2), dm.end(2),
+            dm.group(2), 1000, Set.of(), false));
+        ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
+            raw, 1000, Set.of(), true));
     }
 
     @Override

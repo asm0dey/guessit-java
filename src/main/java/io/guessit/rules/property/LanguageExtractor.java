@@ -60,8 +60,8 @@ public final class LanguageExtractor implements Extractor {
         var affixes = loadAffixConfiguration(ctx);
         var words = Words.iter(ctx.input);
 
-        var pairConsumed = new java.util.HashSet<Integer>();
-        var countryWordConsumed = new java.util.HashSet<Integer>();
+        var pairConsumed = new HashSet<Integer>();
+        var countryWordConsumed = new HashSet<Integer>();
 
         extractTwoWordLanguages(ctx, words, pairConsumed, allowed, registry);
         extractTwoWordSubtitleAffixes(ctx, words, pairConsumed, affixes);
@@ -449,7 +449,7 @@ public final class LanguageExtractor implements Extractor {
             var und = registry.find("und").orElse(null);
             if (und == null) continue;
             ctx.matches.add(new Match(SUBTITLE_LANGUAGE, und, marker.start(), marker.end(),
-                marker.raw(), 1000, Set.of(), false));
+                    marker.raw(), 1000, Set.of(), false));
             // Marker has done its job: emitted und. Drop it so it doesn't
             // block downstream title-hole computation.
             toDropMarker.add(marker);
@@ -565,7 +565,7 @@ public final class LanguageExtractor implements Extractor {
         for (var g : ctx.markers) {
             if (!"group".equals(g.name())) continue;
             if (g.start() > marker.start() || g.end() < marker.end()) continue;
-        
+
             if (smallest == null || (g.end() - g.start() < smallest.end() - smallest.start())) {
                 smallest = g;
             }
@@ -680,11 +680,11 @@ public final class LanguageExtractor implements Extractor {
         if (wordEnd == 0) {
             return false;
         }
-    
+
         String tail = rest.substring(wordEnd);
         return isAllSeparators(tail);
     }
-    
+
     private static int findAlphanumericEnd(String text) {
         int wordEnd = 0;
         while (wordEnd < text.length() && Character.isLetterOrDigit(text.charAt(wordEnd))) {

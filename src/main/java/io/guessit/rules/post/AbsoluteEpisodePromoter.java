@@ -106,93 +106,109 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
      * separators, rename the higher-position group to {@code absolute_episode}.
      */
     private static void groupMarkerAbsolute(ParseContext ctx) {
-        var pathMarkers = Markers.named(ctx.markers, "path").toList();
-        for (var fp : pathMarkers) {
-            // Only act on fileparts with no SxxExx episodes.
-            boolean hasSxxExx = ctx.matches.named("episode")
-                .anyMatch(m -> m.tags().contains("SxxExx")
-                    && m.start() >= fp.start() && m.end() <= fp.end());
-            if (hasSxxExx) continue;
-
-            // Collect episode matches in this filepart sorted by start.
-            var eps = ctx.matches.snapshot().stream()
-                .filter(m -> "episode".equals(m.name())
-                    && !m.isPrivate()
-                    && m.start() >= fp.start() && m.end() <= fp.end())
-                .sorted(Comparator.comparingInt(Match::start))
-                .toList();
-            if (eps.isEmpty()) continue;
-
-            // Group by enclosing group marker. Episodes with no enclosing marker
-            // are coalesced into a "contiguous run" group: any episode that is
-            // adjacent (sep-only gap) to the most-recent non-enc group's last
-            // member joins that group rather than starting its own.
-            var groups = new LinkedHashMap<Object, List<Match>>();
-            Object lastNonEncKey = null;
-            for (var e : eps) {
-                var enc = ctx.markers.stream()
-                    .filter(g -> "group".equals(g.name())
-                        && g.start() <= e.start() && g.end() >= e.end())
-                    .findFirst().orElse(null);
-                Object key;
-                if (enc != null) {
-                    // Episode is inside a bracket/paren group: use the marker as key.
-                    key = enc;
-                } else if (e.tags().contains("range-fill")) {
-                    // Range-fill: always coalesce into the most-recently-opened group.
-                    key = groups.keySet().stream()
-                        .reduce((_, b) -> b).orElse("noenc-" + e.start());
-                    if (key.toString().startsWith("noenc-")) lastNonEncKey = key;
-                } else {
-                    // Regular non-enc episode: coalesce with the previous non-enc run
-                    // if the gap to the run's last member is separator-only (≤10 chars).
-                    key = "noenc-" + e.start(); // default: new group
-                    if (lastNonEncKey != null) {
-                        var prevGroup = groups.get(lastNonEncKey);
-                        if (prevGroup != null && !prevGroup.isEmpty()) {
-                            int prevEnd = prevGroup.stream().mapToInt(Match::end).max().orElse(0);
-                            if (prevEnd <= e.start()) {
-                                var gapText = ctx.input.substring(prevEnd, e.start());
-                                if (gapText.length() <= 10
-                                        && gapText.chars().allMatch(c -> Seps.isSep((char) c))) {
-                                    key = lastNonEncKey; // join the run
-                                }
-                            }
-                        }
-                    }
-                    lastNonEncKey = key;
-                }
-                groups.computeIfAbsent(key, _ -> new ArrayList<>()).add(e);
-            }
-
-            // Keep only groups with ≥ 2 members, sorted by max end position.
-            var multi = groups.values().stream()
-                .filter(g -> g.size() >= 2)
-                .sorted(Comparator.comparingInt(g -> g.stream().mapToInt(Match::end).max().orElse(0)))
-                .toList();
-
-            if (multi.size() != 2) continue;
-
-            var lower = multi.get(0);
-            var higher = multi.get(1);
-
-            // Verify that the gap between the two groups is separator-only.
-            // Use max end of lower group and min start of higher group to handle
-            // zero-width range-fill matches that may appear after the real boundary.
-            int gapStart = lower.stream().mapToInt(Match::end).max().orElse(0);
-            int gapEnd   = higher.stream().mapToInt(Match::start).min().orElse(ctx.input.length());
-            if (gapEnd < gapStart) continue;
-            var gap = ctx.input.substring(gapStart, gapEnd);
-            boolean sepOnly = gap.chars().allMatch(c -> Seps.isSep((char) c));
-            if (!sepOnly) continue;
-
-            // Equal count required (mirrors Python RenameToAbsoluteEpisode).
-            if (lower.size() != higher.size()) continue;
-
-            // Rename the higher group to absolute_episode.
-            for (var m : higher) {
-                ctx.matches.replace(m, m.withName("absolute_episode"));
-            }
+        for (var fp : Markers.named(ctx.markers, "path").toList()) {
+            promoteWithinFilepart(ctx, fp);
         }
+    }
+
+    private static void promoteWithinFilepart(ParseContext ctx, Marker fp) {
+        if (hasSxxExxEpisode(ctx, fp)) return;
+        var eps = collectEpisodesInFilepart(ctx, fp);
+        if (eps.isEmpty()) return;
+        var groups = groupByEnclosingMarker(ctx, eps);
+        var multi = groups.values().stream()
+            .filter(g -> g.size() >= 2)
+            .sorted(Comparator.comparingInt(g -> g.stream().mapToInt(Match::end).max().orElse(0)))
+            .toList();
+        if (multi.size() != 2) return;
+
+        var lower = multi.get(0);
+        var higher = multi.get(1);
+        if (lower.size() != higher.size()) return;
+        if (!gapBetweenGroupsIsSepOnly(ctx, lower, higher)) return;
+
+        for (var m : higher) {
+            ctx.matches.replace(m, m.withName("absolute_episode"));
+        }
+    }
+
+    private static boolean hasSxxExxEpisode(ParseContext ctx, Marker fp) {
+        return ctx.matches.named("episode")
+            .anyMatch(m -> m.tags().contains("SxxExx")
+                && m.start() >= fp.start() && m.end() <= fp.end());
+    }
+
+    private static List<Match> collectEpisodesInFilepart(ParseContext ctx, Marker fp) {
+        return ctx.matches.snapshot().stream()
+            .filter(m -> "episode".equals(m.name())
+                && !m.isPrivate()
+                && m.start() >= fp.start() && m.end() <= fp.end())
+            .sorted(Comparator.comparingInt(Match::start))
+            .toList();
+    }
+
+    /**
+     * Group episodes by enclosing bracket/paren group marker. Episodes with no
+     * enclosing marker are coalesced into a "contiguous run" group: any episode
+     * adjacent (sep-only gap ≤10) to the most-recent non-enc group's last
+     * member joins that group instead of starting a new one. Range-fill matches
+     * always coalesce into the most-recently-opened group.
+     */
+    private static Map<Object, List<Match>> groupByEnclosingMarker(ParseContext ctx, List<Match> eps) {
+        var groups = new LinkedHashMap<Object, List<Match>>();
+        Object lastNonEncKey = null;
+        for (var e : eps) {
+            var enc = enclosingGroupMarker(ctx, e);
+            Object key;
+            if (enc != null) {
+                key = enc;
+            } else if (e.tags().contains("range-fill")) {
+                key = groups.keySet().stream().reduce((_, b) -> b).orElse("noenc-" + e.start());
+                if (key.toString().startsWith("noenc-")) lastNonEncKey = key;
+            } else {
+                key = pickNonEncKey(ctx, e, groups, lastNonEncKey);
+                lastNonEncKey = key;
+            }
+            groups.computeIfAbsent(key, _ -> new ArrayList<>()).add(e);
+        }
+        return groups;
+    }
+
+    private static Marker enclosingGroupMarker(ParseContext ctx, Match m) {
+        return ctx.markers.stream()
+            .filter(g -> "group".equals(g.name())
+                && g.start() <= m.start() && g.end() >= m.end())
+            .findFirst().orElse(null);
+    }
+
+    /**
+     * Pick the group key for a non-enclosed episode. Joins the previous non-enc
+     * run when separated only by separators (gap ≤10); otherwise starts a new run.
+     */
+    private static Object pickNonEncKey(ParseContext ctx, Match e,
+            Map<Object, List<Match>> groups, Object lastNonEncKey) {
+        Object newKey = "noenc-" + e.start();
+        if (lastNonEncKey == null) return newKey;
+        var prevGroup = groups.get(lastNonEncKey);
+        if (prevGroup == null || prevGroup.isEmpty()) return newKey;
+        int prevEnd = prevGroup.stream().mapToInt(Match::end).max().orElse(0);
+        if (prevEnd > e.start()) return newKey;
+        var gap = ctx.input.substring(prevEnd, e.start());
+        if (gap.length() > 10) return newKey;
+        if (!gap.chars().allMatch(c -> Seps.isSep((char) c))) return newKey;
+        return lastNonEncKey;
+    }
+
+    /**
+     * Verify the gap between two episode groups consists only of separators.
+     * Uses max end of lower and min start of higher to handle zero-width
+     * range-fill matches that may appear after the real boundary.
+     */
+    private static boolean gapBetweenGroupsIsSepOnly(ParseContext ctx, List<Match> lower, List<Match> higher) {
+        int gapStart = lower.stream().mapToInt(Match::end).max().orElse(0);
+        int gapEnd = higher.stream().mapToInt(Match::start).min().orElse(ctx.input.length());
+        if (gapEnd < gapStart) return false;
+        var gap = ctx.input.substring(gapStart, gapEnd);
+        return gap.chars().allMatch(c -> Seps.isSep((char) c));
     }
 }
