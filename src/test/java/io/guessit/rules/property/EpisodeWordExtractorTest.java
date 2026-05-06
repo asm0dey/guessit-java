@@ -1,32 +1,32 @@
 package io.guessit.rules.property;
 
-import io.guessit.Guessit;
-import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.guessit.Guessit.parse;
+import static io.guessit.OptionsBuilder.options;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class EpisodeWordExtractorTest {
     @Test void episodeWord() {
-        var r = Guessit.parse("Show Episode 4.mkv");
-        assertEquals(4, r.episode());
+        var r = parse("Show Episode 4.mkv");
+        assertThat(r.episode()).isEqualTo(4);
     }
     @Test void episodeAbbreviation() {
-        var r = Guessit.parse("Show ep 112.mkv");
-        assertEquals(112, r.episode());
+        var r = parse("Show ep 112.mkv");
+        assertThat(r.episode()).isEqualTo(112);
     }
     @Test void seasonWord() {
-        var r = Guessit.parse("Show Season 2.mkv");
-        assertEquals(2, r.season());
+        var r = parse("Show Season 2.mkv");
+        assertThat(r.season()).isEqualTo(2);
     }
     @Test void seasonRomanNumeralEpisodeType() {
-        var r = Guessit.parse("Show Season III.mkv", OptionsBuilder.options().type("episode").build());
-        assertEquals(3, r.season());
+        var r = parse("Show Season III.mkv", options().type("episode").build());
+        assertThat(r.season()).isEqualTo(3);
     }
     @Test void countDetached() {
         // "Show 4 of 12 mkv" → episode=4, episode_count=12.
-        var r = Guessit.parse("Show 4 of 12.mkv");
-        assertEquals(4, r.episode());
-        assertEquals(12, r.episodeCount());
+        var r = parse("Show 4 of 12.mkv");
+        assertThat(r.episode()).isEqualTo(4);
+        assertThat(r.episodeCount()).isEqualTo(12);
     }
 }

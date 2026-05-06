@@ -5,8 +5,9 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.guessit.engine.MatchName.SCREEN_SIZE;
+import static io.guessit.engine.MatchName.YEAR;
 import static org.assertj.core.api.Assertions.assertThat;
-import static io.guessit.engine.MatchName.*;
 
 class TraceDiffTest {
 

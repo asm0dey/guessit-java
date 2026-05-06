@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.io.StringReader;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class CommonsCsvSmokeTest {
 
@@ -17,9 +17,9 @@ class CommonsCsvSmokeTest {
         try (var parser = CSVParser.parse(new StringReader(csv),
                 CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).get())) {
             var records = parser.getRecords();
-            assertEquals(1, records.size());
-            assertEquals("US", records.getFirst().get("alpha2"));
-            assertEquals("United States", records.getFirst().get("name"));
+            assertThat(records).hasSize(1);
+            assertThat(records.getFirst().get("alpha2")).isEqualTo("US");
+            assertThat(records.getFirst().get("name")).isEqualTo("United States");
         }
     }
 
@@ -29,7 +29,7 @@ class CommonsCsvSmokeTest {
         try (var parser = CSVParser.parse(new StringReader(csv),
                 CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).get())) {
             var records = parser.getRecords();
-            assertEquals(List.of("Foo, Inc."), List.of(records.getFirst().get("name")));
+            assertThat(List.of(records.getFirst().get("name"))).isEqualTo(List.of("Foo, Inc."));
         }
     }
 }

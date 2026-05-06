@@ -1,37 +1,37 @@
 package io.guessit.rules.property;
 
-import io.guessit.Guessit;
-import io.guessit.OptionsBuilder;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.guessit.Guessit.parse;
+import static io.guessit.OptionsBuilder.options;
+import static java.util.List.of;
 
 class TitleExtractorTest {
     @Test void simpleFilepartHoleBecomesTitle() {
-        var r = Guessit.parse("Movie.Name.2020.1080p.BluRay-RG.mkv");
-        assertEquals("Movie Name", r.title());
+        var r = parse("Movie.Name.2020.1080p.BluRay-RG.mkv");
+        Assertions.assertThat(r.title()).isEqualTo("Movie Name");
     }
     @Test void dashSplitYieldsAlternativeTitle() {
-        var r = Guessit.parse("Main Title - Alt Title.2020.mkv");
-        assertEquals("Main Title", r.title());
-        assertEquals("Alt Title", r.alternativeTitleList() != null && !r.alternativeTitleList().isEmpty()
-            ? r.alternativeTitleList().get(0)
-            : null);
+        var r = parse("Main Title - Alt Title.2020.mkv");
+        Assertions.assertThat(r.title()).isEqualTo("Main Title");
+        Assertions.assertThat(r.alternativeTitleList() != null && !r.alternativeTitleList().isEmpty()
+                ? r.alternativeTitleList().get(0)
+                : null).isEqualTo("Alt Title");
     }
     @Test void serieNameFilepartRoutesInnerToEpisodeTitle() {
-        var r = Guessit.parse("Caprica/Season 1/Apotheosis.mkv");
-        assertEquals("Caprica", r.title());
-        assertEquals("Apotheosis", r.episodeTitle());
-        assertEquals(1, r.season());
+        var r = parse("Caprica/Season 1/Apotheosis.mkv");
+        Assertions.assertThat(r.title()).isEqualTo("Caprica");
+        Assertions.assertThat(r.episodeTitle()).isEqualTo("Apotheosis");
+        Assertions.assertThat(r.season()).isEqualTo(1);
     }
     @Test void preferTitleWithYearFilepart() {
-        var r = Guessit.parse("Foo/Movie.Name.2020.1080p.mkv");
-        assertEquals("Movie Name", r.title());
+        var r = parse("Foo/Movie.Name.2020.1080p.mkv");
+        Assertions.assertThat(r.title()).isEqualTo("Movie Name");
     }
     @Test void expectedTitleEmitsExpectedTaggedMatch() {
-        var opts = OptionsBuilder.options().expectedTitle(java.util.List.of("My Show")).build();
-        var r = Guessit.parse("My.Show.2020.mkv", opts);
-        assertEquals("My Show", r.title());
+        var opts = options().expectedTitle(of("My Show")).build();
+        var r = parse("My.Show.2020.mkv", opts);
+        Assertions.assertThat(r.title()).isEqualTo("My Show");
     }
 }

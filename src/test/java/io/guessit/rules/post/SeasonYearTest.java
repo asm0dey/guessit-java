@@ -1,14 +1,14 @@
 package io.guessit.rules.post;
 
-import io.guessit.Guessit;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static io.guessit.Guessit.parse;
 
 class SeasonYearTest {
     @Test
     void seasonValueLooksLikeYearAddsYear() {
-        var r = Guessit.parse("Show.S2014.E03.mkv");
-        assertThat(r.year()).isEqualTo(2014);
+        var r = parse("Show.S2014.E03.mkv");
+        Assertions.assertThat(r.year()).isEqualTo(2014);
     }
 }

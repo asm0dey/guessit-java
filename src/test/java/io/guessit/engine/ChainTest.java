@@ -1,36 +1,37 @@
 package io.guessit.engine;
 
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.regex.Pattern;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.guessit.engine.Chain.Repeater.PLUS;
+import static io.guessit.engine.Chain.Repeater.STAR;
+import static java.util.List.of;
+import static java.util.regex.Pattern.compile;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ChainTest {
     @Test void singleHeadSingleTail() {
-        var head = Pattern.compile("(?i)s(?<season>\\d+)e(?<episode>\\d+)");
-        var tail = Pattern.compile("(?i)-?e(?<episode>\\d+)");
-        var runs = new Chain(head).tail(tail, Chain.Repeater.STAR).scan("S01E02-E03");
-        assertEquals(1, runs.size());
+        var head = compile("(?i)s(?<season>\\d+)e(?<episode>\\d+)");
+        var tail = compile("(?i)-?e(?<episode>\\d+)");
+        var runs = new Chain(head).tail(tail, STAR).scan("S01E02-E03");
+        Assertions.assertThat(runs).hasSize(1);
         var run = runs.getFirst();
-        assertEquals(0, run.start());
-        assertEquals(10, run.end());
-        assertEquals(List.of("01"), run.captures("season"));
-        assertEquals(List.of("02", "03"), run.captures("episode"));
+        assertThat(run.start()).isZero();
+        assertThat(run.end()).isEqualTo(10);
+        assertThat(run.captures("season")).isEqualTo(of("01"));
+        assertThat(run.captures("episode")).isEqualTo(of("02", "03"));
     }
     @Test void plusRequiresAtLeastOneTail() {
-        var head = Pattern.compile("(?i)(?<season>\\d+)x(?<episode>\\d+)");
-        var tail = Pattern.compile("(?i)\\s+(?<season>\\d+)x(?<episode>\\d+)");
-        assertTrue(new Chain(head).tail(tail, Chain.Repeater.PLUS).scan("01x02").isEmpty());
-        assertEquals(1, new Chain(head).tail(tail, Chain.Repeater.PLUS).scan("01x02 03x04").size());
+        var head = compile("(?i)(?<season>\\d+)x(?<episode>\\d+)");
+        var tail = compile("(?i)\\s+(?<season>\\d+)x(?<episode>\\d+)");
+        assertThat(new Chain(head).tail(tail, PLUS).scan("01x02")).isEmpty();
+        Assertions.assertThat(new Chain(head).tail(tail, PLUS).scan("01x02 03x04")).hasSize(1);
     }
     @Test void noOverlap() {
-        var head = Pattern.compile("\\d");
+        var head = compile("\\d");
         var runs = new Chain(head).scan("abc1def2ghi");
-        assertEquals(2, runs.size());
-        assertEquals(3, runs.get(0).start());
-        assertEquals(7, runs.get(1).start());
+        Assertions.assertThat(runs).hasSize(2);
+        assertThat(runs.get(0).start()).isEqualTo(3);
+        assertThat(runs.get(1).start()).isEqualTo(7);
     }
 }

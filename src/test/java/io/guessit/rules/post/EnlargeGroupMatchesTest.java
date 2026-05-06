@@ -3,11 +3,12 @@ package io.guessit.rules.post;
 import io.guessit.Options;
 import io.guessit.config.OptionsConfig;
 import io.guessit.engine.Marker;
-import io.guessit.engine.Match;
-import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import static io.guessit.engine.Match.of;
+import static io.guessit.engine.MatchName.TITLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class EnlargeGroupMatchesTest {
@@ -24,13 +25,13 @@ class EnlargeGroupMatchesTest {
         // expected after processing: start=0, end=4
         var ctx = ctx("[abc value]");
         ctx.markers.add(new Marker("group", 0, 11, "[abc value]"));
-        ctx.matches.add(Match.of(MatchName.TITLE, "abc", 1, 4, "abc"));
+        ctx.matches.add(of(TITLE, "abc", 1, 4, "abc"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
+        var result = ctx.matches.named(TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isZero();
-        assertThat(result.end()).isEqualTo(4);
+        Assertions.assertThat(result.end()).isEqualTo(4);
     }
 
     @Test
@@ -41,13 +42,13 @@ class EnlargeGroupMatchesTest {
         // expected after processing: start=5, end=11
         var ctx = ctx("[abc value]");
         ctx.markers.add(new Marker("group", 0, 11, "[abc value]"));
-        ctx.matches.add(Match.of(MatchName.TITLE, "value", 5, 10, "value"));
+        ctx.matches.add(of(TITLE, "value", 5, 10, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
-        assertThat(result.start()).isEqualTo(5);
-        assertThat(result.end()).isEqualTo(11);
+        var result = ctx.matches.named(TITLE).findFirst().orElseThrow();
+        Assertions.assertThat(result.start()).isEqualTo(5);
+        Assertions.assertThat(result.end()).isEqualTo(11);
     }
 
     @Test
@@ -58,13 +59,13 @@ class EnlargeGroupMatchesTest {
         // expected after processing: start=0, end=7
         var ctx = ctx("[value]");
         ctx.markers.add(new Marker("group", 0, 7, "[value]"));
-        ctx.matches.add(Match.of(MatchName.TITLE, "value", 1, 6, "value"));
+        ctx.matches.add(of(TITLE, "value", 1, 6, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
+        var result = ctx.matches.named(TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isZero();
-        assertThat(result.end()).isEqualTo(7);
+        Assertions.assertThat(result.end()).isEqualTo(7);
     }
 
     @Test
@@ -72,13 +73,13 @@ class EnlargeGroupMatchesTest {
         // "path" markers should not trigger enlargement
         var ctx = ctx("[value]");
         ctx.markers.add(new Marker("path", 0, 7, "[value]"));
-        ctx.matches.add(Match.of(MatchName.TITLE, "value", 1, 6, "value"));
+        ctx.matches.add(of(TITLE, "value", 1, 6, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
-        assertThat(result.start()).isEqualTo(1);
-        assertThat(result.end()).isEqualTo(6);
+        var result = ctx.matches.named(TITLE).findFirst().orElseThrow();
+        Assertions.assertThat(result.start()).isEqualTo(1);
+        Assertions.assertThat(result.end()).isEqualTo(6);
     }
 
     @Test
@@ -86,12 +87,12 @@ class EnlargeGroupMatchesTest {
         // match entirely inside the group but not at boundaries
         var ctx = ctx("[abc value xyz]");
         ctx.markers.add(new Marker("group", 0, 15, "[abc value xyz]"));
-        ctx.matches.add(Match.of(MatchName.TITLE, "value", 5, 10, "value"));
+        ctx.matches.add(of(TITLE, "value", 5, 10, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
-        assertThat(result.start()).isEqualTo(5);
-        assertThat(result.end()).isEqualTo(10);
+        var result = ctx.matches.named(TITLE).findFirst().orElseThrow();
+        Assertions.assertThat(result.start()).isEqualTo(5);
+        Assertions.assertThat(result.end()).isEqualTo(10);
     }
 }

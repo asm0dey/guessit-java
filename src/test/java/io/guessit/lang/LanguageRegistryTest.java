@@ -2,8 +2,9 @@ package io.guessit.lang;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+
+;
 
 class LanguageRegistryTest {
     private final LanguageRegistry r = LanguageRegistry.instance();
@@ -11,46 +12,46 @@ class LanguageRegistryTest {
     @Test
     void findsByAlpha2() {
         var l = r.find("en").orElseThrow();
-        assertEquals("English", l.name());
-        assertEquals("eng", l.alpha3());
+        assertThat(l.name()).isEqualTo("English");
+        assertThat(l.alpha3()).isEqualTo("eng");
     }
 
     @Test
     void findsByAlpha3() {
-        assertEquals("French", r.find("fra").orElseThrow().name());
-        assertEquals("French", r.find("fre").orElseThrow().name()); // bibliographic alias
+        assertThat(r.find("fra").orElseThrow().name()).isEqualTo("French");
+        assertThat(r.find("fre").orElseThrow().name()).isEqualTo("French");
     }
 
     @Test
     void findsByName() {
-        assertEquals("eng", r.find("English").orElseThrow().alpha3());
+        assertThat(r.find("English").orElseThrow().alpha3()).isEqualTo("eng");
     }
 
     @Test
     void caseInsensitive() {
-        assertEquals("en", r.find("ENGLISH").orElseThrow().alpha2());
+        assertThat(r.find("ENGLISH").orElseThrow().alpha2()).isEqualTo("en");
     }
 
     @Test
     void resolvesAliasVo() {
         var l = r.find("vo").orElseThrow();
-        assertEquals("Original Version", l.name());
+        assertThat(l.name()).isEqualTo("Original Version");
     }
 
     @Test
     void resolvesCountryAliasUk() {
-        assertEquals("GB", r.findCountry("uk").orElseThrow().alpha2());
+        assertThat(r.findCountry("uk").orElseThrow().alpha2()).isEqualTo("GB");
     }
 
     @Test
     void countryNameIsTitleCased() {
         // iso-3166-1.csv has ALL-CAPS names like "UNITED STATES"; registry should title-case them.
         var c = r.findCountry("US").orElseThrow();
-        assertEquals("United States", c.name());
+        assertThat(c.name()).isEqualTo("United States");
     }
 
     @Test
     void unknownReturnsEmpty() {
-        assertTrue(r.find("zzz-not-a-lang").isEmpty());
+        assertThat(r.find("zzz-not-a-lang")).isEmpty();
     }
 }

@@ -1,7 +1,10 @@
 package io.guessit.rules.post;
 
 import io.guessit.Guessit;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import static io.guessit.Guessit.parse;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RemoveAmbiguousTest {
@@ -14,7 +17,7 @@ class RemoveAmbiguousTest {
 
     @Test void singleFilepartProducesReleaseGroup() {
         // Single-filepart: release group should be extracted normally
-        var r = Guessit.parse("Some.Title.XViD-ReleaseGroup.mkv");
+        var r = parse("Some.Title.XViD-ReleaseGroup.mkv");
         assertThat(r.releaseGroup()).isEqualTo("ReleaseGroup");
     }
 }

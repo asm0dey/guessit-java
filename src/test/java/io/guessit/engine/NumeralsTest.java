@@ -2,40 +2,41 @@ package io.guessit.engine;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NumeralsTest {
     @Test void parsesDigital() {
-        assertEquals(7, Numerals.parse("7"));
-        assertEquals(123, Numerals.parse("123"));
+        assertThat(Numerals.parse("7")).isEqualTo(7);
+        assertThat(Numerals.parse("123")).isEqualTo(123);
     }
     @Test void parsesRoman() {
-        assertEquals(4, Numerals.parse("IV"));
-        assertEquals(9, Numerals.parse("IX"));
-        assertEquals(1994, Numerals.parse("MCMXCIV"));
+        assertThat(Numerals.parse("IV")).isEqualTo(4);
+        assertThat(Numerals.parse("IX")).isEqualTo(9);
+        assertThat(Numerals.parse("MCMXCIV")).isEqualTo(1994);
     }
     @Test void parsesEnglishWord() {
-        assertEquals(0, Numerals.parse("zero"));
-        assertEquals(7, Numerals.parse("seven"));
-        assertEquals(20, Numerals.parse("twenty"));
+        assertThat(Numerals.parse("zero")).isZero();
+        assertThat(Numerals.parse("seven")).isEqualTo(7);
+        assertThat(Numerals.parse("twenty")).isEqualTo(20);
     }
     @Test void parsesFrenchWord() {
-        assertEquals(8, Numerals.parse("huit"));
-        assertEquals(17, Numerals.parse("dix-sept"));
-        assertEquals(17, Numerals.parse("dixsept"));
+        assertThat(Numerals.parse("huit")).isEqualTo(8);
+        assertThat(Numerals.parse("dix-sept")).isEqualTo(17);
+        assertThat(Numerals.parse("dixsept")).isEqualTo(17);
     }
     @Test void cleanWrappers() {
         // Python clean=True strips leading/trailing non-digits.
-        assertEquals(42, Numerals.parse("ep42"));
-        assertEquals(3, Numerals.parse("(3)"));
+        assertThat(Numerals.parse("ep42")).isEqualTo(42);
+        assertThat(Numerals.parse("(3)")).isEqualTo(3);
     }
     @Test void invalidThrows() {
-        assertThrows(IllegalArgumentException.class, () -> Numerals.parse("foo"));
+        assertThatThrownBy(() -> Numerals.parse("foo")).isInstanceOf(IllegalArgumentException.class);
     }
     @Test void numeralRegexSourceMatchesAllVariants() {
         var p = java.util.regex.Pattern.compile("^" + Numerals.NUMERAL + "$");
-        assertTrue(p.matcher("12").matches());
-        assertTrue(p.matcher("MCMXCIV").matches());
-        assertTrue(p.matcher("seven").matches());
+        assertThat(p.matcher("12").matches()).isTrue();
+        assertThat(p.matcher("MCMXCIV").matches()).isTrue();
+        assertThat(p.matcher("seven").matches()).isTrue();
     }
 }

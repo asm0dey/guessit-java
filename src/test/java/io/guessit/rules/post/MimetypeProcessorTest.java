@@ -1,17 +1,18 @@
 package io.guessit.rules.post;
 
-import io.guessit.Guessit;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
-import static org.assertj.core.api.Assertions.assertThat;
+
+import static io.guessit.Guessit.parse;
 
 class MimetypeProcessorTest {
     @Test void mp4() {
-        assertThat(Guessit.parse("Movie.mp4").mimetype()).isEqualTo("video/mp4");
+        Assertions.assertThat(parse("Movie.mp4").mimetype()).isEqualTo("video/mp4");
     }
     @Test void mkv() {
-        assertThat(Guessit.parse("Movie.mkv").mimetype()).isEqualTo("video/x-matroska");
+        Assertions.assertThat(parse("Movie.mkv").mimetype()).isEqualTo("video/x-matroska");
     }
     @Test void srt() {
-        assertThat(Guessit.parse("Movie.srt").mimetype()).isEqualTo("application/x-subrip");
+        Assertions.assertThat(parse("Movie.srt").mimetype()).isEqualTo("application/x-subrip");
     }
 }

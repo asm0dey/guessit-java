@@ -3,13 +3,14 @@ package io.guessit.rules.property;
 import io.guessit.Guessit;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.guessit.Guessit.parse;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class WeekExtractorTest {
     @Test void weekWordWithNumber() {
-        var r = Guessit.parse("Show.Week.12.HDTV.mkv");
-        assertEquals(12, r.extras() != null ? r.extras().get("week") : null);
+        var r = parse("Show.Week.12.HDTV.mkv");
+        assertThat(r.extras() != null ? r.extras().get("week") : null).isEqualTo(12);
     }
     @Test void invalidWeekRangeDropped() {
         // Week 99 is out of valid range (1-52)

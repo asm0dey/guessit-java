@@ -3,18 +3,20 @@ package io.guessit.rules.property;
 import io.guessit.Guessit;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EpisodeDetailsExtractorTest {
     @Test void specialNextToEpisode() {
         var r = Guessit.parse("Show.S01E02.Special.mkv");
         var details = r.extras() != null ? r.extras().get("episode_details") : null;
-        assertEquals("Special", details);
+        assertThat(details).isEqualTo("Special");
     }
     @Test void pilotStandalone() {
         var r = Guessit.parse("Show.S01E01.Pilot.mkv");
         var details = r.extras() != null ? r.extras().get("episode_details") : null;
-        assertEquals("Pilot", details);
+        assertThat(details).isEqualTo("Pilot");
     }
     @Test void detachedPilotIsDropped() {
         var r = Guessit.parse("PilotXFilesShow.mkv");

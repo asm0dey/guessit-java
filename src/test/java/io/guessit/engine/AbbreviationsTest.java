@@ -1,8 +1,13 @@
 package io.guessit.engine;
 
 import org.junit.jupiter.api.Test;
+
 import java.util.regex.Pattern;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static io.guessit.engine.Abbreviations.dash;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AbbreviationsTest {
     @Test void dashExpandsToSepClass() {
@@ -24,7 +29,7 @@ class AbbreviationsTest {
         assertFalse(p.matcher("ABC.DEF").find());
     }
     @Test void dashLeavesDashInsideCharClassAlone() {
-        var src = Abbreviations.dash("[a-z]+");
-        assertEquals("[a-z]+", src);
+        var src = dash("[a-z]+");
+        assertThat(src).isEqualTo("[a-z]+");
     }
 }

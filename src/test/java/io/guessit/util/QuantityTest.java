@@ -2,27 +2,27 @@ package io.guessit.util;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class QuantityTest {
     @Test
     void formatsBitRate() {
-        assertEquals("1.5 Mbps", BitRate.fromString("1.5Mbps").format());
+        assertThat(BitRate.fromString("1.5Mbps").format()).isEqualTo("1.5 Mbps");
     }
 
     @Test
     void formatsIntegerSize() {
-        assertEquals("4 GB", Size.fromString("4GB").format());
+        assertThat(Size.fromString("4GB").format()).isEqualTo("4 GB");
     }
 
     @Test
     void formatsDecimalSize() {
-        assertEquals("4.7 GB", Size.fromString("4.7GB").format());
+        assertThat(Size.fromString("4.7GB").format()).isEqualTo("4.7 GB");
     }
 
     @Test
     void parsesFromString() {
-        assertEquals(BitRate.fromString("1.5Mbps"), Quantity.parse("1.5 Mbps"));
-        assertEquals(BitRate.fromString("800Kbps"), Quantity.parse("800 Kbps"));
+        assertThat(Quantity.parse("1.5 Mbps")).isEqualTo(BitRate.fromString("1.5Mbps"));
+        assertThat(Quantity.parse("800 Kbps")).isEqualTo(BitRate.fromString("800Kbps"));
     }
 }

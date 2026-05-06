@@ -4,54 +4,55 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class YmlTestLoaderTest {
 
     @Test
     void loadsBasicCase() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/basic.yml");
-        assertEquals(1, cases.size());
+        assertThat(cases).hasSize(1);
         var c = cases.getFirst();
-        assertEquals("Movie.Name.2020.1080p.mkv", c.input());
-        assertEquals(2020, c.expected().get("year"));
-        assertEquals("Movie Name", c.expected().get("title"));
-        assertEquals("1080p", c.expected().get("screen_size"));
-        assertFalse(c.negative());
+        assertThat(c.input()).isEqualTo("Movie.Name.2020.1080p.mkv");
+        assertThat(c.expected())
+                .containsEntry("year", 2020)
+                .containsEntry("title", "Movie Name")
+                .containsEntry("screen_size", "1080p");
+        assertThat(c.negative()).isFalse();
     }
 
     @Test
     void loadsNegativeCase() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/negative.yml");
-        assertEquals(2, cases.size());
-        assertTrue(cases.get(0).negative());
-        assertEquals("Title XViD 720p Only", cases.get(0).input());
-        assertFalse(cases.get(1).negative());
-        assertEquals("Title Only", cases.get(1).input());
-        assertEquals(cases.get(0).expected(), cases.get(1).expected());
+        assertThat(cases).hasSize(2);
+        assertThat(cases.get(0).negative()).isTrue();
+        assertThat(cases.get(0).input()).isEqualTo("Title XViD 720p Only");
+        assertThat(cases.get(1).negative()).isFalse();
+        assertThat(cases.get(1).input()).isEqualTo("Title Only");
+        assertThat(cases.get(1).expected()).isEqualTo(cases.get(0).expected());
     }
 
     @Test
     void loadsCaseWithOptions() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/options.yml");
-        assertEquals(1, cases.size());
+        assertThat(cases).hasSize(1);
         var c = cases.getFirst();
-        assertNotNull(c.options());
-        assertEquals(Boolean.TRUE, c.options().episodePreferNumber());
-        assertFalse(c.expected().containsKey("options"));
-        assertEquals(1, c.expected().get("season"));
+        assertThat(c.options()).isNotNull();
+        assertThat(c.options().episodePreferNumber()).isEqualTo(Boolean.TRUE);
+        assertThat(c.expected().containsKey("options")).isFalse();
+        assertThat(c.expected()).containsEntry("season", 1);
     }
 
     @Test
     void loadsEmptyExpected() {
         List<YmlCase> cases = YmlTestLoader.loadResource("yml-loader-fixtures/empty.yml");
-        assertEquals(1, cases.size());
-        assertTrue(cases.getFirst().expected().isEmpty());
+        assertThat(cases).hasSize(1);
+        assertThat(cases.getFirst().expected()).isEmpty();
     }
 
     @Test
     void discoverAllFindsAtLeastOneRealFixture() {
         var all = YmlTestLoader.discoverAll("yml/");
-        assertFalse(all.isEmpty(), "should discover real guessit YML cases");
+        assertThat(all.isEmpty()).as("should discover real guessit YML cases").isFalse();
     }
 }

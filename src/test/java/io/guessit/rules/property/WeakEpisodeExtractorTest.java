@@ -4,13 +4,13 @@ import io.guessit.Guessit;
 import io.guessit.OptionsBuilder;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class WeakEpisodeExtractorTest {
     @Test void twoDigitWeakWhenNotMovie() {
         var r = Guessit.parse("Show 12 720p HDTV.mkv");
-        assertEquals(12, r.episode());
+        assertThat(r.episode()).isEqualTo(12);
     }
     @Test void weakDroppedWhenMovie() {
         var r = Guessit.parse("Movie.2010.12 Years.1080p.mkv",
@@ -21,7 +21,7 @@ class WeakEpisodeExtractorTest {
 
     @Test void singleDigitOnlyForEpisodeType() {
         var r = Guessit.parse("Show.5.HDTV.mkv", OptionsBuilder.options().type("episode").build());
-        assertEquals(5, r.episode());
+        assertThat(r.episode()).isEqualTo(5);
     }
     @Test void droppedAfterAudioCodec() {
         // Python RemoveWeak: a weak number directly after audio_codec/source/etc. is dropped.

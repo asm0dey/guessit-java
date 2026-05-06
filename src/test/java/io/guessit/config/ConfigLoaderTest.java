@@ -2,13 +2,20 @@ package io.guessit.config;
 
 import io.guessit.Options;
 import io.guessit.OptionsBuilder;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
+import static io.guessit.OptionsBuilder.options;
+import static io.guessit.config.ConfigLoader.load;
+import static java.nio.file.Files.writeString;
+import static java.util.List.of;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConfigLoaderTest {
@@ -24,52 +31,53 @@ class ConfigLoaderTest {
     void noDefaultConfigSkipsBundle() {
         var opts = OptionsBuilder.options().noDefaultConfig(true).noUserConfig(true).build();
         var cfg = ConfigLoader.load(opts);
-        assertTrue(cfg.raw().isEmpty());
+        Assertions.assertThat(cfg.raw()).isEmpty();
     }
 
     @Test
     void explicitConfigOverridesScalars(@TempDir Path tmp) throws IOException {
         var f = tmp.resolve("override.json");
-        Files.writeString(f, "{\"some_key\": \"override\"}");
-        var opts = OptionsBuilder.options()
-            .noDefaultConfig(true)
-            .noUserConfig(true)
-            .configPaths(java.util.List.of(f))
-            .build();
-        var cfg = ConfigLoader.load(opts);
-        assertEquals("override", cfg.raw().get("some_key"));
+        writeString(f, "{\"some_key\": \"override\"}");
+        var opts = options()
+                .noDefaultConfig(true)
+                .noUserConfig(true)
+                .configPaths(of(f))
+                .build();
+        var cfg = load(opts);
+        assertThat(cfg.raw()).containsEntry("some_key", "override");
     }
 
     @Test
     void mergeListsConcatenates(@TempDir Path tmp) throws IOException {
         var a = tmp.resolve("a.json");
         var b = tmp.resolve("b.json");
-        Files.writeString(a, "{\"items\": [1, 2]}");
-        Files.writeString(b, "{\"items\": [3]}");
-        var opts = OptionsBuilder.options()
-            .noDefaultConfig(true)
-            .noUserConfig(true)
-            .configPaths(java.util.List.of(a, b))
-            .build();
-        var cfg = ConfigLoader.load(opts);
-        assertEquals(java.util.List.of(1, 2, 3), cfg.raw().get("items"));
+        writeString(a, "{\"items\": [1, 2]}");
+        writeString(b, "{\"items\": [3]}");
+        var opts = options()
+                .noDefaultConfig(true)
+                .noUserConfig(true)
+                .configPaths(of(a, b))
+                .build();
+        var cfg = load(opts);
+        assertThat(cfg.raw()).containsEntry("items", of(1, 2, 3));
     }
 
     @Test
     void mergeMapsDeep(@TempDir Path tmp) throws IOException {
         var a = tmp.resolve("a.json");
         var b = tmp.resolve("b.json");
-        Files.writeString(a, "{\"nested\": {\"x\": 1, \"y\": 2}}");
-        Files.writeString(b, "{\"nested\": {\"y\": 3, \"z\": 4}}");
-        var opts = OptionsBuilder.options()
-            .noDefaultConfig(true).noUserConfig(true)
-            .configPaths(java.util.List.of(a, b)).build();
-        var cfg = ConfigLoader.load(opts);
+        writeString(a, "{\"nested\": {\"x\": 1, \"y\": 2}}");
+        writeString(b, "{\"nested\": {\"y\": 3, \"z\": 4}}");
+        var opts = options()
+                .noDefaultConfig(true).noUserConfig(true)
+                .configPaths(of(a, b)).build();
+        var cfg = load(opts);
         @SuppressWarnings("unchecked")
-        var nested = (java.util.Map<String, Object>) cfg.raw().get("nested");
-        assertEquals(1, nested.get("x"));
-        assertEquals(3, nested.get("y"));
-        assertEquals(4, nested.get("z"));
+        var nested = (Map<String, Object>) cfg.raw().get("nested");
+        Assertions.assertThat(nested)
+                .containsEntry("x", 1)
+                .containsEntry("y", 3)
+                .containsEntry("z", 4);
     }
     
     @Test

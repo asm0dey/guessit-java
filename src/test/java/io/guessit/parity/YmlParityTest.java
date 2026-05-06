@@ -1,7 +1,7 @@
 package io.guessit.parity;
 
-import io.guessit.Guessit;
 import io.guessit.GuessResultFields;
+import io.guessit.Guessit;
 import io.guessit.lang.Country;
 import io.guessit.lang.Language;
 import io.guessit.util.Canonical;

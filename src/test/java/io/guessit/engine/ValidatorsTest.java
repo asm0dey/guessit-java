@@ -4,9 +4,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.function.Predicate;
 
+import static io.guessit.engine.MatchName.G;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.guessit.engine.MatchName.*;
 
 class ValidatorsTest {
     private static Match m(int s, int e, String input) {

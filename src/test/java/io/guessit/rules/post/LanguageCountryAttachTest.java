@@ -1,29 +1,30 @@
 package io.guessit.rules.post;
 
-import io.guessit.Guessit;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import static io.guessit.Guessit.parse;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class LanguageCountryAttachTest {
 
     @Test
     void ptBrBecomesPortugueseWithBrazilCountry() {
-        var r = Guessit.parse("Movie.pt-BR.1080p.mkv");
+        var r = parse("Movie.pt-BR.1080p.mkv");
         assertThat(r.language()).hasSize(1);
         var l = r.language().getFirst();
-        assertThat(l.alpha3()).isEqualTo("por");
+        Assertions.assertThat(l.alpha3()).isEqualTo("por");
         assertThat(l.country()).isNotNull();
-        assertThat(l.country().alpha2()).isEqualTo("BR");
+        Assertions.assertThat(l.country().alpha2()).isEqualTo("BR");
     }
 
     @Test
     void deChBecomesGermanWithSwissCountry() {
-        var r = Guessit.parse("Movie.de-CH.1080p.mkv");
+        var r = parse("Movie.de-CH.1080p.mkv");
         assertThat(r.language()).hasSize(1);
         var l = r.language().getFirst();
-        assertThat(l.alpha2()).isEqualTo("de");
+        Assertions.assertThat(l.alpha2()).isEqualTo("de");
         assertThat(l.country()).isNotNull();
-        assertThat(l.country().alpha2()).isEqualTo("CH");
+        Assertions.assertThat(l.country().alpha2()).isEqualTo("CH");
     }
 }

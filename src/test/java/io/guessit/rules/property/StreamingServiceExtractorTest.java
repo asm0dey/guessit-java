@@ -3,21 +3,22 @@ package io.guessit.rules.property;
 import io.guessit.Guessit;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.guessit.Guessit.parse;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class StreamingServiceExtractorTest {
     @Test void amzn() {
-        var r = Guessit.parse("Show.S01.AMZN.WEB-DL.mkv");
-        assertEquals("Amazon Prime", r.streamingService());
+        var r = parse("Show.S01.AMZN.WEB-DL.mkv");
+        assertThat(r.streamingService()).isEqualTo("Amazon Prime");
     }
     @Test void atvp() {
-        var r = Guessit.parse("Show.S01.ATVP.WEB-DL.mkv");
-        assertEquals("AppleTV", r.streamingService());
+        var r = parse("Show.S01.ATVP.WEB-DL.mkv");
+        assertThat(r.streamingService()).isEqualTo("AppleTV");
     }
     @Test void disneyPlus() {
-        var r = Guessit.parse("Show.S01.DSNP.WEB-DL.mkv");
-        assertEquals("Disney+", r.streamingService());
+        var r = parse("Show.S01.DSNP.WEB-DL.mkv");
+        assertThat(r.streamingService()).isEqualTo("Disney+");
     }
     @Test void notMatchedWithoutSourceContext() {
         var r = Guessit.parse("File.CC.foo");

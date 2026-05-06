@@ -2,38 +2,38 @@ package io.guessit.engine;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.guessit.engine.Formatters.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class FormattersTest {
     @Test void cleanupReplacesSepsWithSpacesAndCollapses() {
-        assertEquals("Movie Name", Formatters.cleanup("Movie.Name"));
-        assertEquals("Movie Name", Formatters.cleanup("  Movie___Name  "));
-        assertEquals("a b c", Formatters.cleanup("a..b..c"));
+        assertThat(cleanup("Movie.Name")).isEqualTo("Movie Name");
+        assertThat(cleanup("  Movie___Name  ")).isEqualTo("Movie Name");
+        assertThat(cleanup("a..b..c")).isEqualTo("a b c");
     }
     @Test void cleanupKeepsCommasColonsDashesSlashes() {
         // Python excludes ,:;-/\ from the replacement set, so they survive cleanup.
-        assertEquals("a,b", Formatters.cleanup("a,b"));
-        assertEquals("a-b", Formatters.cleanup("a-b"));
-        assertEquals("a:b", Formatters.cleanup("a:b"));
+        assertThat(cleanup("a,b")).isEqualTo("a,b");
+        assertThat(cleanup("a-b")).isEqualTo("a-b");
+        assertThat(cleanup("a:b")).isEqualTo("a:b");
     }
     @Test void cleanupRestoresSingleCharDottedRuns() {
         // S.H.I.E.L.D. survives because each dot separates single chars on both sides.
-        assertEquals("Marvels Agents of S.H.I.E.L.D",
-            Formatters.cleanup("Marvels.Agents.of.S.H.I.E.L.D"));
+        assertThat(cleanup("Marvels.Agents.of.S.H.I.E.L.D")).isEqualTo("Marvels Agents of S.H.I.E.L.D");
     }
     @Test void reorderTitlePromotesArticle() {
-        assertEquals("The Matrix", Formatters.reorderTitle("Matrix, The"));
-        assertEquals("The Matrix", Formatters.reorderTitle("Matrix,The"));
+        assertThat(reorderTitle("Matrix, The")).isEqualTo("The Matrix");
+        assertThat(reorderTitle("Matrix,The")).isEqualTo("The Matrix");
     }
     @Test void reorderTitleNoOpWhenNoArticle() {
-        assertEquals("The Matrix", Formatters.reorderTitle("The Matrix"));
-        assertEquals("Foo Bar", Formatters.reorderTitle("Foo Bar"));
+        assertThat(reorderTitle("The Matrix")).isEqualTo("The Matrix");
+        assertThat(reorderTitle("Foo Bar")).isEqualTo("Foo Bar");
     }
     @Test void stripRemovesSepsFromBothEnds() {
-        assertEquals("foo", Formatters.strip(".. foo --"));
+        assertThat(strip(".. foo --")).isEqualTo("foo");
     }
     @Test void titleTextChainsCleanupAndReorder() {
         // .. collapses to space, "Matrix The" has no comma so reorder is no-op.
-        assertEquals("Matrix The", Formatters.titleText("Matrix..The"));
+        assertThat(titleText("Matrix..The")).isEqualTo("Matrix The");
     }
 }

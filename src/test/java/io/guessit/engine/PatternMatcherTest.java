@@ -1,64 +1,70 @@
 package io.guessit.engine;
 
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.guessit.engine.MatchName.*;
+import static io.guessit.engine.PatternMatcher.regex;
+import static io.guessit.engine.PatternMatcher.string;
+import static io.guessit.engine.RegexOpts.defaults;
+import static io.guessit.engine.Validators.sepsSurround;
+import static java.util.Set.of;
+import static java.util.regex.Pattern.compile;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PatternMatcherTest {
 
     @Test
     void regexFindsAllMatches() {
-        var p = Pattern.compile("\\b(?<value>\\d{4})\\b");
-        var matches = PatternMatcher.regex("Movie 1999 Sequel 2020", p, YEAR, RegexOpts.defaults());
-        assertEquals(2, matches.size());
-        assertEquals("1999", matches.getFirst().raw());
-        assertEquals("1999", matches.getFirst().value());
+        var p = compile("\\b(?<value>\\d{4})\\b");
+        var matches = regex("Movie 1999 Sequel 2020", p, YEAR, defaults());
+        Assertions.assertThat(matches).hasSize(2);
+        assertThat(matches.getFirst().raw()).isEqualTo("1999");
+        assertThat(matches.getFirst().value()).isEqualTo("1999");
     }
 
     @Test
     void regexValueExtractorParsesInt() {
-        var p = Pattern.compile("\\b(?<value>\\d{4})\\b");
-        var opts = RegexOpts.defaults().withValue(Integer::parseInt);
-        var matches = PatternMatcher.regex("year 2020", p, YEAR, opts);
-        assertEquals(1, matches.size());
-        assertEquals(2020, matches.getFirst().value());
+        var p = compile("\\b(?<value>\\d{4})\\b");
+        var opts = defaults().withValue(Integer::parseInt);
+        var matches = regex("year 2020", p, YEAR, opts);
+        Assertions.assertThat(matches).hasSize(1);
+        assertThat(matches.getFirst().value()).isEqualTo(2020);
     }
 
     @Test
     void regexNamedValueGroupOptional() {
-        var p = Pattern.compile("\\bBluRay\\b");
-        var matches = PatternMatcher.regex("ALPHA.BluRay.x264", p, SOURCE, RegexOpts.defaults());
-        assertEquals(1, matches.size());
-        assertEquals("BluRay", matches.getFirst().raw());
-        assertEquals("BluRay", matches.getFirst().value());
+        var p = compile("\\bBluRay\\b");
+        var matches = regex("ALPHA.BluRay.x264", p, SOURCE, defaults());
+        Assertions.assertThat(matches).hasSize(1);
+        assertThat(matches.getFirst().raw()).isEqualTo("BluRay");
+        assertThat(matches.getFirst().value()).isEqualTo("BluRay");
     }
 
     @Test
     void stringMatchesNeedles() {
-        var matches = PatternMatcher.string("Foo.AAC.x264.AAC.mkv", Set.of("AAC"), AUDIO_CODEC, StringOpts.defaults());
-        assertEquals(2, matches.size());
-        assertEquals(List.of(4, 13), matches.stream().map(Match::start).toList());
+        var matches = string("Foo.AAC.x264.AAC.mkv", of("AAC"), AUDIO_CODEC, StringOpts.defaults());
+        Assertions.assertThat(matches).hasSize(2);
+        assertThat(matches.stream().map(Match::start).toList()).isEqualTo(List.of(4, 13));
     }
 
     @Test
     void stringWholeWord() {
-        var matches = PatternMatcher.string("hauac.AAC.mkv", Set.of("AAC"), MatchName.OTHER, StringOpts.defaults());
-        assertEquals(1, matches.size());
-        assertEquals(6, matches.getFirst().start());
+        var matches = string("hauac.AAC.mkv", of("AAC"), OTHER, StringOpts.defaults());
+        Assertions.assertThat(matches).hasSize(1);
+        assertThat(matches.getFirst().start()).isEqualTo(6);
     }
 
     @Test
     void stringCaseSensitive() {
-        var matches = PatternMatcher.string("Foo.aac.AAC.mkv", Set.of("AAC"), MatchName.OTHER,
-            StringOpts.defaults().caseSensitive(true));
-        assertEquals(1, matches.size());
-        assertEquals(8, matches.getFirst().start());
+        var matches = string("Foo.aac.AAC.mkv", of("AAC"), OTHER,
+                StringOpts.defaults().caseSensitive(true));
+        Assertions.assertThat(matches).hasSize(1);
+        assertThat(matches.getFirst().start()).isEqualTo(8);
     }
 
     @Test void regex_validatorRejectsMatch() {
@@ -71,17 +77,17 @@ class PatternMatcherTest {
 
     @Test void regex_validatorAcceptsMatch() {
         var input = "abc.1080.xyz";
-        var p = java.util.regex.Pattern.compile("\\d{3,4}");
-        var opts = RegexOpts.defaults().withValidator(Validators.sepsSurround(input));
-        var matches = PatternMatcher.regex(input, p, SCREEN_SIZE, opts);
-        assertEquals(1, matches.size());
-        assertEquals("1080", matches.getFirst().raw());
+        var p = compile("\\d{3,4}");
+        var opts = defaults().withValidator(sepsSurround(input));
+        var matches = regex(input, p, SCREEN_SIZE, opts);
+        Assertions.assertThat(matches).hasSize(1);
+        assertThat(matches.getFirst().raw()).isEqualTo("1080");
     }
 
     @Test void string_validatorRejectsMatch() {
         var input = "abcMP3xyz";
         var opts = StringOpts.defaults().withValidator(Validators.sepsSurround(input));
-        var matches = PatternMatcher.string(input, java.util.Set.of("MP3"), AUDIO_CODEC, opts);
-        assertTrue(matches.isEmpty());
+        var matches = PatternMatcher.string(input, Set.of("MP3"), AUDIO_CODEC, opts);
+        Assertions.assertThat(matches).isEmpty();
     }
 }

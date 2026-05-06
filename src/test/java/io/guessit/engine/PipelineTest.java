@@ -1,33 +1,43 @@
 package io.guessit.engine;
 
-import io.guessit.Options;
-import io.guessit.config.OptionsConfig;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
+import java.util.ArrayList;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.guessit.Options.defaults;
+import static io.guessit.config.OptionsConfig.empty;
+import static io.guessit.engine.MatchName.EDITION;
+import static java.util.List.of;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static io.guessit.engine.MatchName.*;
 
 class PipelineTest {
 
     @Test
     void runsPhasesInOrder() {
-        var trace = new java.util.ArrayList<String>();
-        var pipeline = new Pipeline(List.of(
-            new MarkerPhase(List.of(c -> trace.add("marker"))),
-            new ExtractorPhase(List.of(new Extractor() {
-                public String name() { return "test"; }
-                public void extract(ParseContext c) { trace.add("extract"); c.matches.add(Match.of(EDITION, "x", 0, 1, "x")); }
-            })),
-            new ConflictPhase(),
-            new PostPhase(List.of(c -> trace.add("post"))),
-            new OutputPhase(c -> { trace.add("output"); c.result = c.resultBuilder.build(); })
+        var trace = new ArrayList<String>();
+        var pipeline = new Pipeline(of(
+                new MarkerPhase(of(c -> trace.add("marker"))),
+                new ExtractorPhase(of(new Extractor() {
+                    public String name() {
+                        return "test";
+                    }
+
+                    public void extract(ParseContext c) {
+                        trace.add("extract");
+                        c.matches.add(Match.of(EDITION, "x", 0, 1, "x"));
+                    }
+                })),
+                new ConflictPhase(),
+                new PostPhase(of(c -> trace.add("post"))),
+                new OutputPhase(c -> {
+                    trace.add("output");
+                    c.result = c.resultBuilder.build();
+                })
         ));
-        var ctx = new ParseContext("x", Options.defaults(), OptionsConfig.empty());
+        var ctx = new ParseContext("x", defaults(), empty());
         pipeline.run(ctx);
-        assertEquals(List.of("marker", "extract", "post", "output"), trace);
+        assertThat(trace).isEqualTo(of("marker", "extract", "post", "output"));
         assertNotNull(ctx.result);
     }
 }

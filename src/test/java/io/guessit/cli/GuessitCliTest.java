@@ -1,5 +1,6 @@
 package io.guessit.cli;
 
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
@@ -7,7 +8,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class GuessitCliTest {
 
@@ -21,8 +24,10 @@ class GuessitCliTest {
     void jsonOutputIsValidJsonObject() {
         var out = run("--json", "Movie.Name.2020.1080p.mkv");
         var trimmed = out.trim();
-        assertTrue(trimmed.startsWith("{"), "expected JSON object, got: " + trimmed);
-        assertTrue(trimmed.endsWith("}"), "expected JSON object, got: " + trimmed);
+        assertThat(trimmed)
+                .as("expected JSON object, got: " + trimmed)
+                .startsWith("{")
+                .endsWith("}");
     }
 
     @Test
@@ -34,13 +39,13 @@ class GuessitCliTest {
     @Test
     void helpExits0() {
         int code = new CommandLine(new GuessitCli()).execute("--help");
-        assertEquals(0, code);
+        assertThat(code).isZero();
     }
 
     @Test
     void versionExits0() {
         int code = new CommandLine(new GuessitCli()).execute("--version");
-        assertEquals(0, code);
+        assertThat(code).isZero();
     }
 
     private String run(String... args) {
