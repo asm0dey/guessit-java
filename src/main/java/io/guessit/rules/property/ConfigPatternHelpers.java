@@ -36,27 +36,11 @@ final class ConfigPatternHelpers {
 
     private static final ConcurrentMap<String, Pattern> DASHED_CACHE = new ConcurrentHashMap<>();
 
-    /**
-     * Compile {@code Abbreviations.dash(src)} case-insensitively, caching by raw
-     * source. Returns {@code null} on a {@link PatternSyntaxException} (not
-     * cached, retries on next call). Bad-regex events are surfaced once per
-     * source via {@link #warnBadRegex} so config typos are diagnosable rather
-     * than silently lost.
-     */
     static Pattern compileDashedCi(String src) {
         return DASHED_CACHE.computeIfAbsent(src, s -> {
             try { return Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE); }
-            catch (PatternSyntaxException ex) { warnBadRegex(s, ex); return null; }
+            catch (PatternSyntaxException _) { return null; }
         });
-    }
-
-    private static final Set<String> WARNED_BAD_REGEX = ConcurrentHashMap.newKeySet();
-
-    /** Log a regex-compile failure to {@code stderr} once per distinct source. */
-    static void warnBadRegex(String src, PatternSyntaxException ex) {
-        if (WARNED_BAD_REGEX.add(src)) {
-            System.err.println("guessit: bad regex in config (skipped): " + ex.getMessage());
-        }
     }
 
     static Set<String> defaultTags() { return Set.of(); }

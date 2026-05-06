@@ -110,32 +110,18 @@ public final class LanguageRegistry {
     }
 
     private void loadLangAliases() {
-        // TODO(phase-5 polish): some aliases (pob, swissgerman, flemish) imply a country qualifier
-        // in the note field (e.g. "guessit-synonym-pt-BR"); not yet propagated to a Language+Country pair.
-        // Plan 2 explicitly defers extended-word merging (pt-BR, soft subs) to phase-5 polish.
         forEachRecord("data/lang-aliases.csv", r -> {
             var alias = trimOrEmpty(r, "alias");
             var alpha3 = trimOrEmpty(r, "alpha3");
             if (alias.isEmpty()) return;
-            // Check for well-known alias overrides that need a custom display name regardless of alpha3
             String aliasKey = alias.toLowerCase(Locale.ROOT);
-            Language target = switch (aliasKey) {
-                case "vo"  -> new Language(null, alpha3.isEmpty() ? null : alpha3, "Original Version");
-                case "mul" -> new Language(null, alpha3.isEmpty() ? null : alpha3, "Multiple languages");
-                case "und" -> new Language(null, alpha3.isEmpty() ? null : alpha3, "Undetermined");
-                case "zxx" -> new Language(null, alpha3.isEmpty() ? null : alpha3, "No linguistic content");
-                default    -> {
-                    // Try to resolve from ISO 639 table; fall back to a synthetic Language
-                    Language resolved = langByKey.get(alpha3.toLowerCase(Locale.ROOT));
-                    if (resolved == null) {
-                        var note = trimOrEmpty(r, "note");
-                        resolved = new Language(null, alpha3.isEmpty() ? null : alpha3,
-                                note.isEmpty() ? alias : note);
-                    }
-                    yield resolved;
-                }
-            };
-            langAliasOverrides.put(aliasKey, target);
+            Language resolved = langByKey.get(alpha3.toLowerCase(Locale.ROOT));
+            if (resolved == null) {
+                var note = trimOrEmpty(r, "note");
+                resolved = new Language(null, alpha3.isEmpty() ? null : alpha3,
+                        note.isEmpty() ? alias : note);
+            }
+            langAliasOverrides.put(aliasKey, resolved);
         });
     }
 

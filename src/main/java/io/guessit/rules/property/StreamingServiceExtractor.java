@@ -87,7 +87,7 @@ public final class StreamingServiceExtractor implements Extractor {
     private static void emitRegex(ParseContext ctx, String input, String value, String src) {
         var p = DASHED_CACHE.computeIfAbsent(src, s -> {
             try { return Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE); }
-            catch (PatternSyntaxException ex) { ConfigPatternHelpers.warnBadRegex(s, ex); return null; }
+            catch (PatternSyntaxException _) { return null; }
         });
         if (p == null) return;
         var matcher = p.matcher(input);

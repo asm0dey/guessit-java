@@ -64,5 +64,11 @@
       "Bash(javac -cp target/classes:__TRACKED_VAR__ /tmp/Probe.java -d /tmp/)",
       "Bash(java -cp target/classes:/tmp:__TRACKED_VAR__ Probe)"
     ]
+  },
+  "skillOverrides": {
+    "jdb-debugger": "off",
+    "concurrency-review": "off",
+    "shorts": "off",
+    "slidev": "off"
   }
 }

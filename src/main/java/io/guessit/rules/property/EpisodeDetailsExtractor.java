@@ -3,7 +3,6 @@ package io.guessit.rules.property;
 import io.guessit.engine.*;
 import io.guessit.engine.MatchName;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -31,23 +30,4 @@ public final class EpisodeDetailsExtractor implements Extractor {
         }
     }
 
-    /**
-     * Mirrors Python EpisodeDetailValidator: drop episode_details only when NOT
-     * sep-surrounded AND no season/episode neighbour exists. Sep-surrounded
-     * means the match sits between separator chars, which already filters out
-     * in-word noise like "FinalCut".
-     */
-    @Override
-    public void postProcess(ParseContext ctx) {
-        var details = ctx.matches.named(MatchName.EPISODE_DETAILS).toList();
-        var toRemove = new ArrayList<Match>();
-        var seps = Validators.sepsSurround(ctx.input);
-        for (var d : details) {
-            if (seps.test(d)) continue;
-            boolean seasonOrEpisode = ctx.matches.all()
-                .anyMatch(m -> (m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE));
-            if (!seasonOrEpisode) toRemove.add(d);
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
-    }
 }

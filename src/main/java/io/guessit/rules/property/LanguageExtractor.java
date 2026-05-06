@@ -344,11 +344,6 @@ public final class LanguageExtractor implements Extractor {
         // "st" or "sub" (mirrors python's RemoveInvalidLanguages priority).
         dropCommonWordLanguages(ctx);
         dropUndeterminedWhenRealLangPresent(ctx);
-        // Keep MARKER_PREFIX private matches alive: downstream EpisodeTitle
-        // hole-computation uses them to terminate holes (mirrors python which
-        // never strips its subtitle_language.prefix marker). dropPrivateAffixes
-        // is a no-op now but the call site is preserved for future cleanup.
-        cleanupReleaseGroups(ctx);
     }
 
     /**
@@ -374,18 +369,6 @@ public final class LanguageExtractor implements Extractor {
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
-    }
-
-    private void cleanupReleaseGroups(ParseContext ctx) {
-        var groups = ctx.matches.named(MatchName.RELEASE_GROUP).toList();
-        for (var g : groups) {
-            var langs = ctx.matches.named(MatchName.SUBTITLE_LANGUAGE)
-                    .filter(m -> m.start() >= g.start() && m.end() <= g.end())
-                    .toList();
-            if (!langs.isEmpty()) {
-                ctx.matches.remove(g);
-            }
-        }
     }
 
     @SuppressWarnings("unchecked")

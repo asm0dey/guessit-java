@@ -103,8 +103,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             var pat = EXPECTED_RE_CACHE.computeIfAbsent(rxSrc, s -> {
                 try {
                     return Pattern.compile(s, Pattern.CASE_INSENSITIVE);
-                } catch (PatternSyntaxException ex) {
-                    ConfigPatternHelpers.warnBadRegex(s, ex);
+                } catch (PatternSyntaxException _) {
                     return null;
                 }
             });

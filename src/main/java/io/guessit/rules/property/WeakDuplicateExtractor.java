@@ -97,7 +97,6 @@ public final class WeakDuplicateExtractor implements Extractor {
         dropInAnimeContext(ctx);
         if (!hasSxxExx) dropAnimeDashSeparatedPair(ctx);
         if (!hasSxxExx) dropDuplicateInsideRangePair(ctx);
-        if (!hasSxxExx) mergeLeadingWeakWithDuplicate(ctx);
         dropWeakIfMoviePerFilepart(ctx);
         dropInsideExpectedTitle(ctx, false);
         dropOverlappingStrongerProperty(ctx);
@@ -151,17 +150,12 @@ public final class WeakDuplicateExtractor implements Extractor {
     }
 
     /** True if a weak-episode (≥3 chars / not weak-duplicate) sits within a 1-5 char
-     *  range-separator gap right after {@code runEnd} or right before {@code sStart}. */
+     *  range-separator gap right after {@code runEnd}. */
     private static boolean hasRangePartner(ParseContext ctx, int runEnd, int sStart) {
-        boolean trailing = ctx.matches.named(MatchName.EPISODE)
+        return ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.start() >= runEnd)
                 .anyMatch(m -> isRangeGap(ctx.input.substring(runEnd, m.start())));
-        boolean leading = ctx.matches.named(MatchName.EPISODE)
-                .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
-                .filter(m -> m.end() <= sStart)
-                .anyMatch(m -> isRangeGap(ctx.input.substring(m.end(), sStart)));
-        return trailing || leading;
     }
 
     private static boolean isRangeGap(String gap) {
@@ -191,47 +185,6 @@ public final class WeakDuplicateExtractor implements Extractor {
                     .forEach(dropDup::add);
         }
         for (var m : dropDup) ctx.matches.remove(m);
-    }
-
-    /**
-     * "weak-episode (≥100) - weak-duplicate-pair" form: leading weak-episode
-     * sits dash-separated before a duplicate pair. Drop the pair and re-add the
-     * combined digits as a plain weak-episode.
-     */
-    private static void mergeLeadingWeakWithDuplicate(ParseContext ctx) {
-        var leadingWeak = ctx.matches.named(MatchName.EPISODE)
-                .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
-                .filter(m -> m.value() instanceof Integer i && i >= 100)
-                .sorted(Comparator.comparingInt(Match::start))
-                .toList();
-        var dupSeasons = ctx.matches.named(MatchName.SEASON)
-                .filter(m -> m.tags().contains(WEAK_DUPLICATE))
-                .sorted(Comparator.comparingInt(Match::start))
-                .toList();
-        var toRemove = new ArrayList<Match>();
-        var toAdd = new ArrayList<Match>();
-        for (var lead : leadingWeak) {
-            for (var dupS : dupSeasons) {
-                if (dupS.start() < lead.end()) continue;
-                String gap = ctx.input.substring(lead.end(), dupS.start());
-                if (!isRangeGap(gap)) continue;
-                var dupE = ctx.matches.named(MatchName.EPISODE)
-                        .filter(em -> em.tags().contains(WEAK_DUPLICATE) && em.start() == dupS.end())
-                        .findFirst().orElse(null);
-                if (dupE == null) continue;
-                int spanStart = dupS.start();
-                int spanEnd = dupE.end();
-                int combined = Integer.parseInt(ctx.input.substring(spanStart, spanEnd));
-                toRemove.add(dupS);
-                toRemove.add(dupE);
-                toAdd.add(new Match(MatchName.EPISODE, combined, spanStart, spanEnd,
-                        ctx.input.substring(spanStart, spanEnd), 800,
-                        Set.of(WEAK_EPISODE), false));
-                break;
-            }
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
-        for (var m : toAdd) ctx.matches.add(m);
     }
 
     /**
