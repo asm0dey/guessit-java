@@ -41,6 +41,7 @@ public final class LanguageExtractor implements Extractor {
      * the release-group candidate skips past the suffix.
      */
     public static final String LANGUAGE_SUFFIX = "language.suffix";
+    private static final String GROUP_MARKER = "group";
 
     @Override
     public String name() {
@@ -384,7 +385,7 @@ public final class LanguageExtractor implements Extractor {
         // codes survive even when one happens to be a common word like "de".
         var langListMarkers = new ArrayList<int[]>();
         for (var marker : ctx.markers) {
-            if (!"group".equals(marker.name())) continue;
+            if (!GROUP_MARKER.equals(marker.name())) continue;
             int s = marker.start();
             int e = marker.end();
             long count = ctx.matches.all()
@@ -488,7 +489,7 @@ public final class LanguageExtractor implements Extractor {
     private static Marker findNextGroupMarker(ParseContext ctx, Match marker) {
         Marker nextGroup = null;
         for (var g : ctx.markers) {
-            if (!"group".equals(g.name())) continue;
+            if (!GROUP_MARKER.equals(g.name())) continue;
             if (g.start() < marker.end()) continue;
             if (nextGroup == null || g.start() < nextGroup.start()) {
                 nextGroup = g;
@@ -546,7 +547,7 @@ public final class LanguageExtractor implements Extractor {
     private static Marker findSmallestEnclosingGroup(ParseContext ctx, Match marker) {
         Marker smallest = null;
         for (var g : ctx.markers) {
-            if (!"group".equals(g.name())) continue;
+            if (!GROUP_MARKER.equals(g.name())) continue;
             if (g.start() > marker.start() || g.end() < marker.end()) continue;
 
             if (smallest == null || (g.end() - g.start() < smallest.end() - smallest.start())) {
@@ -576,7 +577,7 @@ public final class LanguageExtractor implements Extractor {
 
     private static boolean isMarkerValidInGroups(ParseContext ctx, Match marker) {
         for (var g : ctx.markers) {
-            if (!"group".equals(g.name())) continue;
+            if (!GROUP_MARKER.equals(g.name())) continue;
             if (marker.start() < g.start() || marker.end() > g.end()) continue;
 
             if (!isMarkerStandaloneInGroup(ctx.input, marker, g)) {

@@ -16,6 +16,7 @@ import java.util.Optional;
 
 public final class LanguageRegistry {
     private static final LanguageRegistry INSTANCE = new LanguageRegistry();
+    private static final String ALPHA2_KEY = "alpha2";
     public static LanguageRegistry instance() { return INSTANCE; }
 
     private final Map<String, Language> langByKey = new HashMap<>();
@@ -61,7 +62,7 @@ public final class LanguageRegistry {
 
     private void loadIso639() {
         forEachRecord("data/iso-639.csv", r -> {
-            var a2 = trimOrEmpty(r, "alpha2");
+            var a2 = trimOrEmpty(r, ALPHA2_KEY);
             var a3 = trimOrEmpty(r, "alpha3");
             var name = trimOrEmpty(r, "name");
             if (name.isEmpty()) return;
@@ -75,7 +76,7 @@ public final class LanguageRegistry {
 
     private void loadIso3166() {
         forEachRecord("data/iso-3166-1.csv", r -> {
-            var a2 = trimOrEmpty(r, "alpha2");
+            var a2 = trimOrEmpty(r, ALPHA2_KEY);
             var rawName = trimOrEmpty(r, "name");
             if (a2.isEmpty() || rawName.isEmpty()) return;
             var name = titleCase(rawName);
@@ -128,7 +129,7 @@ public final class LanguageRegistry {
     private void loadCountryAliases() {
         forEachRecord("data/country-aliases.csv", r -> {
             var alias = trimOrEmpty(r, "alias");
-            var a2 = trimOrEmpty(r, "alpha2");
+            var a2 = trimOrEmpty(r, ALPHA2_KEY);
             if (alias.isEmpty() || a2.isEmpty()) return;
             var resolved = countryByKey.get(a2.toLowerCase(Locale.ROOT));
             if (resolved != null) countryByKey.putIfAbsent(alias.toLowerCase(Locale.ROOT), resolved);

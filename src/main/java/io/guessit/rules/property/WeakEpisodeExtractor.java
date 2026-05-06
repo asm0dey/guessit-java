@@ -69,7 +69,7 @@ public final class WeakEpisodeExtractor implements Extractor {
 
         emit(ctx, input, TWO_DIGIT, seps, protectedEpisodes);
         emit(ctx, input, THREE_OR_FOUR, seps, protectedEpisodes);
-        if ("episode".equals(ctx.options.type())) {
+        if (EPISODE.equals(ctx.options.type())) {
             emit(ctx, input, SINGLE, seps, protectedEpisodes);
         }
     }
@@ -132,7 +132,7 @@ public final class WeakEpisodeExtractor implements Extractor {
         // episode number, even with a year present, so don't purge.
         boolean anime = hasScreenSizeInGroup(ctx);
         boolean hasYear = ctx.matches.named(MatchName.YEAR).findAny().isPresent();
-        boolean episodeTyped = "episode".equals(ctx.options.type());
+        boolean episodeTyped = EPISODE.equals(ctx.options.type());
         if (!rangePaired && !anime && hasYear && !episodeTyped) {
             removeAllWeak(ctx);
             return true;

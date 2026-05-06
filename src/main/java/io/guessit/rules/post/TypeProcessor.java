@@ -15,13 +15,15 @@ import io.guessit.engine.PostPhase.PostProcessor;
 public final class TypeProcessor implements PostProcessor {
 
     public static final MatchName EPISODE = MatchName.EPISODE;
+    private static final String EPISODE_TYPE = "episode";
+    private static final String MOVIE_TYPE = "movie";
 
     @Override
     public void process(ParseContext ctx) {
         var type = decide(ctx);
         var len = ctx.input.length();
         ctx.matches.add(Match.of(MatchName.TYPE, type, len, len, ""));
-        if (!"episode".equals(type)) {
+        if (!EPISODE_TYPE.equals(type)) {
             var toRename = ctx.matches.named(MatchName.EPISODE_TITLE)
                 .filter(m -> !m.tags().contains("alternative-replaced"))
                 .toList();
@@ -37,16 +39,16 @@ public final class TypeProcessor implements PostProcessor {
         if (optType != null) return optType;
         if (anyNamed(ctx, MatchName.EPISODE) || anyNamed(ctx, MatchName.SEASON)
                 || anyNamed(ctx, MatchName.EPISODE_DETAILS) || anyNamed(ctx, MatchName.ABSOLUTE_EPISODE)) {
-            return "episode";
+            return EPISODE_TYPE;
         }
-        if (anyNamed(ctx, MatchName.FILM)) return "movie";
+        if (anyNamed(ctx, MatchName.FILM)) return MOVIE_TYPE;
         var hasYear = anyNamed(ctx, MatchName.YEAR);
-        if (anyNamed(ctx, MatchName.DATE) && !hasYear) return "episode";
-        if (anyNamed(ctx, MatchName.BONUS) && !hasYear) return "episode";
+        if (anyNamed(ctx, MatchName.DATE) && !hasYear) return EPISODE_TYPE;
+        if (anyNamed(ctx, MatchName.BONUS) && !hasYear) return EPISODE_TYPE;
         var hasCrc = anyNamed(ctx, MatchName.CRC32);
         var anyAnimeRg = ctx.matches.named(MatchName.RELEASE_GROUP).anyMatch(m -> m.tags().contains("anime"));
-        if (hasCrc && anyAnimeRg) return "episode";
-        return "movie";
+        if (hasCrc && anyAnimeRg) return EPISODE_TYPE;
+        return MOVIE_TYPE;
     }
 
     private static boolean anyNamed(ParseContext ctx, MatchName name) {

@@ -74,7 +74,8 @@ final class ConfigPatternHelpers {
      * pull out specially-keyed entries (e.g. {@code _complete_words}); returns
      * {@code null} when the section is missing or not a map.
      */
-    static Map<?, ?> forEachSpec(ParseContext ctx, String sectionName, SpecEmitter emitter) {
+    @SuppressWarnings("unchecked")
+    static Map<Object, Object> forEachSpec(ParseContext ctx, String sectionName, SpecEmitter emitter) {
         var section = ctx.config.section(sectionName);
         var inner = section.get(sectionName);
         if (!(inner instanceof Map<?, ?> entries)) return null;
@@ -85,7 +86,7 @@ final class ConfigPatternHelpers {
                 emitter.emit(ctx, input, key, spec);
             }
         }
-        return entries;
+        return (Map<Object, Object>) entries;
     }
 
     static Set<String> parseTags(Object t) {

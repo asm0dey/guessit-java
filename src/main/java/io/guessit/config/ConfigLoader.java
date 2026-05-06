@@ -14,6 +14,9 @@ import java.util.*;
 
 public final class ConfigLoader {
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String EXT_JSON = ".json";
+    private static final String EXT_YML = ".yml";
+    private static final String EXT_YAML = ".yaml";
 
     private ConfigLoader() {
     }
@@ -60,12 +63,12 @@ public final class ConfigLoader {
         if (!Files.isReadable(p)) return null;
         var name = p.getFileName().toString().toLowerCase(Locale.ROOT);
         try {
-            if (name.endsWith(".json")) {
+            if (name.endsWith(EXT_JSON)) {
                 try (var r = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
                     return JSON.readValue(r, Map.class);
                 }
             }
-            if (name.endsWith(".yml") || name.endsWith(".yaml")) {
+            if (name.endsWith(EXT_YML) || name.endsWith(EXT_YAML)) {
                 try (var r = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
                     Object v = new Yaml().load(r);
                     return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
@@ -96,10 +99,10 @@ public final class ConfigLoader {
         Path xdgBase = xdg != null && !xdg.isBlank()
                 ? Path.of(xdg)
                 : Path.of(home, ".config");
-        for (var ext : List.of(".json", ".yml", ".yaml")) {
+        for (var ext : List.of(EXT_JSON, EXT_YML, EXT_YAML)) {
             paths.add(xdgBase.resolve("guessit").resolve("options" + ext));
         }
-        for (var ext : List.of(".json", ".yml", ".yaml")) {
+        for (var ext : List.of(EXT_JSON, EXT_YML, EXT_YAML)) {
             paths.add(Path.of(home, ".guessit", "options" + ext));
         }
         return paths;

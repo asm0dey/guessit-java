@@ -31,6 +31,7 @@ public final class SourceExtractor implements Extractor {
 
     public static final String SOURCE = "source";
     public static final String OTHER = "other";
+    private static final String BLU_RAY = "Blu-ray";
 
     @Override
     public String name() {
@@ -113,7 +114,7 @@ public final class SourceExtractor implements Extractor {
         // Order: longer/more-specific BD variants before bare "BD" so the
         // alternation picks "BD25" over "BD" on input "BD25".
         rules.add(new Rule(List.of("Blu-?ray", "BD25", "BD50", "BD[59]", "BD"),
-                "", optRipSuffix, "Blu-ray", "Rip", null, common, false));
+                "", optRipSuffix, BLU_RAY, "Rip", null, common, false));
         // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
         // the lookahead form fails validatePrefixSuffix when 'S'/'M' isn't a sep.
         // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
@@ -122,8 +123,8 @@ public final class SourceExtractor implements Extractor {
         // Lookahead lets the Screener/Mux Other match keep its own span; the
         // single named group avoids Java's duplicate-name compile error.
         rules.add(new Rule(List.of("(?<another>BR)-?(?=Scr(?:eener)?|Mux)"),
-                "", "", "Blu-ray", null, "Reencoded", common, false));
-        rules.add(new Rule(List.of("(?<another>BR)"), "", ripSuffix, "Blu-ray", "Rip", "Reencoded", common, false));
+                "", "", BLU_RAY, null, "Reencoded", common, false));
+        rules.add(new Rule(List.of("(?<another>BR)"), "", ripSuffix, BLU_RAY, "Rip", "Reencoded", common, false));
         rules.add(new Rule(List.of("Ultra-?Blu-?ray", "Blu-?ray-?Ultra"), "", "", "Ultra HD Blu-ray", null, null, common, false));
         rules.add(new Rule(List.of("AHDTV"), "", "", "Analog HDTV", null, null, common, false));
         rules.add(new Rule(List.of("UHD-?TV"), "", optRipSuffix, "Ultra HDTV", "Rip", null, common, false));
@@ -171,8 +172,8 @@ public final class SourceExtractor implements Extractor {
                 : sourceMatch;
             ctx.matches.add(emit);
             if (rule.otherValue() != null) {
-                int os = groupStart(matcher, "other");
-                int oe = groupEnd(matcher, "other");
+                int os = groupStart(matcher, OTHER);
+                int oe = groupEnd(matcher, OTHER);
                 if (os >= 0 && oe > os) {
                     ctx.matches.add(new Match(MatchName.OTHER, rule.otherValue(), os, oe,
                             input.substring(os, oe), 1000, Set.of("coexist", "derivedFrom:source"), false));
@@ -256,7 +257,7 @@ public final class SourceExtractor implements Extractor {
 
     private void upgradeUltraHdBluray(ParseContext ctx) {
         var bds = ctx.matches.named(MatchName.SOURCE)
-                .filter(m -> "Blu-ray".equals(m.value()))
+                .filter(m -> BLU_RAY.equals(m.value()))
                 .toList();
         if (bds.isEmpty()) return;
         for (var filepart : ctx.markers) {
