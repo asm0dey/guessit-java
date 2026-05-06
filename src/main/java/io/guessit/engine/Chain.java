@@ -65,13 +65,7 @@ public final class Chain {
     public List<Run> scan(String input, java.util.function.ToIntFunction<Run> effectiveEnd) {
         var runs = new ArrayList<Run>();
         var headMatcher = head.matcher(input);
-        // Allocate one Matcher per tail step, reused across all head iterations.
-        var tailMatchers = new Matcher[tails.size()];
-        for (int i = 0; i < tails.size(); i++) {
-            tailMatchers[i] = tails.get(i).pattern.matcher(input)
-                .useAnchoringBounds(true);
-            tailMatchers[i].useTransparentBounds(false);
-        }
+        var tailMatchers = buildTailMatchers(input);
         int from = 0;
         while (headMatcher.find(from)) {
             int hStart = headMatcher.start();
@@ -80,52 +74,88 @@ public final class Chain {
             var spans = new LinkedHashMap<String, List<int[]>>();
             collectNamed(headMatcher, caps, spans);
 
-            int cursor = hEnd;
-            int tailCount = 0;
-            for (int si = 0; si < tails.size(); si++) {
-                var step = tails.get(si);
-                var tm = tailMatchers[si];
-                int taken = 0;
-                while (true) {
-                    tm.region(cursor, input.length());
-                    if (!tm.find()) break;
-                    // Tail must be contiguous to the cursor, optionally separated
-                    // by a small set of innocuous chars. This is what makes a
-                    // "chain" — without it, any later occurrence of the tail
-                    // pattern in the input would match.
-                    if (tm.start() > cursor) {
-                        if (!isGapSeparators(input, cursor, tm.start())) break;
-                    }
-                    collectNamed(tm, caps, spans);
-                    cursor = tm.end();
-                    taken++;
-                    tailCount++;
-                    if (step.rep == Repeater.QMARK) break;
-                }
-                if (step.rep == Repeater.PLUS && taken == 0) {
-                    cursor = hEnd;
-                    caps.clear();
-                    spans.clear();
-                    collectNamed(headMatcher, caps, spans);
-                    tailCount = 0;
-                    break;
-                }
-            }
-
-            boolean ok = true;
-            for (var step : tails) {
-                if (step.rep == Repeater.PLUS && tailCount == 0) { ok = false; break; }
-            }
-            Run run = ok ? new Run(hStart, cursor, caps, spans) : null;
+            var consumed = consumeAllTails(input, tailMatchers, hEnd, caps, spans, headMatcher);
+            Run run = consumed.ok() ? new Run(hStart, consumed.cursor(), caps, spans) : null;
             if (run != null) runs.add(run);
-            int adjusted = run != null ? effectiveEnd.applyAsInt(run) : -1;
-            int advance = adjusted >= 0 ? adjusted : cursor;
-            // Advance past the entire consumed run (head + tails) so the next
-            // head search does not re-capture a tail digit as its own head,
-            // unless the validator says we should resume earlier.
-            from = Math.max(Math.max(hEnd, hStart + 1), advance);
+            from = nextFrom(hStart, hEnd, consumed.cursor(), run, effectiveEnd);
         }
         return runs;
+    }
+
+    private Matcher[] buildTailMatchers(String input) {
+        var arr = new Matcher[tails.size()];
+        for (int i = 0; i < tails.size(); i++) {
+            arr[i] = tails.get(i).pattern.matcher(input).useAnchoringBounds(true);
+            arr[i].useTransparentBounds(false);
+        }
+        return arr;
+    }
+
+    private record TailConsumption(int cursor, int tailCount, boolean ok) {}
+
+    private record StepResult(int cursor, int taken) {}
+
+    /**
+     * Walks the configured tail steps starting at {@code hEnd}. On a PLUS
+     * step that captures nothing, resets the run to head-only.
+     */
+    private TailConsumption consumeAllTails(String input, Matcher[] tailMatchers, int hEnd,
+                                            Map<String, List<String>> caps,
+                                            Map<String, List<int[]>> spans,
+                                            Matcher headMatcher) {
+        int cursor = hEnd;
+        int tailCount = 0;
+        for (int si = 0; si < tails.size(); si++) {
+            var step = tails.get(si);
+            var sr = consumeStep(input, tailMatchers[si], step, cursor, caps, spans);
+            cursor = sr.cursor();
+            tailCount += sr.taken();
+            if (step.rep == Repeater.PLUS && sr.taken() == 0) {
+                caps.clear();
+                spans.clear();
+                collectNamed(headMatcher, caps, spans);
+                return new TailConsumption(hEnd, 0, !hasPlusStep());
+            }
+        }
+        return new TailConsumption(cursor, tailCount, !(hasPlusStep() && tailCount == 0));
+    }
+
+    /**
+     * Greedily consumes one tail step, requiring the tail be contiguous to
+     * {@code startCursor} (optionally separated by gap chars). QMARK caps at one.
+     */
+    private StepResult consumeStep(String input, Matcher tm, Step step, int startCursor,
+                                   Map<String, List<String>> caps,
+                                   Map<String, List<int[]>> spans) {
+        int cursor = startCursor;
+        int taken = 0;
+        while (true) {
+            tm.region(cursor, input.length());
+            if (!tm.find()) break;
+            if (tm.start() > cursor && !isGapSeparators(input, cursor, tm.start())) break;
+            collectNamed(tm, caps, spans);
+            cursor = tm.end();
+            taken++;
+            if (step.rep == Repeater.QMARK) break;
+        }
+        return new StepResult(cursor, taken);
+    }
+
+    private boolean hasPlusStep() {
+        for (var s : tails) if (s.rep == Repeater.PLUS) return true;
+        return false;
+    }
+
+    /**
+     * Advance past the consumed run (head + tails) so the next head search
+     * does not re-capture a tail digit as its own head, unless the validator
+     * says we should resume earlier.
+     */
+    private static int nextFrom(int hStart, int hEnd, int cursor, Run run,
+                                java.util.function.ToIntFunction<Run> effectiveEnd) {
+        int adjusted = run != null ? effectiveEnd.applyAsInt(run) : -1;
+        int advance = adjusted >= 0 ? adjusted : cursor;
+        return Math.max(Math.max(hEnd, hStart + 1), advance);
     }
 
     private static void collectNamed(Matcher m, Map<String, List<String>> caps, Map<String, List<int[]>> spans) {

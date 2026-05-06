@@ -37,7 +37,6 @@ public final class Rules {
             new PostPhase(List.of(
                 new EnlargeGroupMatches(),
                 new BitRateTypeRule(),
-                new LanguageCountryAttach(),
                 new EquivalentHoles(),
                 new PreferLastPath(),
                 new RangeFiller(),

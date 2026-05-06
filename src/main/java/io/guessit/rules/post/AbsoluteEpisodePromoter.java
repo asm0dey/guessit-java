@@ -75,29 +75,9 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
         for (var m : fills) ctx.matches.add(m);
     }
 
-    /**
-     * True when the string consists only of separator characters plus at most
-     * one range-marker ({@code -}, {@code ~}, {@code to}).
-     */
     private static boolean isSepRange(String gap) {
-        // Allow pure-sep padding around the range marker.
-        // Pattern: [seps]* ('-' or '~' or 'to') [seps]*
         var lower = gap.strip().toLowerCase(java.util.Locale.ROOT);
-        if (lower.isEmpty()) return false;
-        if (lower.equals("-") || lower.equals("~") || lower.equals("to")) return true;
-        // Check if whole string is seps + exactly one range marker surrounded by seps.
-        var trimmed = strip(gap);
-        return trimmed.equals("-") || trimmed.equals("~") || trimmed.equals("to");
-    }
-
-    private static String strip(String s) {
-        int start = 0;
-        while (start < s.length() && Seps.isSep(s.charAt(start)) && s.charAt(start) != '-'
-               && s.charAt(start) != '~') start++;
-        int end = s.length();
-        while (end > start && Seps.isSep(s.charAt(end - 1)) && s.charAt(end - 1) != '-'
-               && s.charAt(end - 1) != '~') end--;
-        return s.substring(start, end);
+        return lower.equals("-") || lower.equals("~") || lower.equals("to");
     }
 
     /**

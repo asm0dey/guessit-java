@@ -144,22 +144,13 @@ public final class EditionExtractor implements Extractor {
      * input where the streaming-service ends up dropped too.
      */
     private static boolean streamingServiceWillSurvive(ParseContext ctx, String input, Match s) {
-        boolean nextOk = ctx.matches.all()
+        return ctx.matches.all()
             .filter(m -> !m.isPrivate())
             .filter(m -> m.tags().contains("streaming_service.suffix"))
             .filter(m -> m.start() >= s.end())
             .min(Comparator.comparingInt(Match::start))
             .map(n -> Seps.betweenIsSeps(input, s.end(), n.start())
                     && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1))))
-            .orElse(false);
-        if (nextOk) return true;
-        return ctx.matches.all()
-            .filter(m -> !m.isPrivate())
-            .filter(m -> m.tags().contains("streaming_service.prefix"))
-            .filter(m -> m.end() <= s.start())
-            .max(Comparator.comparingInt(Match::end))
-            .map(p -> Seps.betweenIsSeps(input, p.end(), s.start())
-                    && (s.end() >= input.length() || Seps.isSep(input.charAt(s.end()))))
             .orElse(false);
     }
 }

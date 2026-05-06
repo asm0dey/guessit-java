@@ -30,28 +30,32 @@ public final class Holes {
             ret.add(this);
             for (var m : markers) {
                 var newRet = new ArrayList<Hole>();
-                for (var h : ret) {
-                    //noinspection StatementWithEmptyBody
-                    if (m.start() <= h.start && m.end() >= h.end) {
-                        // marker fully covers hole - drop
-                    } else if (m.start() >= h.start && m.end() <= h.end) {
-                        var left = new Hole(h.start, m.start(), input, formatter);
-                        var right = new Hole(m.end(), h.end, input, formatter);
-                        if (left.length() > 0) newRet.add(left);
-                        if (right.length() > 0) newRet.add(right);
-                    } else if (m.end() >= h.end && m.start() < h.end) {
-                        h.end = m.start();
-                        if (h.length() > 0) newRet.add(h);
-                    } else if (m.start() <= h.start && m.end() > h.start) {
-                        h.start = m.end();
-                        if (h.length() > 0) newRet.add(h);
-                    } else {
-                        newRet.add(h);
-                    }
-                }
+                for (var h : ret) applyMarkerToHole(m, h, newRet);
                 ret = newRet;
             }
             return ret;
+        }
+
+        private void applyMarkerToHole(Marker m, Hole h, List<Hole> newRet) {
+            if (m.start() <= h.start && m.end() >= h.end) return; // fully covers — drop
+            if (m.start() >= h.start && m.end() <= h.end) {
+                var left = new Hole(h.start, m.start(), input, formatter);
+                var right = new Hole(m.end(), h.end, input, formatter);
+                if (left.length() > 0) newRet.add(left);
+                if (right.length() > 0) newRet.add(right);
+                return;
+            }
+            if (m.end() >= h.end && m.start() < h.end) {
+                h.end = m.start();
+                if (h.length() > 0) newRet.add(h);
+                return;
+            }
+            if (m.start() <= h.start && m.end() > h.start) {
+                h.start = m.end();
+                if (h.length() > 0) newRet.add(h);
+                return;
+            }
+            newRet.add(h);
         }
 
         public List<Hole> split(String seps) {

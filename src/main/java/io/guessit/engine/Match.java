@@ -57,10 +57,6 @@ public record Match(
         return new Match(name, value, start, e, raw, priority, tags, isPrivate);
     }
 
-    public Match withValue(Object v) {
-        return new Match(name, v, start, end, raw, priority, tags, isPrivate);
-    }
-
     public Match withName(MatchName n) {
         return new Match(n, value, start, end, raw, priority, tags, isPrivate);
     }

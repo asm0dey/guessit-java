@@ -140,7 +140,7 @@ public final class SourceExtractor implements Extractor {
         var src = rule.prefix() + "(" + alt + ")" + rule.suffix();
         return RULE_CACHE.computeIfAbsent(src, s -> {
             try { return Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE); }
-            catch (PatternSyntaxException ex) { ConfigPatternHelpers.warnBadRegex(s, ex); return null; }
+            catch (PatternSyntaxException _) { return null; }
         });
     }
 
