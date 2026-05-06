@@ -262,27 +262,33 @@ public final class SourceExtractor implements Extractor {
         for (var filepart : ctx.markers) {
             if (!"path".equals(filepart.name())) continue;
             for (var bd : bds) {
-                if (!filepart.covers(bd.start(), bd.end())) continue;
-                // Find an Ultra HD other before the Blu-ray with no blocking matches in between.
-                var uhdOther = findUltraHd(ctx, filepart.start(), bd.start(), true);
-                boolean ok = uhdOther != null && validRange(ctx, uhdOther.end(), bd.start());
-                if (!ok) {
-                    uhdOther = findUltraHd(ctx, bd.end(), filepart.end(), false);
-                    ok = uhdOther != null && validRange(ctx, bd.end(), uhdOther.start());
+                if (filepart.covers(bd.start(), bd.end())) {
+                    tryUpgradeBluray(ctx, filepart, bd);
                 }
-                if (!ok) {
-                    boolean has2160p = ctx.matches.named(MatchName.SCREEN_SIZE)
-                            .anyMatch(m -> "2160p".equals(m.value()) && filepart.covers(m.start(), m.end()));
-                    if (!has2160p) continue;
-                    uhdOther = null;
-                }
-                if (uhdOther != null) {
-                    ctx.matches.remove(uhdOther);
-                }
-                ctx.matches.replace(bd, new Match(MatchName.SOURCE, "Ultra HD Blu-ray",
-                        bd.start(), bd.end(), bd.raw(), bd.priority(), bd.tags(), bd.isPrivate()));
             }
         }
+    }
+
+    private void tryUpgradeBluray(ParseContext ctx, Marker filepart, Match bd) {
+        // Find an Ultra HD other before the Blu-ray with no blocking matches in between.
+        var uhdOther = findUltraHd(ctx, filepart.start(), bd.start(), true);
+        boolean ok = uhdOther != null && validRange(ctx, uhdOther.end(), bd.start());
+        if (!ok) {
+            uhdOther = findUltraHd(ctx, bd.end(), filepart.end(), false);
+            ok = uhdOther != null && validRange(ctx, bd.end(), uhdOther.start());
+        }
+        if (!ok) {
+            if (!has2160p(ctx, filepart)) return;
+            uhdOther = null;
+        }
+        if (uhdOther != null) ctx.matches.remove(uhdOther);
+        ctx.matches.replace(bd, new Match(MatchName.SOURCE, "Ultra HD Blu-ray",
+                bd.start(), bd.end(), bd.raw(), bd.priority(), bd.tags(), bd.isPrivate()));
+    }
+
+    private static boolean has2160p(ParseContext ctx, Marker filepart) {
+        return ctx.matches.named(MatchName.SCREEN_SIZE)
+                .anyMatch(m -> "2160p".equals(m.value()) && filepart.covers(m.start(), m.end()));
     }
 
     private static Match findUltraHd(ParseContext ctx, int start, int end, boolean preferLast) {
