@@ -51,20 +51,32 @@ public final class StreamingServiceExtractor implements Extractor {
 
     private static void emit(ParseContext ctx, String input, String value, Object pat) {
         if (pat instanceof String s) {
-            if (s.startsWith("re:")) emitRegex(ctx, input, value, s.substring(3));
-            else emitString(ctx, input, value, s, true);
+            emitStringOrRegex(ctx, input, value, s);
         } else if (pat instanceof Map<?, ?> m) {
-            var s = m.get("string");
-            var r = m.get("regex");
-            var p = m.get("pattern");
-            boolean ignoreCase = !(m.get("ignore_case") instanceof Boolean b) || b;
-            if (s instanceof String str) emitString(ctx, input, value, str, true);
-            else if (s instanceof List<?> l) for (var x : l) emitString(ctx, input, value, x.toString(), true);
-            if (p instanceof String str) emitString(ctx, input, value, str, ignoreCase);
-            else if (p instanceof List<?> l) for (var x : l) emitString(ctx, input, value, x.toString(), ignoreCase);
-            if (r instanceof String str) emitRegex(ctx, input, value, str);
-            else if (r instanceof List<?> l) for (var x : l) emitRegex(ctx, input, value, x.toString());
+            emitFromMap(ctx, input, value, m);
         }
+    }
+
+    private static void emitStringOrRegex(ParseContext ctx, String input, String value, String s) {
+        if (s.startsWith("re:")) emitRegex(ctx, input, value, s.substring(3));
+        else emitString(ctx, input, value, s, true);
+    }
+
+    private static void emitFromMap(ParseContext ctx, String input, String value, Map<?, ?> m) {
+        boolean ignoreCase = !(m.get("ignore_case") instanceof Boolean b) || b;
+        emitStringOrList(ctx, input, value, m.get("string"), true);
+        emitStringOrList(ctx, input, value, m.get("pattern"), ignoreCase);
+        emitRegexOrList(ctx, input, value, m.get("regex"));
+    }
+
+    private static void emitStringOrList(ParseContext ctx, String input, String value, Object v, boolean ignoreCase) {
+        if (v instanceof String str) emitString(ctx, input, value, str, ignoreCase);
+        else if (v instanceof List<?> l) for (var x : l) emitString(ctx, input, value, x.toString(), ignoreCase);
+    }
+
+    private static void emitRegexOrList(ParseContext ctx, String input, String value, Object v) {
+        if (v instanceof String str) emitRegex(ctx, input, value, str);
+        else if (v instanceof List<?> l) for (var x : l) emitRegex(ctx, input, value, x.toString());
     }
 
     private static void emitString(ParseContext ctx, String input, String value, String needle,

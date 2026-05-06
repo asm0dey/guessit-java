@@ -80,6 +80,22 @@ public final class Holes {
                                      Predicate<Match> ignore,
                                      String seps,
                                      Function<String, String> formatter) {
+        var active = collectActiveMatches(allMatches, ignore, start, end);
+        var ret = new ArrayList<Hole>();
+        Hole current = null;
+        for (var pos = start; pos < end; pos++) {
+            current = stepPosition(pos, current, active, input, seps, formatter, ret);
+        }
+        if (current != null) {
+            current.end = end;
+            if (!current.isEmpty()) ret.add(current);
+        }
+        ret.removeIf(h -> { var v = h.value(); return v == null || v.isEmpty(); });
+        return ret;
+    }
+
+    private static List<Match> collectActiveMatches(List<Match> allMatches, Predicate<Match> ignore,
+                                                    int start, int end) {
         var matches = new ArrayList<>(allMatches);
         matches.sort(Comparator.comparingInt(Match::start));
         var active = new ArrayList<Match>();
@@ -88,29 +104,29 @@ public final class Holes {
             if (m.end() <= start || m.start() >= end) continue;
             active.add(m);
         }
+        return active;
+    }
 
-        var ret = new ArrayList<Hole>();
-        Hole current = null;
-        for (var pos = start; pos < end; pos++) {
-            var inMatch = false;
-            for (var m : active) {
-                if (m.start() <= pos && pos < m.end()) { inMatch = true; break; }
-            }
-            if (current != null && seps != null && pos < input.length()
-                    && seps.indexOf(input.charAt(pos)) >= 0) {
-                current = closeHole(current, pos, ret);
-            } else if (!inMatch && current == null) {
-                current = new Hole(pos, pos, input, formatter);
-            } else if (inMatch && current != null) {
-                current = closeHole(current, pos, ret);
-            }
+    private static boolean inMatch(List<Match> active, int pos) {
+        for (var m : active) {
+            if (m.start() <= pos && pos < m.end()) return true;
         }
-        if (current != null) {
-            current.end = end;
-            if (!current.isEmpty()) ret.add(current);
+        return false;
+    }
+
+    private static Hole stepPosition(int pos, Hole current, List<Match> active, String input,
+                                     String seps, Function<String, String> formatter, ArrayList<Hole> ret) {
+        boolean inM = inMatch(active, pos);
+        if (current != null && seps != null && pos < input.length() && seps.indexOf(input.charAt(pos)) >= 0) {
+            return closeHole(current, pos, ret);
         }
-        ret.removeIf(h -> { var v = h.value(); return v == null || v.isEmpty(); });
-        return ret;
+        if (!inM && current == null) {
+            return new Hole(pos, pos, input, formatter);
+        }
+        if (inM && current != null) {
+            return closeHole(current, pos, ret);
+        }
+        return current;
     }
 
     private static Hole closeHole(Hole current, int pos, ArrayList<Hole> ret) {
