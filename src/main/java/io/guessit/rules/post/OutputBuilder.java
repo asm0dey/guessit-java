@@ -164,7 +164,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             try {
                 var derivedName = MatchName.valueOf(t.substring(12).toUpperCase());
                 if (s.droppedNames.contains(derivedName)) return true;
-            } catch (IllegalArgumentException ignored) {
+            } catch (IllegalArgumentException _) {
                 // tag refers to a name no longer in the enum — treat as not derived
             }
         }

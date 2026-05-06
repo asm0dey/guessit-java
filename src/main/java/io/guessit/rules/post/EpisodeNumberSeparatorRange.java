@@ -41,6 +41,7 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
     private static final Pattern RANGE_THEN_NUM = Pattern.compile(
         "(?i)[\\s._]*[-~][\\s._]*(\\d+)|[\\s._]+to[\\s._]+(\\d+)");
     public static final MatchName EPISODE = MatchName.EPISODE;
+    private static final String RANGE_FILL = "range-fill";
 
     @Override
     public void process(ParseContext ctx) {
@@ -70,11 +71,11 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
 
         // Add vb itself as an episode match.
         fills.add(new Match(EPISODE, span.value(), span.start(), span.end(),
-            ctx.input.substring(span.start(), span.end()), 1000, Set.of("range-fill"), false));
+            ctx.input.substring(span.start(), span.end()), 1000, Set.of(RANGE_FILL), false));
         // Add intermediate values va+1 .. vb-1 (zero-width, anchored at numStart).
         for (int v = va + 1; v < span.value(); v++) {
             fills.add(new Match(EPISODE, v, span.start(), span.start(),
-                "", 1000, Set.of("range-fill"), false));
+                "", 1000, Set.of(RANGE_FILL), false));
         }
     }
 
@@ -100,7 +101,7 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
     /** True when an existing episode range-fill already covers the gap. */
     private static boolean alreadyFilled(ParseContext ctx, Match a, int numEnd) {
         return ctx.matches.named(EPISODE)
-            .anyMatch(m -> m.tags().contains("range-fill")
+            .anyMatch(m -> m.tags().contains(RANGE_FILL)
                 && m.start() >= a.end() && m.end() <= numEnd);
     }
 }
