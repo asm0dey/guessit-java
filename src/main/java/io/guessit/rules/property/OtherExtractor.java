@@ -101,7 +101,7 @@ public final class OtherExtractor implements Extractor {
         String otherValue = key.startsWith("_") ? null : key;
         String anotherValue = null;
         if (valueOverride instanceof Map<?, ?> vm) {
-            if (vm.get("other") != null) otherValue = vm.get("other").toString();
+            if (vm.get(OTHER) != null) otherValue = vm.get(OTHER).toString();
             if (vm.get(ANOTHER_KEY) != null) anotherValue = vm.get(ANOTHER_KEY).toString();
         }
         if (otherValue == null) return;
