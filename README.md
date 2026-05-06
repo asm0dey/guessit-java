@@ -1,8 +1,43 @@
 # guessit-java
 
-Feature-equal Java port of Python [guessit](https://github.com/guessit-io/guessit).
+Feature-equal Java port of Python [guessit](https://github.com/guessit-io/guessit) **3.8.0**.
 
 Library + CLI that parses video filenames into structured metadata.
+
+## Parity vs guessit 3.8.0
+
+- **YML fixture parity: 100% (2076 / 2076 cases pass)** against the upstream
+  test corpus shipped with guessit 3.8.0 (`guessit/test/*.yml` +
+  `guessit/test/rules/*.yml`).
+- All 24 upstream fixture files ported and green: `movies.yml`, `episodes.yml`,
+  `various.yml`, plus per-rule fixtures (`audio_codec`, `bonus`, `cd`,
+  `common_words`, `country`, `date`, `edition`, `enable_disable_properties`,
+  `episodes`, `film`, `language`, `other`, `part`, `processors`,
+  `release_group`, `screen_size`, `size`, `source`, `streaming_services`,
+  `title`, `video_codec`, `website`).
+- All output properties supported: `title`, `alternative_title`, `year`,
+  `date`, `season`, `episode`, `episode_count`, `season_count`,
+  `episode_title`, `episode_format`, `type`, `language`,
+  `subtitle_language`, `country`, `source`, `other`, `video_codec`,
+  `audio_codec`, `audio_channels`, `audio_profile`, `video_profile`,
+  `video_api`, `screen_size`, `aspect_ratio`, `frame_rate`, `bit_rate`,
+  `audio_bit_rate`, `video_bit_rate`, `size`, `container`, `mimetype`,
+  `release_group`, `streaming_service`, `website`, `edition`, `cd`,
+  `cd_count`, `part`, `version`, `film`, `film_title`, `bonus`,
+  `bonus_title`, `crc32`, `proper_count`, plus extras (`color_depth`,
+  `week`, `absolute_episode`, `episode_details`, `disc`).
+- CLI flag parity with Python `__main__.py` (incl. `-t/--type`,
+  `-n/--name-only`, `-c/--config`, `--no-default-config`, expected_*,
+  verbose, JSON/YAML output, etc.).
+- Config-loading parity: bundled `options.json` defaults + XDG /
+  `~/.guessit/` user config + `--config`.
+- Language/country aliases sourced from babelfish data + guessit overrides
+  (CSV-embedded).
+
+### Non-goals
+
+Not a wire-compatible drop-in for the Python module API — Java consumers get
+an idiomatic Java API; only the **output property map** is equivalent.
 
 ## Build
 
@@ -25,5 +60,5 @@ Produces:
 
 ## Status
 
-In active development. See `docs/superpowers/specs/` for design,
-`docs/superpowers/plans/` for implementation plans.
+100% YML parity with guessit 3.8.0 reached. See `docs/superpowers/specs/`
+for design, `docs/superpowers/plans/` for implementation history.
