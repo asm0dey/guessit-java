@@ -41,7 +41,9 @@ public final class OtherExtractor implements Extractor {
 
     public static final String OTHER = "other";
 
-    @Override public String name() { return "other"; }
+    private static final String ANOTHER_KEY = "another";
+
+    @Override public String name() { return OTHER; }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -55,7 +57,7 @@ public final class OtherExtractor implements Extractor {
      * The configured tags ({@code release-group-prefix}) are not applied here since this match
      * already carries its own structural validation through the regex.
      */
-    private static void emitCompleteWords(ParseContext ctx, Map<?, ?> entries) {
+    private static void emitCompleteWords(ParseContext ctx, Map<Object, Object> entries) {
         var spec = entries.get("_complete_words");
         if (!(spec instanceof Map<?, ?> m)) return;
         var seasonWords = stringList(m.get("season_words"), List.of("seasons?", "series?"));
@@ -100,7 +102,7 @@ public final class OtherExtractor implements Extractor {
         String anotherValue = null;
         if (valueOverride instanceof Map<?, ?> vm) {
             if (vm.get("other") != null) otherValue = vm.get("other").toString();
-            if (vm.get("another") != null) anotherValue = vm.get("another").toString();
+            if (vm.get(ANOTHER_KEY) != null) anotherValue = vm.get(ANOTHER_KEY).toString();
         }
         if (otherValue == null) return;
 
@@ -196,10 +198,10 @@ public final class OtherExtractor implements Extractor {
     }
 
     private static int groupStart(Matcher m) {
-        try { return m.start("another"); } catch (IllegalArgumentException | IllegalStateException _) { return -1; }
+        try { return m.start(ANOTHER_KEY); } catch (IllegalArgumentException | IllegalStateException _) { return -1; }
     }
     private static int groupEnd(Matcher m) {
-        try { return m.end("another"); } catch (IllegalArgumentException | IllegalStateException _) { return -1; }
+        try { return m.end(ANOTHER_KEY); } catch (IllegalArgumentException | IllegalStateException _) { return -1; }
     }
 
     @Override

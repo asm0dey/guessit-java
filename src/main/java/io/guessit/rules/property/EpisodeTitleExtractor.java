@@ -30,6 +30,8 @@ public final class EpisodeTitleExtractor implements Extractor {
     private static final Set<MatchName> AFFECTED_NAMES = Set.of(MatchName.PART, MatchName.YEAR);
     private static final Set<MatchName> AFFECTED_IF_HOLES_AFTER = Set.of(MatchName.PART);
     public static final String EPISODE_TITLE = "episode_title";
+    private static final String MOVIE_TYPE = "movie";
+    private static final String FILEPART_TITLE_TAG = "filepart-title";
 
     @Override
     public String name() {
@@ -139,7 +141,7 @@ public final class EpisodeTitleExtractor implements Extractor {
         var paths = ctx.markers.stream().filter(m -> m.name().equals("path")).toList();
         var titleExtractor = new TitleExtractor();
         var hasCrc = ctx.matches.named(MatchName.CRC32).findAny().isPresent();
-        boolean isMovie = "movie".equals(predictedType(ctx));
+        boolean isMovie = MOVIE_TYPE.equals(predictedType(ctx));
         for (var fp : Markers.markerSorted(paths, ctx.matches)) {
             var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> m.name() == MatchName.TITLE).findAny().isPresent();
             if (!hasTitle) continue;
@@ -199,14 +201,14 @@ public final class EpisodeTitleExtractor implements Extractor {
                 || anyNamed(ctx, MatchName.EPISODE_DETAILS) || anyNamed(ctx, MatchName.ABSOLUTE_EPISODE)) {
             return EPISODE;
         }
-        if (anyNamed(ctx, MatchName.FILM)) return "movie";
+        if (anyNamed(ctx, MatchName.FILM)) return MOVIE_TYPE;
         boolean hasYear = anyNamed(ctx, MatchName.YEAR);
         if (anyNamed(ctx, MatchName.DATE) && !hasYear) return EPISODE;
         if (anyNamed(ctx, MatchName.BONUS) && !hasYear) return EPISODE;
         boolean hasCrc = anyNamed(ctx, MatchName.CRC32);
         boolean anyAnimeRg = ctx.matches.named(MatchName.RELEASE_GROUP).anyMatch(m -> m.tags().contains("anime"));
         if (hasCrc && anyAnimeRg) return EPISODE;
-        return "movie";
+        return MOVIE_TYPE;
     }
 
     private static java.util.Optional<Match> previousAdjacent(ParseContext ctx, int startPos,
@@ -255,7 +257,7 @@ public final class EpisodeTitleExtractor implements Extractor {
     }
 
     private void filepart3EpisodeTitle(ParseContext ctx) {
-        if (ctx.matches.tagged("filepart-title").findAny().isPresent()) return;
+        if (ctx.matches.tagged(FILEPART_TITLE_TAG).findAny().isPresent()) return;
         var paths = Markers.named(ctx.markers, "path").toList();
         if (paths.size() < 3) return;
         var filename = paths.getLast();
@@ -304,7 +306,7 @@ public final class EpisodeTitleExtractor implements Extractor {
     }
 
     private void filepart2EpisodeTitle(ParseContext ctx) {
-        if (ctx.matches.tagged("filepart-title").findAny().isPresent()) return;
+        if (ctx.matches.tagged(FILEPART_TITLE_TAG).findAny().isPresent()) return;
         var paths = Markers.named(ctx.markers, "path").toList();
         if (paths.size() < 2) return;
         var filename = paths.getLast();
@@ -316,7 +318,7 @@ public final class EpisodeTitleExtractor implements Extractor {
         if (!hasSeason) return;
         var h = findEpisodeTitleHoles(ctx, directory);
         if (h == null) return;
-        var tags = Set.of("filepart-title");
+        var tags = Set.of(FILEPART_TITLE_TAG);
         ctx.matches.add(new Match(MatchName.TITLE, h.value(), h.start, h.end, h.raw(), 1000, tags, false));
     }
 }

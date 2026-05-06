@@ -37,8 +37,8 @@ public class RemoveAmbiguous implements PostProcessor {
         var pathsSorted = ctx.markers.stream()
             .filter(m -> "path".equals(m.name()))
             .toList();
-        var paths = new ArrayList<>(io.guessit.engine.Markers.markerSorted(pathsSorted, ctx.matches));
-        if (reverseFileparts) Collections.reverse(paths);
+        var sorted = io.guessit.engine.Markers.markerSorted(pathsSorted, ctx.matches);
+        var paths = reverseFileparts ? sorted.reversed() : sorted;
 
         var seenNames = new HashSet<MatchName>();
         var values = new HashMap<MatchName, Set<Object>>();

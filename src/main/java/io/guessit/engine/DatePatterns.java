@@ -26,6 +26,7 @@ public final class DatePatterns {
 
     private static final String DSEP = "[-/ .]";
     private static final String DSEP_BIS = "[-/ .x]";
+    private static final String D12 = "(\\d{1,2})";
 
     private static final Pattern NORMALIZE_SEP = Pattern.compile("[/ .x]");
     private static final Pattern EIGHT_DIGITS = Pattern.compile("\\d{8}");
@@ -38,10 +39,10 @@ public final class DatePatterns {
     public static final List<Pattern> REGEXPS = List.of(
         Pattern.compile("[-/ .](\\d{8})[-/ .]", Pattern.CASE_INSENSITIVE),
         Pattern.compile("[-/ .](\\d{6})[-/ .]", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)((\\d{2})" + DSEP + "(\\d{1,2})" + DSEP + "(\\d{1,2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)((\\d{1,2})" + DSEP + "(\\d{1,2})" + DSEP + "(\\d{2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)((\\d{4})" + DSEP_BIS + "(\\d{1,2})" + DSEP + "(\\d{1,2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)((\\d{1,2})" + DSEP + "(\\d{1,2})" + DSEP_BIS + "(\\d{4}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)((\\d{2})" + DSEP + D12 + DSEP + D12 + ")(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)(" + D12 + DSEP + D12 + DSEP + "(\\d{2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)((\\d{4})" + DSEP_BIS + D12 + DSEP + D12 + ")(?:$|\\D)", Pattern.CASE_INSENSITIVE),
+        Pattern.compile("(?:^|\\D)(" + D12 + DSEP + D12 + DSEP_BIS + "(\\d{4}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
         Pattern.compile("(?:^|\\D)(\\d{1,2}(?:st|nd|rd|th)?[-/ .][a-z]{3,10}[-/ .]\\d{4})(?:$|\\D)", Pattern.CASE_INSENSITIVE)
     );
 
@@ -68,7 +69,7 @@ public final class DatePatterns {
 
             Boolean df = dayFirst;
             if (Boolean.TRUE.equals(yearFirst) && df == null) df = false;
-            if (df == null) df = guessDayFirst(parts);
+            if (df == null) df = guessDayFirst(parts).orElse(null);
 
             var date = parseAllValid(matcher.group(1), yearFirst, df);
             if (date.isPresent()) {
@@ -101,15 +102,15 @@ public final class DatePatterns {
      * Returns {@code null} when none of the heuristics fires; callers then
      * fall back to dateutil's combinatorial try-everything approach.
      */
-    private static Boolean guessDayFirst(String[] parts) {
-        if (parts.length == 0) return null;
+    private static Optional<Boolean> guessDayFirst(String[] parts) {
+        if (parts.length == 0) return Optional.empty();
         var first = parts[0];
         var last = parts[parts.length - 1];
-        if (isInt(first) && first.length() >= 4 && validYear(Integer.parseInt(first.substring(0, 4)))) return false;
-        if (isInt(last) && last.length() >= 4 && validYear(Integer.parseInt(last.substring(last.length() - 4)))) return true;
-        if (isInt(first) && Integer.parseInt(first.substring(0, Math.min(2, first.length()))) > 31) return false;
-        if (isInt(last) && Integer.parseInt(last.substring(Math.max(0, last.length() - 2))) > 31) return true;
-        return null;
+        if (isInt(first) && first.length() >= 4 && validYear(Integer.parseInt(first.substring(0, 4)))) return Optional.of(false);
+        if (isInt(last) && last.length() >= 4 && validYear(Integer.parseInt(last.substring(last.length() - 4)))) return Optional.of(true);
+        if (isInt(first) && Integer.parseInt(first.substring(0, Math.min(2, first.length()))) > 31) return Optional.of(false);
+        if (isInt(last) && Integer.parseInt(last.substring(Math.max(0, last.length() - 2))) > 31) return Optional.of(true);
+        return Optional.empty();
     }
 
     private static boolean isInt(String s) {

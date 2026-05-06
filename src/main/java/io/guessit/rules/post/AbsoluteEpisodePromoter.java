@@ -33,6 +33,7 @@ import java.util.*;
 public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
 
     private static final int MAX_ABS_RANGE = 20;
+    private static final String NOENC_PREFIX = "noenc-";
 
     @Override
     public void process(ParseContext ctx) {
@@ -144,8 +145,8 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
             if (enc != null) {
                 key = enc;
             } else if (e.tags().contains("range-fill")) {
-                key = groups.keySet().stream().reduce((_, b) -> b).orElse("noenc-" + e.start());
-                if (key.toString().startsWith("noenc-")) lastNonEncKey = key;
+                key = groups.keySet().stream().reduce((_, b) -> b).orElse(NOENC_PREFIX + e.start());
+                if (key.toString().startsWith(NOENC_PREFIX)) lastNonEncKey = key;
             } else {
                 key = pickNonEncKey(ctx, e, groups, lastNonEncKey);
                 lastNonEncKey = key;
@@ -168,7 +169,7 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
      */
     private static Object pickNonEncKey(ParseContext ctx, Match e,
             Map<Object, List<Match>> groups, Object lastNonEncKey) {
-        Object newKey = "noenc-" + e.start();
+        Object newKey = NOENC_PREFIX + e.start();
         if (lastNonEncKey == null) return newKey;
         var prevGroup = groups.get(lastNonEncKey);
         if (prevGroup == null || prevGroup.isEmpty()) return newKey;

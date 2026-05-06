@@ -42,6 +42,10 @@ import static io.guessit.engine.MatchName.*;
  * with priority 2000 so nothing else can displace it.
  */
 public final class ReleaseGroupExtractor implements Extractor {
+    private static final String EXPECTED_TAG = "expected";
+    private static final String EXTENSION_TAG = "extension";
+    private static final String SCENE_TAG = "scene";
+    private static final String NOT_A_RG_TAG = "not-a-release-group";
     public static final MatchName LANGUAGE = MatchName.LANGUAGE;
     public static final MatchName SUBTITLE_LANGUAGE = MatchName.SUBTITLE_LANGUAGE;
     public static final MatchName OTHER = MatchName.OTHER;
@@ -89,7 +93,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 if (idx < 0) break;
                 int end = idx + name.length();
                 var m = new Match(MatchName.RELEASE_GROUP, name, idx, end, input.substring(idx, end),
-                        2000, Set.of("expected"), false);
+                        2000, Set.of(EXPECTED_TAG), false);
                 if (validator.test(m)) ctx.matches.add(m);
                 from = idx + 1;
             }
@@ -114,7 +118,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 int e = matcher.end();
                 if (e <= s) continue;
                 var raw = input.substring(s, e);
-                var m = new Match(MatchName.RELEASE_GROUP, raw, s, e, raw, 2000, Set.of("expected"), false);
+                var m = new Match(MatchName.RELEASE_GROUP, raw, s, e, raw, 2000, Set.of(EXPECTED_TAG), false);
                 if (validator.test(m)) ctx.matches.add(m);
             }
             return true;
@@ -149,7 +153,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
         // Find the end boundary (container extension or known extension)
         var ext = ctx.matches.named(MatchName.CONTAINER)
-                .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
+                .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains(EXTENSION_TAG))
                 .findFirst().orElse(null);
         int end = ext != null ? ext.start() : trimKnownExtension(ctx, filepart);
         int endBeforeTrim = end;
@@ -215,7 +219,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
         removeOverlappingLanguages(ctx, absStart, absDashEnd);
         ctx.matches.add(new Match(MatchName.RELEASE_GROUP, candidate, absStart, absDashEnd,
-                rawCandidate, 1500, Set.of("scene"), false));
+                rawCandidate, 1500, Set.of(SCENE_TAG), false));
         return true;
     }
 
@@ -261,7 +265,7 @@ public final class ReleaseGroupExtractor implements Extractor {
         dropHdInsideCandidate(ctx, s, e);
         removeOverlappingLanguages(ctx, s, e);
         ctx.matches.add(new Match(MatchName.RELEASE_GROUP, candidate, s, e,
-                raw, 1500, Set.of("scene"), false));
+                raw, 1500, Set.of(SCENE_TAG), false));
     }
 
     private boolean isValidLeadingDashPosition(String part, int firstDash) {
@@ -310,7 +314,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             int curBoundary = boundary;
             var prev = ctx.matches.all()
                     .filter(m -> !m.isPrivate())
-                    .filter(m -> !m.tags().contains("expected"))
+                    .filter(m -> !m.tags().contains(EXPECTED_TAG))
                     .filter(m -> m.start() >= filepartStart && m.end() <= curBoundary)
                     .reduce((a, b) -> a.end() >= b.end() ? a : b)
                     .orElse(null);
@@ -399,7 +403,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     private int calculateRangeEnd(ParseContext ctx, Marker filepart) {
         var ext = ctx.matches.named(MatchName.CONTAINER)
-                .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains("extension"))
+                .filter(m -> filepart.covers(m.start(), m.end()) && m.tags().contains(EXTENSION_TAG))
                 .findFirst().orElse(null);
         int rangeEnd = ext != null ? ext.start() : trimKnownExtension(ctx, filepart);
         return trimNotAReleaseGroupTail(ctx, filepart, rangeEnd);
@@ -563,7 +567,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
         ctx.matches.remove(prev);
         return new Match(MatchName.RELEASE_GROUP, rawPrev, prev.start(), prev.end(),
-                rawPrev, 1500, Set.of("scene"), false);
+                rawPrev, 1500, Set.of(SCENE_TAG), false);
     }
 
     private boolean canPromoteScenePrevToReleaseGroup(ParseContext ctx, String input,
@@ -592,7 +596,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
         dropHdInsideCandidate(ctx, span.start, span.end);
         removeOverlappingLanguages(ctx, span.start, span.end);
-        return new Match(MatchName.RELEASE_GROUP, candidate, span.start, span.end, raw, 1500, Set.of("scene"), false);
+        return new Match(MatchName.RELEASE_GROUP, candidate, span.start, span.end, raw, 1500, Set.of(SCENE_TAG), false);
     }
 
     private boolean isValidSceneCandidate(ParseContext ctx, Marker filepart, Match prev,
@@ -653,7 +657,7 @@ public final class ReleaseGroupExtractor implements Extractor {
      */
     private static boolean candidateIsLikelyTitle(ParseContext ctx, Marker filepart, Match prev, int candidateEnd) {
         var notRgAfter = ctx.matches.named(MatchName.OTHER)
-                .filter(m -> m.tags().contains("not-a-release-group"))
+                .filter(m -> m.tags().contains(NOT_A_RG_TAG))
                 .filter(m -> m.start() >= candidateEnd && m.end() <= filepart.end())
                 .findFirst().orElse(null);
         if (notRgAfter == null) return false;
@@ -667,7 +671,7 @@ public final class ReleaseGroupExtractor implements Extractor {
      */
     private static boolean filepartIsTitleOnly(ParseContext ctx, Marker filepart, int rightBoundary) {
         var notRgAfter = ctx.matches.named(MatchName.OTHER)
-                .filter(m -> m.tags().contains("not-a-release-group"))
+                .filter(m -> m.tags().contains(NOT_A_RG_TAG))
                 .filter(m -> m.start() >= rightBoundary && m.end() <= filepart.end())
                 .findFirst().orElse(null);
         if (notRgAfter == null) return false;
@@ -747,7 +751,7 @@ public final class ReleaseGroupExtractor implements Extractor {
         return m -> !m.isPrivate()
                 && m.name() != MatchName.PROPER_COUNT
                 && m.name() != MatchName.TITLE
-                && !(m.name() == MatchName.CONTAINER && m.tags().contains("extension"))
+                && !(m.name() == MatchName.CONTAINER && m.tags().contains(EXTENSION_TAG))
                 && !(m.name() == MatchName.OTHER && "Rip".equals(m.value()));
     }
 
@@ -875,7 +879,7 @@ public final class ReleaseGroupExtractor implements Extractor {
 
     private static int trimNotReleaseGroupMatch(ParseContext ctx, Marker filepart, int rangeEnd) {
         var notRg = ctx.matches.named(MatchName.OTHER)
-                .filter(m -> m.tags().contains("not-a-release-group"))
+                .filter(m -> m.tags().contains(NOT_A_RG_TAG))
                 .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
                 .filter(m -> m.end() == rangeEnd)
                 .findFirst().orElse(null);

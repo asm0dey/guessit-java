@@ -39,18 +39,20 @@ public final class EpisodeWordExtractor implements Extractor {
     // patterns to pick season instead.
     private static final List<String> SEASON_WORDS = List.of(SEASON, "seasons", "saison", "saisons", "seizoen", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
     private static final List<String> OF_WORDS = List.of("of", "sur", "de");
+    private static final String SEASON_WORD_TAG = "season-word";
+    private static final String OF_COUNT_TAIL = ")[ ._-]*(\\d+))?";
 
-    private static final Pattern SEASON_RE = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+    private static final Pattern SEASON_RE = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")(?:[ ._-]*(?:" + or(OF_WORDS) + OF_COUNT_TAIL);
     private static final Pattern SEASON_TAIL_RE = Pattern.compile(
         "(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
     private static final Pattern AFTER_OF_RE = Pattern.compile(
         "(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
     private static final Pattern EP_RE_EPISODE_TYPE = Pattern.compile(
         "(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
-        + "(" + Numerals.NUMERAL + ")(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+        + "(" + Numerals.NUMERAL + ")(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + OF_COUNT_TAIL);
     private static final Pattern EP_RE_DEFAULT = Pattern.compile(
         "(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
-        + "(\\d+)(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+        + "(\\d+)(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + OF_COUNT_TAIL);
     private static final Pattern DETACHED_EP_COUNT_RE = Pattern.compile(
         "(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
         + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
@@ -111,7 +113,7 @@ public final class EpisodeWordExtractor implements Extractor {
         if (n < 0) return -1;
 
         ctx.matches.add(new Match(MatchName.SEASON, n, valStart, valEnd,
-                ctx.input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
+                ctx.input.substring(valStart, valEnd), 1000, Set.of(SEASON_WORD_TAG), false));
         return n;
     }
 
@@ -193,7 +195,7 @@ public final class EpisodeWordExtractor implements Extractor {
         }
 
         ctx.matches.add(new Match(MatchName.SEASON, v, tStart, tEnd,
-                ctx.input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
+                ctx.input.substring(tStart, tEnd), 1000, Set.of(SEASON_WORD_TAG), false));
 
         return new TailResult(true, v);
     }
@@ -205,7 +207,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void addRangeSeasons(ParseContext ctx, int prevVal, int v, int tStart) {
         for (int x = prevVal + 1; x < v; x++) {
             ctx.matches.add(new Match(MatchName.SEASON, x, tStart, tStart, "",
-                    1000, Set.of("season-word"), false));
+                    1000, Set.of(SEASON_WORD_TAG), false));
         }
     }
 

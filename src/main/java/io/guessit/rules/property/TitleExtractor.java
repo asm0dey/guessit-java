@@ -29,6 +29,7 @@ import static io.guessit.engine.MatchName.EPISODE;
 public final class TitleExtractor implements Extractor {
     static final Set<String> NON_SPECIFIC_LANGUAGES = Set.of("mul", "und");
     public static final String TITLE = "title";
+    private static final String EXPECTED_TAG = "expected";
 
     @Override
     public String name() { return TITLE; }
@@ -61,7 +62,7 @@ public final class TitleExtractor implements Extractor {
                     var raw = input.substring(idx, idx + search.length());
                     var formatted = Formatters.titleText(raw);
                     var m = new Match(MatchName.TITLE, formatted, idx, idx + search.length(), raw,
-                        1000, Set.of("expected", TITLE), false);
+                        1000, Set.of(EXPECTED_TAG, TITLE), false);
                     if (sepsSurround.test(m)) ctx.matches.add(m);
                     idx += search.length();
                 }
@@ -74,7 +75,7 @@ public final class TitleExtractor implements Extractor {
                     var raw = input.substring(matcher.start(), matcher.end());
                     var formatted = Formatters.titleText(raw);
                     var m = new Match(MatchName.TITLE, formatted, matcher.start(), matcher.end(), raw,
-                        1000, Set.of("expected", "title"), false);
+                        1000, Set.of(EXPECTED_TAG, TITLE), false);
                     if (sepsSurround.test(m)) ctx.matches.add(m);
                 }
             }
@@ -92,7 +93,7 @@ public final class TitleExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
-        var hasExpected = ctx.matches.named(MatchName.TITLE).anyMatch(m -> m.tags().contains("expected"));
+        var hasExpected = ctx.matches.named(MatchName.TITLE).anyMatch(m -> m.tags().contains(EXPECTED_TAG));
         if (!hasExpected) {
             // Mirror python: Filepart3/2EpisodeTitle seed a title at the
             // outer/subdir hole BEFORE TitleFromPosition runs. Without this,
@@ -150,11 +151,11 @@ public final class TitleExtractor implements Extractor {
         if (titles.titles.isEmpty()) return false;
         var first = titles.titles.getFirst();
         toAppend.add(new Match(MatchName.TITLE, first.value(), first.start(), first.end(),
-            first.raw(), first.priority(), Set.of("title", "filepart-title"), false));
+            first.raw(), first.priority(), Set.of(TITLE, "filepart-title"), false));
         for (int i = 1; i < titles.titles.size(); i++) {
             var t = titles.titles.get(i);
             toAppend.add(new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
-                t.raw(), t.priority(), Set.of("title"), false));
+                t.raw(), t.priority(), Set.of(TITLE), false));
         }
         toRemove.addAll(titles.toRemove);
         return true;
@@ -177,11 +178,11 @@ public final class TitleExtractor implements Extractor {
         toRemove.addAll(titles.toRemove);
         if (holeBeforeEpisode) {
             toAppend.add(new Match(MatchName.TITLE, t.value(), t.start(), t.end(),
-                t.raw(), t.priority(), Set.of("title", "filepart-title"), false));
+                t.raw(), t.priority(), Set.of(TITLE, "filepart-title"), false));
             return true;
         }
         toAppend.add(new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
-            t.raw(), t.priority(), Set.of("title"), false));
+            t.raw(), t.priority(), Set.of(TITLE), false));
         return false;
     }
 
@@ -306,7 +307,7 @@ public final class TitleExtractor implements Extractor {
         var ignore = (java.util.function.Predicate<Match>) m ->
             isIgnored(m) || (additionalIgnore != null && additionalIgnore.test(m));
         return checkTitlesInFilepart(ctx, filepart, ignore, MatchName.TITLE,
-                                     List.of("title"),
+                                     List.of(TITLE),
                                      MatchName.ALTERNATIVE_TITLE, false);
     }
 
@@ -465,7 +466,7 @@ public final class TitleExtractor implements Extractor {
             var s = split.get(i);
             if (isRedundantSeasonWord(s.value(), ctx)) continue;
             titles.add(new Match(altMatchNameEnum, s.value(), s.start, s.end, s.raw(),
-                1000, Set.of("title"), false));
+                1000, Set.of(TITLE), false));
         }
         return titles;
     }
