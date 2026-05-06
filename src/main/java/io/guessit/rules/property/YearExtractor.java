@@ -56,7 +56,12 @@ public final class YearExtractor implements Extractor {
     public void postProcess(ParseContext ctx) {
         var years = ctx.matches.named(MatchName.YEAR).toList();
         if (years.size() <= 1) return;
+        var toRemove = collectYearsToRemove(ctx, years);
+        for (var m : toRemove) ctx.matches.remove(m);
+        dropWeakDupsInsideRemoved(ctx, toRemove);
+    }
 
+    private static java.util.List<Match> collectYearsToRemove(ParseContext ctx, java.util.List<Match> years) {
         var toRemove = new ArrayList<Match>();
         for (var filepart : ctx.markers) {
             if (!"path".equals(filepart.name())) continue;
@@ -64,34 +69,40 @@ public final class YearExtractor implements Extractor {
                     .filter(y -> filepart.covers(y.start(), y.end()))
                     .toList();
             if (inPart.size() <= 1) continue;
-
-            var grouped = new ArrayList<Match>();
-            var ungrouped = new ArrayList<Match>();
-            for (var y : inPart) {
-                boolean inGroup = ctx.markers.stream()
-                        .anyMatch(mk -> "group".equals(mk.name()) && mk.covers(y.start(), y.end()));
-                (inGroup ? grouped : ungrouped).add(y);
-            }
-            if (!grouped.isEmpty() && !ungrouped.isEmpty()) {
-                toRemove.addAll(ungrouped);
-                if (grouped.size() > 1) toRemove.addAll(grouped.subList(1, grouped.size()));
-            } else if (grouped.isEmpty()) {
-                // Drop the FIRST ungrouped year so it can fall into the title hole;
-                // the second year is the actual release year. Mirrors python
-                // KeepMarkedYearInFilepart: "Keep first year for title".
-                toRemove.add(ungrouped.getFirst());
-                if (ungrouped.size() > 2) toRemove.addAll(ungrouped.subList(2, ungrouped.size()));
-            }
-
+            partitionAndCollect(ctx, inPart, toRemove);
         }
-        for (var m : toRemove) ctx.matches.remove(m);
+        return toRemove;
+    }
 
-        // After dropping a leading year, also kill any weak-duplicate
-        // season/episode matches that landed inside that year's 4-digit span.
-        // WeakDuplicateExtractor's post-pass runs after us and uses the
-        // current year set as a guard; once year[0] is gone its NN/NN split
-        // is no longer protected, and "2012.2009..." would parse as
-        // season=20/episode=12.
+    private static void partitionAndCollect(ParseContext ctx, java.util.List<Match> inPart, java.util.List<Match> toRemove) {
+        var grouped = new ArrayList<Match>();
+        var ungrouped = new ArrayList<Match>();
+        for (var y : inPart) {
+            boolean inGroup = ctx.markers.stream()
+                    .anyMatch(mk -> "group".equals(mk.name()) && mk.covers(y.start(), y.end()));
+            (inGroup ? grouped : ungrouped).add(y);
+        }
+        if (!grouped.isEmpty() && !ungrouped.isEmpty()) {
+            toRemove.addAll(ungrouped);
+            if (grouped.size() > 1) toRemove.addAll(grouped.subList(1, grouped.size()));
+        } else if (grouped.isEmpty()) {
+            // Drop the FIRST ungrouped year so it can fall into the title hole;
+            // the second year is the actual release year. Mirrors python
+            // KeepMarkedYearInFilepart: "Keep first year for title".
+            toRemove.add(ungrouped.getFirst());
+            if (ungrouped.size() > 2) toRemove.addAll(ungrouped.subList(2, ungrouped.size()));
+        }
+    }
+
+    /**
+     * After dropping a leading year, also kill any weak-duplicate
+     * season/episode matches that landed inside that year's 4-digit span.
+     * WeakDuplicateExtractor's post-pass runs after us and uses the
+     * current year set as a guard; once year[0] is gone its NN/NN split
+     * is no longer protected, and "2012.2009..." would parse as
+     * season=20/episode=12.
+     */
+    private static void dropWeakDupsInsideRemoved(ParseContext ctx, java.util.List<Match> toRemove) {
         for (var dropped : toRemove) {
             var weakDups = ctx.matches.all()
                     .filter(m -> m.tags().contains("weak-duplicate"))

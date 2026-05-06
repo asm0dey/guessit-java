@@ -138,22 +138,34 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         var name = m.name();
         var nameStr = name.name().toLowerCase();
         if (!s.excludes.isEmpty() && s.excludes.contains(nameStr)) return true;
-        if (s.dropCoexistEpisode && name == MatchName.EPISODE && m.tags().contains("coexist")) return true;
-        if (s.dropCoexistSeason && name == MatchName.SEASON && m.tags().contains("coexist")) return true;
+        if (isFilteredByCoexist(m, name, s)) return true;
         if (!s.includes.isEmpty() && !s.includes.contains(nameStr)) return true;
-        if (!s.droppedGroups.isEmpty()) {
-            for (var t : m.tags()) {
-                if (s.droppedGroups.contains(t)) return true;
-            }
+        if (isInDroppedGroup(m, s)) return true;
+        return isDerivedFromDropped(m, s);
+    }
+
+    private static boolean isFilteredByCoexist(Match m, MatchName name, FilterState s) {
+        if (s.dropCoexistEpisode && name == MatchName.EPISODE && m.tags().contains("coexist")) return true;
+        return s.dropCoexistSeason && name == MatchName.SEASON && m.tags().contains("coexist");
+    }
+
+    private static boolean isInDroppedGroup(Match m, FilterState s) {
+        if (s.droppedGroups.isEmpty()) return false;
+        for (var t : m.tags()) {
+            if (s.droppedGroups.contains(t)) return true;
         }
-        if (!s.droppedNames.isEmpty()) {
-            for (var t : m.tags()) {
-                if (t.startsWith("derivedFrom:")) {
-                    try {
-                        var derivedName = MatchName.valueOf(t.substring(12).toUpperCase());
-                        if (s.droppedNames.contains(derivedName)) return true;
-                    } catch (IllegalArgumentException ignored) {}
-                }
+        return false;
+    }
+
+    private static boolean isDerivedFromDropped(Match m, FilterState s) {
+        if (s.droppedNames.isEmpty()) return false;
+        for (var t : m.tags()) {
+            if (!t.startsWith("derivedFrom:")) continue;
+            try {
+                var derivedName = MatchName.valueOf(t.substring(12).toUpperCase());
+                if (s.droppedNames.contains(derivedName)) return true;
+            } catch (IllegalArgumentException _) {
+                // tag refers to a name no longer in the enum — treat as not derived
             }
         }
         return false;

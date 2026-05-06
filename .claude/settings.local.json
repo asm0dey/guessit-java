@@ -64,7 +64,8 @@
       "Bash(javac -cp target/classes:__TRACKED_VAR__ /tmp/Probe.java -d /tmp/)",
       "Bash(java -cp target/classes:/tmp:__TRACKED_VAR__ Probe)",
       "mcp__sonarqube__search_my_sonarqube_projects",
-      "mcp__sonarqube__search_sonar_issues_in_projects"
+      "mcp__sonarqube__search_sonar_issues_in_projects",
+      "Bash(gh pr create --title 'refactor: cut cognitive complexity in OutputBuilder/YearExtractor/EpisodeNumberSeparatorRange' --body ' *)"
     ]
   },
   "skillOverrides": {
