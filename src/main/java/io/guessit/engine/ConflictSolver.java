@@ -30,31 +30,32 @@ public final class ConflictSolver {
             .filter(m -> !m.isPrivate())
             .sorted(Comparator.comparingInt(Match::length))
             .toList();
-
         var toRemove = new HashSet<Match>();
-
         for (var match : publicMatches) {
             if (toRemove.contains(match)) continue;
-            var conflicting = findConflicting(match, publicMatches, toRemove);
-
-            // Sort conflicting by span length ascending (Python: conflicting_matches.sort(key=len))
-            conflicting.sort(Comparator.comparingInt(Match::length));
-
-            for (var conflictingMatch : conflicting) {
-                if (match.tags().contains("coexist") || conflictingMatch.tags().contains("coexist")) continue;
-                var removed = defaultConflictSolver(match, conflictingMatch);
-                if (removed != null && !toRemove.contains(removed)) {
-                    // Determine which is the keeper
-                    var toKeep = (removed == match) ? conflictingMatch : match;
-                    if (!toRemove.contains(toKeep)) {
-                        toRemove.add(removed);
-                    }
-                    break;
-                }
-            }
+            resolveAgainstConflicts(match, publicMatches, toRemove);
         }
-
         matches.removeAll(toRemove);
+    }
+
+    private static void resolveAgainstConflicts(Match match, List<Match> publicMatches, Set<Match> toRemove) {
+        var conflicting = findConflicting(match, publicMatches, toRemove);
+        // Python: conflicting_matches.sort(key=len) — span length ascending
+        conflicting.sort(Comparator.comparingInt(Match::length));
+        for (var conflictingMatch : conflicting) {
+            if (match.tags().contains("coexist") || conflictingMatch.tags().contains("coexist")) continue;
+            var removed = defaultConflictSolver(match, conflictingMatch);
+            if (recordRemoval(match, conflictingMatch, removed, toRemove)) break;
+        }
+    }
+
+    /** Records the loser's removal when both keeper and loser are still alive.
+     *  Returns true to break the per-match loop after a decision is made. */
+    private static boolean recordRemoval(Match match, Match conflictingMatch, Match removed, Set<Match> toRemove) {
+        if (removed == null || toRemove.contains(removed)) return false;
+        var toKeep = (removed == match) ? conflictingMatch : match;
+        if (!toRemove.contains(toKeep)) toRemove.add(removed);
+        return true;
     }
 
     /**

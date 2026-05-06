@@ -1,7 +1,9 @@
 package io.guessit.cli;
 
+import io.guessit.GuessResult;
 import io.guessit.Guessit;
 import io.guessit.OptionsBuilder;
+import io.guessit.Options;
 import io.guessit.engine.PrintTrace;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -75,7 +77,17 @@ public final class GuessitCli implements Callable<Integer> {
             System.err.println("No input filename provided. See --help.");
             return 2;
         }
-        var opts = OptionsBuilder.options()
+        var guessit = Guessit.withOptions(buildOptions());
+        if (verbose) {
+            runVerbose(guessit);
+            return 0;
+        }
+        runNormal(guessit);
+        return 0;
+    }
+
+    private Options buildOptions() {
+        return OptionsBuilder.options()
             .type(type)
             .name(name)
             .expectedTitle(expectedTitles)
@@ -91,36 +103,33 @@ public final class GuessitCli implements Callable<Integer> {
             .noUserConfig(noUserConfig)
             .noDefaultConfig(noDefaultConfig)
             .build();
-        var guessit = Guessit.withOptions(opts);
+    }
 
-        if (verbose) {
-            if (json || yaml || showProperty != null) {
-                System.err.println("warning: --json/--yaml/--show-property ignored when --verbose is set");
-            }
-            var trace = new PrintTrace(System.out);
-            for (int i = 0; i < filenames.size(); i++) {
-                if (i > 0) System.out.println();
-                guessit.guess(filenames.get(i), trace);
-            }
-            return 0;
+    private void runVerbose(Guessit guessit) {
+        if (json || yaml || showProperty != null) {
+            System.err.println("warning: --json/--yaml/--show-property ignored when --verbose is set");
         }
+        var trace = new PrintTrace(System.out);
+        for (int i = 0; i < filenames.size(); i++) {
+            if (i > 0) System.out.println();
+            guessit.guess(filenames.get(i), trace);
+        }
+    }
 
+    private void runNormal(Guessit guessit) {
         for (var fn : filenames) {
-            var result = guessit.guess(fn);
-            String output;
-            if (showProperty != null) {
-                var v = result.toMap().get(showProperty);
-                output = v == null ? "" : v.toString();
-            } else if (json) {
-                output = JsonFormatter.format(result);
-            } else if (yaml) {
-                output = YamlFormatter.format(result);
-            } else {
-                output = PlainFormatter.format(result);
-            }
-            System.out.println(output);
+            System.out.println(formatResult(guessit.guess(fn)));
         }
-        return 0;
+    }
+
+    private String formatResult(GuessResult result) {
+        if (showProperty != null) {
+            var v = result.toMap().get(showProperty);
+            return v == null ? "" : v.toString();
+        }
+        if (json) return JsonFormatter.format(result);
+        if (yaml) return YamlFormatter.format(result);
+        return PlainFormatter.format(result);
     }
 
     static void main(String[] args) {
