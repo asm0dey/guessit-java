@@ -112,72 +112,99 @@ public final class TitleExtractor implements Extractor {
         var paths = ctx.markers.stream().filter(m -> "path".equals(m.name())).toList();
         if (paths.isEmpty()) return;
         var sorted = Markers.markerSorted(paths, ctx.matches);
-
         var serieNameFilepart = serieNameFilepart(ctx, paths);
         var toAppend = new ArrayList<Match>();
         var toRemove = new ArrayList<Match>();
-        boolean filenameProvidesTitle = false;
-        if (serieNameFilepart != null) {
-            int holeCount = countUsableHoles(ctx, serieNameFilepart, this::serieNameIgnored);
-            var titles = checkTitlesInFilepart(ctx, serieNameFilepart, this::serieNameIgnored);
-            if (holeCount >= 2) {
-                // Filename has 2+ title-eligible holes around episode: title comes from
-                // the filename, not the outer dir (mirrors python rebulk behaviour).
-                if (titles != null && !titles.titles.isEmpty()) {
-                    var first = titles.titles.getFirst();
-                    toAppend.add(new Match(MatchName.TITLE, first.value(), first.start(), first.end(),
-                        first.raw(), first.priority(), Set.of("title", "filepart-title"), false));
-                    for (int i = 1; i < titles.titles.size(); i++) {
-                        var t = titles.titles.get(i);
-                        toAppend.add(new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
-                            t.raw(), t.priority(), Set.of("title"), false));
-                    }
-                    toRemove.addAll(titles.toRemove);
-                    filenameProvidesTitle = true;
-                }
-            } else {
-                if (titles != null && titles.titles.size() == 1) {
-                    // Mirror python: filename hole positioned BEFORE the episode
-                    // marker is the show title (e.g. "Show-E01.mkv"); a hole
-                    // AFTER the episode marker is the episode title (e.g.
-                    // "E01-episode title.mkv"). Without this split, both shapes
-                    // emit episode_title, leaving the show title from an outer
-                    // generic dir like "Some Dummy Directory" instead of the
-                    // filename's own "Some Series".
-                    var ep = ctx.matches.range(serieNameFilepart.start(), serieNameFilepart.end(),
-                            m -> m.name()==EPISODE).findFirst().orElse(null);
-                    var t = titles.titles.getFirst();
-                    var holeBeforeEpisode = ep != null && t.end() <= ep.start();
-                    if (holeBeforeEpisode) {
-                        toAppend.add(new Match(MatchName.TITLE, t.value(), t.start(), t.end(),
-                            t.raw(), t.priority(), Set.of("title", "filepart-title"), false));
-                        filenameProvidesTitle = true;
-                    } else {
-                        toAppend.add(new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
-                            t.raw(), t.priority(), Set.of("title"), false));
-                    }
-                    toRemove.addAll(titles.toRemove);
-                }
-            }
-        }
 
+        boolean filenameProvidesTitle = serieNameFilepart != null
+            && processSerieNameFilepart(ctx, serieNameFilepart, toAppend, toRemove);
+
+        var consumedYearFileparts = new HashSet<Marker>();
+        if (!filenameProvidesTitle) {
+            selectFirstNonSerieFilepart(ctx, sorted, serieNameFilepart, consumedYearFileparts,
+                toAppend, toRemove);
+        }
+        appendYearFilepartTitles(ctx, paths, consumedYearFileparts, toAppend, toRemove);
+
+        for (var r : toRemove) ctx.matches.remove(r);
+        for (var t : toAppend) ctx.matches.add(t);
+    }
+
+    /** Returns true when the filename filepart provided the show title. */
+    private boolean processSerieNameFilepart(ParseContext ctx, Marker serieNameFilepart,
+                                             List<Match> toAppend, List<Match> toRemove) {
+        int holeCount = countUsableHoles(ctx, serieNameFilepart, this::serieNameIgnored);
+        var titles = checkTitlesInFilepart(ctx, serieNameFilepart, this::serieNameIgnored);
+        if (titles == null) return false;
+        if (holeCount >= 2) {
+            return appendMultiHoleTitles(titles, toAppend, toRemove);
+        }
+        return appendSingleHoleTitle(ctx, serieNameFilepart, titles, toAppend, toRemove);
+    }
+
+    /**
+     * Filename has 2+ title-eligible holes around episode: title comes from
+     * the filename, not the outer dir (mirrors python rebulk behaviour).
+     */
+    private boolean appendMultiHoleTitles(TitlesInFilepart titles, List<Match> toAppend, List<Match> toRemove) {
+        if (titles.titles.isEmpty()) return false;
+        var first = titles.titles.getFirst();
+        toAppend.add(new Match(MatchName.TITLE, first.value(), first.start(), first.end(),
+            first.raw(), first.priority(), Set.of("title", "filepart-title"), false));
+        for (int i = 1; i < titles.titles.size(); i++) {
+            var t = titles.titles.get(i);
+            toAppend.add(new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
+                t.raw(), t.priority(), Set.of("title"), false));
+        }
+        toRemove.addAll(titles.toRemove);
+        return true;
+    }
+
+    /**
+     * Mirror python: a filename hole BEFORE the episode marker is the show
+     * title (e.g. "Show-E01.mkv"); a hole AFTER is the episode title (e.g.
+     * "E01-episode title.mkv"). Without this split, both shapes emit
+     * episode_title, leaving the show title from an outer generic dir.
+     */
+    private boolean appendSingleHoleTitle(ParseContext ctx, Marker serieNameFilepart,
+                                          TitlesInFilepart titles,
+                                          List<Match> toAppend, List<Match> toRemove) {
+        if (titles.titles.size() != 1) return false;
+        var ep = ctx.matches.range(serieNameFilepart.start(), serieNameFilepart.end(),
+                m -> m.name() == EPISODE).findFirst().orElse(null);
+        var t = titles.titles.getFirst();
+        var holeBeforeEpisode = ep != null && t.end() <= ep.start();
+        toRemove.addAll(titles.toRemove);
+        if (holeBeforeEpisode) {
+            toAppend.add(new Match(MatchName.TITLE, t.value(), t.start(), t.end(),
+                t.raw(), t.priority(), Set.of("title", "filepart-title"), false));
+            return true;
+        }
+        toAppend.add(new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
+            t.raw(), t.priority(), Set.of("title"), false));
+        return false;
+    }
+
+    private void selectFirstNonSerieFilepart(ParseContext ctx, List<Marker> sorted, Marker serieNameFilepart,
+                                             Set<Marker> consumedYearFileparts,
+                                             List<Match> toAppend, List<Match> toRemove) {
+        for (var fp : sorted) {
+            if (fp == serieNameFilepart) continue;
+            consumedYearFileparts.add(fp);
+            var titles = checkTitlesInFilepart(ctx, fp, _ -> false);
+            if (titles == null) continue;
+            toAppend.addAll(titles.titles);
+            toRemove.addAll(titles.toRemove);
+            break;
+        }
+    }
+
+    private void appendYearFilepartTitles(ParseContext ctx, List<Marker> paths,
+                                          Set<Marker> consumedYearFileparts,
+                                          List<Match> toAppend, List<Match> toRemove) {
         var yearFileparts = paths.stream()
             .filter(fp -> ctx.matches.range(fp.start(), fp.end(), m -> m.name() == MatchName.YEAR).findAny().isPresent())
             .toList();
-        var consumedYearFileparts = new HashSet<Marker>();
-
-        if (!filenameProvidesTitle) {
-            for (var fp : sorted) {
-                if (fp == serieNameFilepart) continue;
-                consumedYearFileparts.add(fp);
-                var titles = checkTitlesInFilepart(ctx, fp, _ -> false);
-                if (titles == null) continue;
-                toAppend.addAll(titles.titles);
-                toRemove.addAll(titles.toRemove);
-                break;
-            }
-        }
-
         for (var fp : yearFileparts) {
             if (consumedYearFileparts.contains(fp)) continue;
             var titles = checkTitlesInFilepart(ctx, fp, _ -> false);
@@ -185,9 +212,6 @@ public final class TitleExtractor implements Extractor {
             toAppend.addAll(titles.titles);
             toRemove.addAll(titles.toRemove);
         }
-
-        for (var r : toRemove) ctx.matches.remove(r);
-        for (var t : toAppend) ctx.matches.add(t);
     }
 
     private void preferTitleWithYear(ParseContext ctx) {
