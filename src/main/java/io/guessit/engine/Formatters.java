@@ -38,42 +38,68 @@ public final class Formatters {
 
     public static String cleanup(String input) {
         if (input == null || input.isEmpty()) return input;
+        var cleanString = initialClean(input);
+        var indices = findSepIndices(cleanString);
+        var dots = new java.util.HashSet<Character>();
+        if (!indices.isEmpty()) {
+            var potential = findPotentialDots(indices, input);
+            var replace = findReplaceablePositions(potential);
+            if (!replace.isEmpty()) {
+                cleanString = applyReplacements(cleanString, replace, input, dots);
+            }
+        }
+        cleanString = strip(cleanString, stripCharsExcluding(dots));
+        return MULTI_SPACE.matcher(cleanString).replaceAll(" ");
+    }
+
+    private static String initialClean(String input) {
         var clean = new StringBuilder(input.length());
         for (var c : input.toCharArray()) {
             clean.append(CLEAN_CHARS.indexOf(c) >= 0 ? ' ' : c);
         }
-        var cleanString = clean.toString();
+        return clean.toString();
+    }
 
-        var indices = new java.util.ArrayList<Integer>();
-        for (var i = 0; i < cleanString.length(); i++) {
-            if (Seps.isSep(cleanString.charAt(i))) indices.add(i);
+    private static java.util.List<Integer> findSepIndices(String s) {
+        var idx = new java.util.ArrayList<Integer>();
+        for (int i = 0; i < s.length(); i++) {
+            if (Seps.isSep(s.charAt(i))) idx.add(i);
         }
-        var dots = new java.util.HashSet<Character>();
-        if (!indices.isEmpty()) {
-            var chars = cleanString.toCharArray();
-            var potential = new LinkedHashSet<Integer>();
-            for (var i : indices) {
-                if (potentialBefore(i, input) && potentialAfter(i, input)) potential.add(i);
-            }
-            var replace = new java.util.ArrayList<Integer>();
-            for (var p : potential) {
-                if (potential.contains(p - 2) || potential.contains(p + 2)) replace.add(p);
-            }
-            if (!replace.isEmpty()) {
-                for (var r : replace) {
-                    dots.add(input.charAt(r));
-                    chars[r] = input.charAt(r);
-                }
-                cleanString = new String(chars);
-            }
-        }
+        return idx;
+    }
 
-        var stripChars = new StringBuilder();
+    private static LinkedHashSet<Integer> findPotentialDots(java.util.List<Integer> indices, String input) {
+        var potential = new LinkedHashSet<Integer>();
+        for (var i : indices) {
+            if (potentialBefore(i, input) && potentialAfter(i, input)) potential.add(i);
+        }
+        return potential;
+    }
+
+    private static java.util.List<Integer> findReplaceablePositions(LinkedHashSet<Integer> potential) {
+        var replace = new java.util.ArrayList<Integer>();
+        for (var p : potential) {
+            if (potential.contains(p - 2) || potential.contains(p + 2)) replace.add(p);
+        }
+        return replace;
+    }
+
+    private static String applyReplacements(String cleanString, java.util.List<Integer> replace,
+                                            String input, java.util.HashSet<Character> dots) {
+        var chars = cleanString.toCharArray();
+        for (var r : replace) {
+            dots.add(input.charAt(r));
+            chars[r] = input.charAt(r);
+        }
+        return new String(chars);
+    }
+
+    private static String stripCharsExcluding(java.util.HashSet<Character> dots) {
+        var sb = new StringBuilder();
         for (var c : Seps.CHARS.toCharArray()) {
-            if (!dots.contains(c)) stripChars.append(c);
+            if (!dots.contains(c)) sb.append(c);
         }
-        cleanString = strip(cleanString, stripChars.toString());
-        return MULTI_SPACE.matcher(cleanString).replaceAll(" ");
+        return sb.toString();
     }
 
     private static boolean potentialBefore(int i, String input) {
