@@ -142,8 +142,7 @@ public final class WeakDuplicateExtractor implements Extractor {
             if (matchingEpisode == null) continue;
             int runEnd = matchingEpisode.end();
             if (!hasContentAfterPos(ctx.input, runEnd)) continue;
-            int sStart = seasonMatch.start();
-            if (!hasRangePartner(ctx, runEnd, sStart)) continue;
+            if (!hasRangePartner(ctx, runEnd)) continue;
             ctx.matches.remove(seasonMatch);
             ctx.matches.remove(matchingEpisode);
         }
@@ -151,7 +150,7 @@ public final class WeakDuplicateExtractor implements Extractor {
 
     /** True if a weak-episode (≥3 chars / not weak-duplicate) sits within a 1-5 char
      *  range-separator gap right after {@code runEnd}. */
-    private static boolean hasRangePartner(ParseContext ctx, int runEnd, int sStart) {
+    private static boolean hasRangePartner(ParseContext ctx, int runEnd) {
         return ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.start() >= runEnd)
