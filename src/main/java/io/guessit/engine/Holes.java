@@ -3,8 +3,8 @@ package io.guessit.engine;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 public final class Holes {
     private Holes() {}
@@ -13,9 +13,9 @@ public final class Holes {
         public int start;
         public int end;
         public final String input;
-        public final Function<String, String> formatter;
+        public final UnaryOperator<String> formatter;
 
-        public Hole(int start, int end, String input, Function<String, String> formatter) {
+        public Hole(int start, int end, String input, UnaryOperator<String> formatter) {
             this.start = start; this.end = end;
             this.input = input; this.formatter = formatter;
         }
@@ -79,7 +79,7 @@ public final class Holes {
                                      List<Match> allMatches,
                                      Predicate<Match> ignore,
                                      String seps,
-                                     Function<String, String> formatter) {
+                                     UnaryOperator<String> formatter) {
         var active = collectActiveMatches(allMatches, ignore, start, end);
         var ret = new ArrayList<Hole>();
         Hole current = null;
@@ -115,7 +115,7 @@ public final class Holes {
     }
 
     private static Hole stepPosition(int pos, Hole current, List<Match> active, String input,
-                                     String seps, Function<String, String> formatter, ArrayList<Hole> ret) {
+                                     String seps, UnaryOperator<String> formatter, ArrayList<Hole> ret) {
         boolean inM = inMatch(active, pos);
         if (current != null && seps != null && pos < input.length() && seps.indexOf(input.charAt(pos)) >= 0) {
             return closeHole(current, pos, ret);
