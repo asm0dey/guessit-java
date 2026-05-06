@@ -127,40 +127,57 @@ public final class DatePatterns {
 
     /** Try the formatter combinations Python dateutil would consider. */
     private static Optional<LocalDate> tryParse(String raw, Boolean yearFirst, Boolean dayFirst) {
-        if (EIGHT_DIGITS.matcher(raw).matches()) {
-            try { return Optional.of(LocalDate.parse(raw, DateTimeFormatter.BASIC_ISO_DATE)); }
-            catch (Exception _) {}
-        }
-        if (SIX_DIGITS.matcher(raw).matches()) {
-            int y = 2000 + Integer.parseInt(raw.substring(0, 2));
-            int mo = Integer.parseInt(raw.substring(2, 4));
-            int d = Integer.parseInt(raw.substring(4, 6));
-            try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception _) {}
-        }
+        var p = parseEightDigits(raw);
+        if (p.isPresent()) return p;
+        p = parseSixDigits(raw);
+        if (p.isPresent()) return p;
+        p = parseMonthName(raw);
+        if (p.isPresent()) return p;
+        return parseNumericSeparated(raw, yearFirst, dayFirst);
+    }
+
+    private static Optional<LocalDate> parseEightDigits(String raw) {
+        if (!EIGHT_DIGITS.matcher(raw).matches()) return Optional.empty();
+        try { return Optional.of(LocalDate.parse(raw, DateTimeFormatter.BASIC_ISO_DATE)); }
+        catch (Exception _) { return Optional.empty(); }
+    }
+
+    private static Optional<LocalDate> parseSixDigits(String raw) {
+        if (!SIX_DIGITS.matcher(raw).matches()) return Optional.empty();
+        int y = 2000 + Integer.parseInt(raw.substring(0, 2));
+        int mo = Integer.parseInt(raw.substring(2, 4));
+        int d = Integer.parseInt(raw.substring(4, 6));
+        try { return Optional.of(LocalDate.of(y, mo, d)); }
+        catch (Exception _) { return Optional.empty(); }
+    }
+
+    private static Optional<LocalDate> parseMonthName(String raw) {
         var mm = MONTH_NAME_PATTERN.matcher(raw);
-        if (mm.matches()) {
-            int d = Integer.parseInt(mm.group(1));
-            int mo = monthIndex(mm.group(2));
-            int y = Integer.parseInt(mm.group(3));
-            if (mo > 0) try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception _) {}
-        }
+        if (!mm.matches()) return Optional.empty();
+        int d = Integer.parseInt(mm.group(1));
+        int mo = monthIndex(mm.group(2));
+        int y = Integer.parseInt(mm.group(3));
+        if (mo <= 0) return Optional.empty();
+        try { return Optional.of(LocalDate.of(y, mo, d)); }
+        catch (Exception _) { return Optional.empty(); }
+    }
+
+    /** Python dateutil: try combinations matching (dayfirst_opts x yearfirst_opts). */
+    private static Optional<LocalDate> parseNumericSeparated(String raw, Boolean yearFirst, Boolean dayFirst) {
         var nm = NUM_PATTERN.matcher(raw);
         if (!nm.matches()) return Optional.empty();
         int a = Integer.parseInt(nm.group(1));
         int b = Integer.parseInt(nm.group(2));
         int c = Integer.parseInt(nm.group(3));
-
-        // Python dateutil: try combinations matching (dayfirst_opts x yearfirst_opts)
         var dOpts = dayFirst != null ? new Boolean[]{dayFirst} : new Boolean[]{true, false};
         var yOpts = yearFirst != null ? new Boolean[]{yearFirst} : new Boolean[]{false, true};
         Optional<LocalDate> first = Optional.empty();
         for (var df : dOpts) {
             for (var yf : yOpts) {
                 var result = tryParseNumeric(a, b, c, yf, df);
-                if (result.isPresent()) {
-                    if (validYear(result.get().getYear())) return result;
-                    if (first.isEmpty()) first = result;
-                }
+                if (result.isEmpty()) continue;
+                if (validYear(result.get().getYear())) return result;
+                if (first.isEmpty()) first = result;
             }
         }
         return first;

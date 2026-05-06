@@ -172,24 +172,38 @@ public final class AudioCodecExtractor implements Extractor {
             // win over generic audio_codec matches (e.g. "DTS") covering the same span.
             int priority = entryHasConflictSolver(entry.getValue()) ? 1100 : 1000;
             for (var pattern : flattenPatterns(entry.getValue())) {
-                Set<String> tags = pattern.tags() != null
-                    ? new HashSet<>(pattern.tags()) : new HashSet<>();
-                if (pattern.regex()) {
-                    var p = compileDashedCi(pattern.source());
-                    if (p == null) continue;
-                    var opts = RegexOpts.defaults().withValue(_ -> value).withPriority(priority);
-                    if (!tags.isEmpty()) opts = opts.withTags(tags);
-                    for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
-                } else {
-                    // Disable whole-word boundary; AudioValidatorRule checks edges later
-                    // (allowing audio matches to touch other audio matches).
-                    var opts = StringOpts.defaults().wholeWord(false).withPriority(priority);
-                    for (var m : PatternMatcher.string(ctx.input, Set.of(pattern.source()), propName, opts)) {
-                        ctx.matches.add(new Match(propName, value, m.start(), m.end(), m.raw(),
-                            m.priority(), mergeTags(m.tags(), tags), m.isPrivate()));
-                    }
-                }
+                addPatternMatches(ctx, propName, value, priority, pattern);
             }
+        }
+    }
+
+    private void addPatternMatches(ParseContext ctx, MatchName propName, String value,
+                                   int priority, PatternEntry pattern) {
+        Set<String> tags = pattern.tags() != null ? new HashSet<>(pattern.tags()) : new HashSet<>();
+        if (pattern.regex()) {
+            addRegexMatches(ctx, propName, value, priority, pattern, tags);
+        } else {
+            addStringMatches(ctx, propName, value, priority, pattern, tags);
+        }
+    }
+
+    private void addRegexMatches(ParseContext ctx, MatchName propName, String value,
+                                 int priority, PatternEntry pattern, Set<String> tags) {
+        var p = compileDashedCi(pattern.source());
+        if (p == null) return;
+        var opts = RegexOpts.defaults().withValue(_ -> value).withPriority(priority);
+        if (!tags.isEmpty()) opts = opts.withTags(tags);
+        for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
+    }
+
+    /** Disable whole-word boundary; AudioValidatorRule checks edges later
+     *  (allowing audio matches to touch other audio matches). */
+    private void addStringMatches(ParseContext ctx, MatchName propName, String value,
+                                  int priority, PatternEntry pattern, Set<String> tags) {
+        var opts = StringOpts.defaults().wholeWord(false).withPriority(priority);
+        for (var m : PatternMatcher.string(ctx.input, Set.of(pattern.source()), propName, opts)) {
+            ctx.matches.add(new Match(propName, value, m.start(), m.end(), m.raw(),
+                m.priority(), mergeTags(m.tags(), tags), m.isPrivate()));
         }
     }
 
