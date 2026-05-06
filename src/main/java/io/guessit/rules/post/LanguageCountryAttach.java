@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase;
 import io.guessit.engine.Seps;
@@ -32,7 +33,7 @@ public final class LanguageCountryAttach implements PostPhase.PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        var langs = ctx.matches.named("language")
+        var langs = ctx.matches.named(MatchName.LANGUAGE)
             .filter(m -> !m.isPrivate())
             .sorted(Comparator.comparingInt(Match::start))
             .toList();
@@ -58,7 +59,7 @@ public final class LanguageCountryAttach implements PostPhase.PostProcessor {
             var country = countryOpt.get();
 
             // Remove any standalone country match already covering this 2-letter token
-            ctx.matches.named("country")
+            ctx.matches.named(MatchName.COUNTRY)
                 .filter(m -> m.start() >= s + 1 && m.end() <= s + 3)
                 .toList()
                 .forEach(ctx.matches::remove);

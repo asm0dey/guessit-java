@@ -5,32 +5,33 @@ import org.junit.jupiter.api.Test;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.guessit.engine.MatchName.*;
 
 class PrintTraceTest {
 
     @Test
     void formatsBareMatchValueStartEndName() {
-        var m = Match.of("year", 2020, 11, 15, "2020");
+        var m = Match.of(YEAR, 2020, 11, 15, "2020");
         assertThat(PrintTrace.formatMatch(m)).isEqualTo("2020:(11,15)+name=year");
     }
 
     @Test
     void includesPrivateBeforeName() {
-        var m = new Match("weak_episode", 2020, 11, 15, "2020", 1000, Set.of(), true);
+        var m = new Match(MatchName.WEAK, 2020, 11, 15, "2020", 1000, Set.of(), true);
         assertThat(PrintTrace.formatMatch(m))
-            .isEqualTo("2020:(11,15)+private+name=weak_episode");
+            .isEqualTo("2020:(11,15)+private+name=weak");
     }
 
     @Test
     void includesPriorityWhenNotDefault() {
-        var m = Match.of("source", "Blu-ray", 22, 28, "Blu-ray").withPriority(2048);
+        var m = Match.of(SOURCE, "Blu-ray", 22, 28, "Blu-ray").withPriority(2048);
         assertThat(PrintTrace.formatMatch(m))
             .isEqualTo("Blu-ray:(22,28)+name=source+priority=2048");
     }
 
     @Test
     void omitsPriorityAtDefault() {
-        var m = Match.of("year", 2020, 11, 15, "2020");
+        var m = Match.of(YEAR, 2020, 11, 15, "2020");
         assertThat(PrintTrace.formatMatch(m)).doesNotContain("priority=");
     }
 
@@ -39,14 +40,14 @@ class PrintTraceTest {
         var tags = new java.util.LinkedHashSet<String>();
         tags.add("weak-episode");
         tags.add("weak-duplicate");
-        var m = Match.of("season", 20, 11, 13, "20").withTags(tags);
+        var m = Match.of(SEASON, 20, 11, 13, "20").withTags(tags);
         assertThat(PrintTrace.formatMatch(m))
             .isEqualTo("20:(11,13)+name=season+tags=[weak-duplicate,weak-episode]");
     }
 
     @Test
     void omitsTagsWhenEmpty() {
-        var m = Match.of("year", 2020, 11, 15, "2020");
+        var m = Match.of(YEAR, 2020, 11, 15, "2020");
         assertThat(PrintTrace.formatMatch(m)).doesNotContain("tags=");
     }
 
@@ -74,7 +75,7 @@ class PrintTraceTest {
     @Test
     void addedLineIndentedFourSpaces() {
         var sb = new StringBuilder();
-        var m = Match.of("year", 2020, 11, 15, "2020");
+        var m = Match.of(YEAR, 2020, 11, 15, "2020");
         new PrintTrace(sb).added(m);
         assertThat(sb.toString()).isEqualTo("    + 2020:(11,15)+name=year\n");
     }
@@ -82,7 +83,7 @@ class PrintTraceTest {
     @Test
     void removedLineIndentedFourSpaces() {
         var sb = new StringBuilder();
-        var m = Match.of("year", 2020, 11, 15, "2020");
+        var m = Match.of(YEAR, 2020, 11, 15, "2020");
         new PrintTrace(sb).removed(m);
         assertThat(sb.toString()).isEqualTo("    - 2020:(11,15)+name=year\n");
     }

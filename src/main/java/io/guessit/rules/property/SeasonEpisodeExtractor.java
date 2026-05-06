@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static io.guessit.engine.MatchName.*;
+
 /**
  * Extracts {@code season} and {@code episode} from compound forms:
  * {@code S01E02}, {@code 1x02}, {@code S01E02E03}, {@code S01-S03},
@@ -55,13 +57,11 @@ public final class SeasonEpisodeExtractor implements Extractor {
     private static final Pattern HEAD_CAP = Pattern.compile(
         "(?i)(?<seasonMarker>cap)[ ._-]?(?<season>\\d{1,2})(?<episode>\\d{2})"
         + "(?:[_-](?<season2>\\d{1,2})(?<episode2>\\d{2}))?");
-    public static final String SEASON = "season";
     public static final String SXX_EXX = "SxxExx";
-    public static final String EPISODE = "episode";
     public static final String COEXIST = "coexist";
     public static final String SEE_PATTERN = "see-pattern";
 
-    @Override public String name() { return SEASON; }
+    @Override public String name() { return SEASON.name().toLowerCase(); }
 
     private static final Pattern S_EXTRAS = Pattern.compile(
         "(?i)s(?<season>\\d+)(?<extras>Extras?)");
@@ -91,18 +91,18 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var m = SXX_ALL.matcher(input);
         while (m.find()) {
-            var head = new Match(SEASON, null, m.start(), m.end(),
+            var head = new Match(MatchName.SEASON, null, m.start(), m.end(),
                 m.group(), 1000, Set.of(SXX_EXX), false);
             if (!seps.test(head)) continue;
             String cg = ctx.nextCoexistGroupTag();
-            int sStart = m.start(SEASON);
-            int sEnd = m.end(SEASON);
+            int sStart = m.start("season");
+            int sEnd = m.end("season");
             int aStart = m.start("all");
             int aEnd = m.end("all");
-            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group(SEASON)),
-                sStart, sEnd, m.group(SEASON), 1000,
+            ctx.matches.add(new Match(MatchName.SEASON, Integer.parseInt(m.group("season")),
+                sStart, sEnd, m.group("season"), 1000,
                 Set.of(SXX_EXX, COEXIST, cg), false));
-            ctx.matches.add(new Match("other", "Complete",
+            ctx.matches.add(new Match(MatchName.OTHER, "Complete",
                 aStart, aEnd, m.group("all"), 1000,
                 Set.of(SXX_EXX, COEXIST, cg), false));
         }
@@ -117,18 +117,18 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var m = S_EXTRAS.matcher(input);
         while (m.find()) {
-            var head = new Match(SEASON, null, m.start(), m.end(),
+            var head = new Match(MatchName.SEASON, null, m.start(), m.end(),
                 m.group(), 1000, Set.of(SXX_EXX), false);
             if (!seps.test(head)) continue;
             String cg = ctx.nextCoexistGroupTag();
             // Private head spans "S<digits>Extras?" so the leading "S" is
             // consumed and doesn't leak into the title hole.
-            ctx.matches.add(new Match("seasonHead", null, m.start(), m.end(),
+            ctx.matches.add(new Match(MatchName.SEASON_HEAD, null, m.start(), m.end(),
                 m.group(), 1000, Set.of(SXX_EXX), true));
-            ctx.matches.add(new Match(SEASON, Integer.parseInt(m.group(SEASON)),
-                m.start(SEASON), m.end(SEASON), m.group(SEASON), 1000,
+            ctx.matches.add(new Match(MatchName.SEASON, Integer.parseInt(m.group("season")),
+                m.start("season"), m.end("season"), m.group("season"), 1000,
                 Set.of(SXX_EXX, COEXIST, cg), false));
-            ctx.matches.add(new Match("other", "Extras",
+            ctx.matches.add(new Match(MatchName.OTHER, "Extras",
                 m.start("extras"), m.end("extras"), m.group("extras"), 1000,
                 Set.of(SXX_EXX, COEXIST, cg, "no-release-group-prefix"), false));
         }
@@ -145,7 +145,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
             var trimmedRun = trimRunToValidTails(run);
             int runEnd = calculateRunEnd(run, trimmedRun.episodeSpans, trimmedRun.seasonSpans);
 
-            var headMatch = new Match("seasonHead", null, run.start(), runEnd,
+            var headMatch = new Match(MatchName.SEASON_HEAD, null, run.start(), runEnd,
                     input.substring(run.start(), runEnd), 1000, Set.of(SXX_EXX), true);
             if (!seps.test(headMatch)) continue;
 
@@ -156,7 +156,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     private List<int[]> getScreenSizeSpans(ParseContext ctx, boolean skipScreenSize) {
         return skipScreenSize
-                ? ctx.matches.named("screen_size").map(m -> new int[]{m.start(), m.end()}).toList()
+                ? ctx.matches.named(MatchName.SCREEN_SIZE).map(m -> new int[]{m.start(), m.end()}).toList()
                 : List.of();
     }
 
@@ -196,10 +196,10 @@ public final class SeasonEpisodeExtractor implements Extractor {
     }
 
     private TrimmedRunData trimRunToValidTails(Chain.Run run) {
-        var seasonValues = run.captures(SEASON);
-        var episodeValues = run.captures(EPISODE);
-        var seasonSpans = run.spans(SEASON);
-        var episodeSpans = run.spans(EPISODE);
+        var seasonValues = run.captures("season");
+        var episodeValues = run.captures("episode");
+        var seasonSpans = run.spans("season");
+        var episodeSpans = run.spans("episode");
         var episodeSeparators = run.captures("episodeSeparator");
         var episodeMarkers = run.captures("episodeMarker");
         var seasonSeparators = run.captures("seasonSeparator");
@@ -253,7 +253,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
         for (int i = 0; i < seasonValues.size(); i++) {
             int[] sp = seasonSpans.get(i);
             var stags = cg != null ? Set.of(SXX_EXX, COEXIST, cg) : Set.of(SXX_EXX, COEXIST);
-            ctx.matches.add(new Match(SEASON, Integer.valueOf(seasonValues.get(i)),
+            ctx.matches.add(new Match(MatchName.SEASON, Integer.valueOf(seasonValues.get(i)),
                     sp[0], sp[1], input.substring(sp[0], sp[1]), 1000, stags, false));
         }
     }
@@ -268,7 +268,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
     
         for (int i = 0; i < episodeValues.size(); i++) {
             int[] ep = episodeSpans.get(i);
-            ctx.matches.add(new Match(EPISODE, Integer.valueOf(episodeValues.get(i)),
+            ctx.matches.add(new Match(MatchName.EPISODE, Integer.valueOf(episodeValues.get(i)),
                 ep[0], ep[1], input.substring(ep[0], ep[1]), 1000, tags, false));
         }
     }
@@ -281,11 +281,11 @@ public final class SeasonEpisodeExtractor implements Extractor {
      * past the full run cursor.
      */
     private int effectiveRunEnd(Chain.Run run) {
-        var episodeValues = run.captures(EPISODE);
-        var episodeSpans = run.spans(EPISODE);
+        var episodeValues = run.captures("episode");
+        var episodeSpans = run.spans("episode");
         var episodeSeparators = run.captures("episodeSeparator");
-        var seasonValues = run.captures(SEASON);
-        var seasonSpans = run.spans(SEASON);
+        var seasonValues = run.captures("season");
+        var seasonSpans = run.spans("season");
         var seasonSeparators = run.captures("seasonSeparator");
         int epKeep = episodeValues.isEmpty() ? 0
             : Math.min(longestValidTail(episodeValues, episodeSeparators) + 1, episodeValues.size());
@@ -334,30 +334,30 @@ public final class SeasonEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var matcher = HEAD_CAP.matcher(input);
         while (matcher.find()) {
-            var head = new Match(SEASON, null, matcher.start(), matcher.end(),
+            var head = new Match(MatchName.SEASON, null, matcher.start(), matcher.end(),
                 matcher.group(), 1000, Set.of(SXX_EXX, SEE_PATTERN), false);
             if (!seps.test(head)) continue;
-            int sStart = matcher.start(SEASON);
-            int sEnd = matcher.end(SEASON);
-            int eStart = matcher.start(EPISODE);
-            int eEnd = matcher.end(EPISODE);
+            int sStart = matcher.start("season");
+            int sEnd = matcher.end("season");
+            int eStart = matcher.start("episode");
+            int eEnd = matcher.end("episode");
             String cg = ctx.nextCoexistGroupTag();
-            ctx.matches.add(new Match(SEASON, Integer.parseInt(matcher.group(SEASON)),
-                sStart, sEnd, matcher.group(SEASON), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
-            ctx.matches.add(new Match(EPISODE, Integer.parseInt(matcher.group(EPISODE)),
-                eStart, eEnd, matcher.group(EPISODE), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
+            ctx.matches.add(new Match(MatchName.SEASON, Integer.parseInt(matcher.group("season")),
+                sStart, sEnd, matcher.group("season"), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
+            ctx.matches.add(new Match(MatchName.EPISODE, Integer.parseInt(matcher.group("episode")),
+                eStart, eEnd, matcher.group("episode"), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
             if (matcher.group("season2") != null) {
                 int e2Start = matcher.start("episode2");
                 int e2End = matcher.end("episode2");
-                int s1 = Integer.parseInt(matcher.group(SEASON));
+                int s1 = Integer.parseInt(matcher.group("season"));
                 int s2 = Integer.parseInt(matcher.group("season2"));
-                int e1 = Integer.parseInt(matcher.group(EPISODE));
+                int e1 = Integer.parseInt(matcher.group("episode"));
                 int e2 = Integer.parseInt(matcher.group("episode2"));
-                ctx.matches.add(new Match(EPISODE, e2, e2Start, e2End,
+                ctx.matches.add(new Match(MatchName.EPISODE, e2, e2Start, e2End,
                     matcher.group("episode2"), 1000, Set.of(SXX_EXX, COEXIST, SEE_PATTERN, cg), false));
                 if (s2 == s1 && e2 > e1) {
                     for (int v = e1 + 1; v < e2; v++) {
-                        ctx.matches.add(new Match(EPISODE, v, eEnd, e2Start,
+                        ctx.matches.add(new Match(MatchName.EPISODE, v, eEnd, e2Start,
                             String.valueOf(v), 1000,
                             Set.of(SXX_EXX, COEXIST, SEE_PATTERN, "range-fill", cg), false));
                     }
@@ -377,8 +377,8 @@ public final class SeasonEpisodeExtractor implements Extractor {
     public void postProcess(ParseContext ctx) {
         dropTailOverCodec(ctx);
         expandRanges(ctx);
-        removeInvalidSecondaryChain(ctx, SEASON);
-        removeInvalidSecondaryChain(ctx, EPISODE);
+        removeInvalidSecondaryChain(ctx, MatchName.SEASON);
+        removeInvalidSecondaryChain(ctx, MatchName.EPISODE);
     }
 
     /**
@@ -391,13 +391,13 @@ public final class SeasonEpisodeExtractor implements Extractor {
      * SxxExx pair (smallest start) is exempt — we only prune trailing tails.
      */
     private void dropTailOverCodec(ParseContext ctx) {
-        var blockingNames = Set.of("video_codec", "audio_codec", "source",
-                "screen_size", "audio_channels", "audio_profile", "video_profile");
+        var blockingNames = Set.of(MatchName.VIDEO_CODEC, MatchName.AUDIO_CODEC, MatchName.SOURCE,
+                MatchName.SCREEN_SIZE, MatchName.AUDIO_CHANNELS, MatchName.AUDIO_PROFILE, MatchName.VIDEO_PROFILE);
         var blocking = ctx.matches.all()
                 .filter(m -> blockingNames.contains(m.name()))
                 .toList();
         if (blocking.isEmpty()) return;
-        for (var name : new String[]{SEASON, EPISODE}) {
+        for (var name : new MatchName[]{MatchName.SEASON, MatchName.EPISODE}) {
             var sxxExxList = ctx.matches.named(name)
                     .filter(m -> m.tags().contains(SXX_EXX))
                     .sorted(java.util.Comparator.comparingInt(Match::start))
@@ -422,7 +422,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     private void expandRanges(ParseContext ctx) {
         var input = ctx.input;
-        var episodes = ctx.matches.named(EPISODE)
+        var episodes = ctx.matches.named(MatchName.EPISODE)
             .filter(m -> m.tags().contains(SXX_EXX))
             .sorted(java.util.Comparator.comparingInt(Match::start))
             .toList();
@@ -440,7 +440,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
                         ? Set.of(SXX_EXX, COEXIST, "range-fill", "disc-marker")
                         : Set.of(SXX_EXX, COEXIST, "range-fill");
                     for (int v = prevVal + 1; v < nextVal; v++) {
-                        ctx.matches.add(new Match(EPISODE, v, prev.end(), next.start(),
+                        ctx.matches.add(new Match(MatchName.EPISODE, v, prev.end(), next.start(),
                             String.valueOf(v), 1000, fillTags, false));
                     }
                 }
@@ -453,7 +453,7 @@ public final class SeasonEpisodeExtractor implements Extractor {
         return lc.equals("-") || lc.equals("~") || lc.equals("to") || lc.equals("a");
     }
 
-    private void removeInvalidSecondaryChain(ParseContext ctx, String prop) {
+    private void removeInvalidSecondaryChain(ParseContext ctx, MatchName prop) {
         var matches = ctx.matches.named(prop)
                 .sorted(java.util.Comparator.comparingInt(Match::start)).toList();
         if (matches.size() <= 1) return;
@@ -483,9 +483,9 @@ public final class SeasonEpisodeExtractor implements Extractor {
     }
 
     private List<Match> collectMediaSpans(ParseContext ctx) {
-        var mediaNames = Set.of("screen_size", "source", "video_codec",
-                "audio_codec", "audio_channels", "audio_profile", "video_profile",
-                "streaming_service");
+        var mediaNames = Set.of(MatchName.SCREEN_SIZE, MatchName.SOURCE, MatchName.VIDEO_CODEC,
+                MatchName.AUDIO_CODEC, MatchName.AUDIO_CHANNELS, MatchName.AUDIO_PROFILE, MatchName.VIDEO_PROFILE,
+                MatchName.STREAMING_SERVICE);
         return ctx.matches.all()
                 .filter(m -> mediaNames.contains(m.name()))
                 .toList();

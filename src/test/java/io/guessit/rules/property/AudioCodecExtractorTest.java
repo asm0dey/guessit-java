@@ -3,10 +3,12 @@ package io.guessit.rules.property;
 import io.guessit.Options;
 import io.guessit.config.ConfigLoader;
 import io.guessit.engine.ConflictSolver;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
 import static io.guessit.Guessit.parse;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,31 +24,31 @@ class AudioCodecExtractorTest {
     }
 
     @Test void aac() {
-        assertEquals("AAC", run("Movie.2015.1080p.AAC.mkv").matches.named("audio_codec").findFirst().get().value());
+        assertEquals("AAC", run("Movie.2015.1080p.AAC.mkv").matches.named(MatchName.AUDIO_CODEC).findFirst().get().value());
     }
     @Test void mp3() {
-        assertEquals("MP3", run("Movie.2015.MP3.avi").matches.named("audio_codec").findFirst().get().value());
+        assertEquals("MP3", run("Movie.2015.MP3.avi").matches.named(MatchName.AUDIO_CODEC).findFirst().get().value());
     }
     @Test void dolbyDigital_ac3() {
-        assertEquals("Dolby Digital", run("Movie.2015.AC3.mkv").matches.named("audio_codec").findFirst().get().value());
+        assertEquals("Dolby Digital", run("Movie.2015.AC3.mkv").matches.named(MatchName.AUDIO_CODEC).findFirst().get().value());
     }
     @Test void dts() {
-        assertEquals("DTS", run("Movie.2015.DTS.mkv").matches.named("audio_codec").findFirst().get().value());
+        assertEquals("DTS", run("Movie.2015.DTS.mkv").matches.named(MatchName.AUDIO_CODEC).findFirst().get().value());
     }
     @Test void dtsHd() {
-        assertEquals("DTS-HD", run("Movie.2015.DTS-HD.mkv").matches.named("audio_codec").findFirst().get().value());
+        assertEquals("DTS-HD", run("Movie.2015.DTS-HD.mkv").matches.named(MatchName.AUDIO_CODEC).findFirst().get().value());
     }
     @Test void channels_5_1() {
-        assertEquals("5.1", run("Movie.2015.5.1.mkv").matches.named("audio_channels").findFirst().get().value());
+        assertEquals("5.1", run("Movie.2015.5.1.mkv").matches.named(MatchName.AUDIO_CHANNELS).findFirst().get().value());
     }
     @Test void channels_2_0() {
-        assertEquals("2.0", run("Movie.2015.2.0.mkv").matches.named("audio_channels").findFirst().get().value());
+        assertEquals("2.0", run("Movie.2015.2.0.mkv").matches.named(MatchName.AUDIO_CHANNELS).findFirst().get().value());
     }
     @Test void rejectsLooseLetters() {
-        assertTrue(run("Movie.AACX.mkv").matches.named("audio_codec").findAny().isEmpty());
+        assertTrue(run("Movie.AACX.mkv").matches.named(MatchName.AUDIO_CODEC).findAny().isEmpty());
     }
     @Test void channels_5_1_fullPipeline() {
-        var r = parse("Hotel.Hell.S01E01.720p.DD5.1.448kbps-ALANiS").toMap();
-        assertEquals("5.1", r.get("audio_channels"));
+        var r = parse("Hotel.Hell.S01E01.720p.DD5.1.448kbps-ALANiS");
+        assertThat(r.audioChannels()).containsOnly("5.1");
     }
 }

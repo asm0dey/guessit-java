@@ -92,7 +92,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void processSeasonMatch(ParseContext ctx, Matcher seasonMatcher,
                                     Predicate<Match> seasonHeadValidator) {
         var raw = seasonMatcher.group();
-        var headMatch = new Match(SEASON, null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
+        var headMatch = new Match(MatchName.SEASON, null, seasonMatcher.start(), seasonMatcher.end(), raw, 1000, Set.of(), true);
         if (!seasonHeadValidator.test(headMatch)) return;
 
         ctx.matches.add(headMatch);
@@ -110,7 +110,7 @@ public final class EpisodeWordExtractor implements Extractor {
         int n = parseSafe(seasonMatcher.group(2));
         if (n < 0) return -1;
 
-        ctx.matches.add(new Match(SEASON, n, valStart, valEnd,
+        ctx.matches.add(new Match(MatchName.SEASON, n, valStart, valEnd,
                 ctx.input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
         return n;
     }
@@ -122,7 +122,7 @@ public final class EpisodeWordExtractor implements Extractor {
         int countEnd = seasonMatcher.end(3);
         int c = parseSafe(seasonMatcher.group(3));
         if (c >= 0) {
-            ctx.matches.add(new Match("season_count", c, countStart, countEnd,
+            ctx.matches.add(new Match(MatchName.SEASON_COUNT, c, countStart, countEnd,
                     seasonMatcher.group(3), 1000, Set.of(), false));
         }
     }
@@ -154,11 +154,11 @@ public final class EpisodeWordExtractor implements Extractor {
                 .toList();
     }
 
-    private boolean isBlockedMatchType(String name) {
-        return "screen_size".equals(name) || "year".equals(name)
-                || "source".equals(name) || "video_codec".equals(name)
-                || "audio_codec".equals(name) || "video_profile".equals(name)
-                || "audio_channels".equals(name) || "frame_rate".equals(name);
+    private boolean isBlockedMatchType(MatchName name) {
+        return name == MatchName.SCREEN_SIZE || name == MatchName.YEAR
+                || name == MatchName.SOURCE || name == MatchName.VIDEO_CODEC
+                || name == MatchName.AUDIO_CODEC || name == MatchName.VIDEO_PROFILE
+                || name == MatchName.FRAME_RATE;
     }
 
     private static class TailResult {
@@ -192,7 +192,7 @@ public final class EpisodeWordExtractor implements Extractor {
             addRangeSeasons(ctx, prevVal, v, tStart);
         }
 
-        ctx.matches.add(new Match(SEASON, v, tStart, tEnd,
+        ctx.matches.add(new Match(MatchName.SEASON, v, tStart, tEnd,
                 ctx.input.substring(tStart, tEnd), 1000, Set.of("season-word"), false));
 
         return new TailResult(true, v);
@@ -204,7 +204,7 @@ public final class EpisodeWordExtractor implements Extractor {
 
     private void addRangeSeasons(ParseContext ctx, int prevVal, int v, int tStart) {
         for (int x = prevVal + 1; x < v; x++) {
-            ctx.matches.add(new Match(SEASON, x, tStart, tStart, "",
+            ctx.matches.add(new Match(MatchName.SEASON, x, tStart, tStart, "",
                     1000, Set.of("season-word"), false));
         }
     }
@@ -212,7 +212,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void extractEpisodeMatches(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
-        boolean episodeType = EPISODE.equals(ctx.options.type());
+        boolean episodeType = MatchName.EPISODE.toString().toLowerCase().equals(ctx.options.type());
         var epMatcher = (episodeType ? EP_RE_EPISODE_TYPE : EP_RE_DEFAULT).matcher(input);
 
         while (epMatcher.find()) {
@@ -223,7 +223,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void processEpisodeMatch(ParseContext ctx, Matcher epMatcher,
                                      Predicate<Match> seps, boolean episodeType) {
         var raw = epMatcher.group();
-        var headMatch = new Match(EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
+        var headMatch = new Match(MatchName.EPISODE, null, epMatcher.start(), epMatcher.end(), raw, 1000, Set.of(), true);
 
         if (!seps.test(headMatch)) {
             handleInvalidEpisodeHead(ctx, epMatcher);
@@ -246,7 +246,7 @@ public final class EpisodeWordExtractor implements Extractor {
         if (mw != null && !SHORT_EPISODE_WORDS.contains(mw.toLowerCase())
                 && markerEnd < ctx.input.length()
                 && Seps.isSep(ctx.input.charAt(markerEnd))) {
-            ctx.matches.add(new Match("episode_word_marker", null,
+            ctx.matches.add(new Match(MatchName.EPISODE_WORD_MARKER, null,
                     markerStart, markerEnd, mw, 1000, Set.of(), true));
         }
     }
@@ -271,7 +271,7 @@ public final class EpisodeWordExtractor implements Extractor {
             if (ep < 0) return null;
 
             if (!isPureDigits(epToken)) {
-                var token = new Match(EPISODE, ep, epStart, epEnd, epToken, 1000, Set.of(), false);
+                var token = new Match(MatchName.EPISODE, ep, epStart, epEnd, epToken, 1000, Set.of(), false);
                 if (!seps.test(token)) return null;
             }
             return ep;
@@ -285,7 +285,7 @@ public final class EpisodeWordExtractor implements Extractor {
 
         int epStart = epMatcher.start(2);
         int epEnd = epMatcher.end(2);
-        ctx.matches.add(new Match(EPISODE, ep, epStart, epEnd,
+        ctx.matches.add(new Match(MatchName.EPISODE, ep, epStart, epEnd,
                 ctx.input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
 
         addEpisodeVersion(ctx, epMatcher);
@@ -295,7 +295,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void addEpisodeVersion(ParseContext ctx, Matcher epMatcher) {
         if (epMatcher.group(3) != null) {
             int v = Integer.parseInt(epMatcher.group(3));
-            ctx.matches.add(new Match("version", v, epMatcher.start(3), epMatcher.end(3),
+            ctx.matches.add(new Match(MatchName.VERSION, v, epMatcher.start(3), epMatcher.end(3),
                     epMatcher.group(3), 1000, Set.of(), false));
         }
     }
@@ -303,7 +303,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void addEpisodeCountFromMatch(ParseContext ctx, Matcher epMatcher) {
         if (epMatcher.group(4) != null) {
             int c = Integer.parseInt(epMatcher.group(4));
-            ctx.matches.add(new Match("episode_count", c, epMatcher.start(4), epMatcher.end(4),
+            ctx.matches.add(new Match(MatchName.EPISODE_COUNT, c, epMatcher.start(4), epMatcher.end(4),
                     epMatcher.group(4), 1000, Set.of(), false));
         }
     }
@@ -321,23 +321,23 @@ public final class EpisodeWordExtractor implements Extractor {
     private void processDetachedMatch(ParseContext ctx, Matcher dm,
                                       Predicate<Match> seps) {
         var raw = dm.group();
-        var headMatch = new Match(EPISODE, null, dm.start(), dm.end(), raw, 1000, Set.of(), false);
+        var headMatch = new Match(MatchName.EPISODE, null, dm.start(), dm.end(), raw, 1000, Set.of(), false);
         if (!seps.test(headMatch)) return;
-    
+
         int dStart = dm.start(1);
         int dEnd = dm.end(1);
         boolean overlapsSeason = ctx.matches.range(dStart, dEnd,
-            m -> SEASON.equals(m.name()) && m.value() != null).findAny().isPresent();
+            m -> m.name() == MatchName.SEASON && m.value() != null).findAny().isPresent();
         if (overlapsSeason) return;
-    
+
         int e = Integer.parseInt(dm.group(1));
         int c = Integer.parseInt(dm.group(2));
-    
-        ctx.matches.add(new Match(EPISODE, e, dm.start(1), dm.end(1),
+
+        ctx.matches.add(new Match(MatchName.EPISODE, e, dm.start(1), dm.end(1),
             dm.group(1), 1000, Set.of("episode-word"), false));
-        ctx.matches.add(new Match("episode_count", c, dm.start(2), dm.end(2),
+        ctx.matches.add(new Match(MatchName.EPISODE_COUNT, c, dm.start(2), dm.end(2),
             dm.group(2), 1000, Set.of(), false));
-        ctx.matches.add(new Match("ep_count_span", null, dm.start(), dm.end(),
+        ctx.matches.add(new Match(MatchName.EP_COUNT_SPAN, null, dm.start(), dm.end(),
             raw, 1000, Set.of(), true));
     }
 
@@ -350,12 +350,12 @@ public final class EpisodeWordExtractor implements Extractor {
         // "Date.Series.10-11-2008.XViD") and steals title text. Mirror python's
         // parent/children cascade by dropping heads with no surviving value.
         var heads = ctx.matches.all()
-            .filter(m -> (SEASON.equals(m.name()) || EPISODE.equals(m.name()))
+            .filter(m -> (m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE)
                 && m.value() == null && m.isPrivate())
             .toList();
         for (var head : heads) {
             boolean hasValue = ctx.matches.range(head.start(), head.end(),
-                m -> m.name().equals(head.name()) && m.value() != null).findAny().isPresent();
+                m -> m.name() == head.name() && m.value() != null).findAny().isPresent();
             if (!hasValue) ctx.matches.remove(head);
         }
     }

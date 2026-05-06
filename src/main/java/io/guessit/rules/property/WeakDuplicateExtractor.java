@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,8 +28,8 @@ public final class WeakDuplicateExtractor implements Extractor {
     private static final Pattern PATTERN = Pattern.compile("(?<!\\d)(\\d{1,2})(\\d{2})(?!\\d)");
     private static final Pattern RANGE_SEP = Pattern.compile("[ ._]*[-~][ ._]*");
     public static final String WEAK_DUPLICATE = "weak-duplicate";
-    public static final String SEASON = "season";
-    public static final String EPISODE = "episode";
+    public static final MatchName SEASON = MatchName.SEASON;
+    public static final MatchName EPISODE = MatchName.EPISODE;
     public static final String WEAK_EPISODE = "weak-episode";
     private static final String COEXIST = "coexist";
     private static final String SXXEXX = "SxxExx";
@@ -74,13 +75,13 @@ public final class WeakDuplicateExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var m = PATTERN.matcher(input);
         while (m.find()) {
-            var span = new Match("weak", null, m.start(), m.end(), m.group(), 700, Set.of(), false);
+            var span = new Match(MatchName.WEAK, null, m.start(), m.end(), m.group(), 700, Set.of(), false);
             if (!seps.test(span)) continue;
             int s = Integer.parseInt(m.group(1));
             int e = Integer.parseInt(m.group(2));
-            ctx.matches.add(new Match(SEASON, s, m.start(1), m.end(1),
+            ctx.matches.add(new Match(MatchName.SEASON, s, m.start(1), m.end(1),
                     m.group(1), 700, Set.of(WEAK_EPISODE, WEAK_DUPLICATE, COEXIST), false));
-            ctx.matches.add(new Match(EPISODE, e, m.start(2), m.end(2),
+            ctx.matches.add(new Match(MatchName.EPISODE, e, m.start(2), m.end(2),
                     m.group(2), 700, Set.of(WEAK_EPISODE, WEAK_DUPLICATE, COEXIST), false));
         }
     }
@@ -131,12 +132,12 @@ public final class WeakDuplicateExtractor implements Extractor {
      * SxxExx → drop the SSEE pair so wider weak-episode survives.
      */
     private static void dropAnimeDashSeparatedPair(ParseContext ctx) {
-        var seasonRuns = ctx.matches.named(SEASON)
+        var seasonRuns = ctx.matches.named(MatchName.SEASON)
                 .filter(m -> m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> isDashSeparatedBefore(ctx.input, m.start()))
                 .toList();
         for (var seasonMatch : seasonRuns) {
-            var matchingEpisode = ctx.matches.named(EPISODE)
+            var matchingEpisode = ctx.matches.named(MatchName.EPISODE)
                     .filter(em -> em.tags().contains(WEAK_DUPLICATE) && em.start() == seasonMatch.end())
                     .findFirst().orElse(null);
             if (matchingEpisode == null) continue;
@@ -152,11 +153,11 @@ public final class WeakDuplicateExtractor implements Extractor {
     /** True if a weak-episode (≥3 chars / not weak-duplicate) sits within a 1-5 char
      *  range-separator gap right after {@code runEnd} or right before {@code sStart}. */
     private static boolean hasRangePartner(ParseContext ctx, int runEnd, int sStart) {
-        boolean trailing = ctx.matches.named(EPISODE)
+        boolean trailing = ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.start() >= runEnd)
                 .anyMatch(m -> isRangeGap(ctx.input.substring(runEnd, m.start())));
-        boolean leading = ctx.matches.named(EPISODE)
+        boolean leading = ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.end() <= sStart)
                 .anyMatch(m -> isRangeGap(ctx.input.substring(m.end(), sStart)));
@@ -172,7 +173,7 @@ public final class WeakDuplicateExtractor implements Extractor {
      * numbers are absolute episodes. Drop weak-duplicate matches between them.
      */
     private static void dropDuplicateInsideRangePair(ParseContext ctx) {
-        var weakEpisodes = ctx.matches.named(EPISODE)
+        var weakEpisodes = ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.raw() != null && m.raw().length() >= 3)
                 .sorted(Comparator.comparingInt(Match::start))
@@ -198,12 +199,12 @@ public final class WeakDuplicateExtractor implements Extractor {
      * combined digits as a plain weak-episode.
      */
     private static void mergeLeadingWeakWithDuplicate(ParseContext ctx) {
-        var leadingWeak = ctx.matches.named(EPISODE)
+        var leadingWeak = ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.value() instanceof Integer i && i >= 100)
                 .sorted(Comparator.comparingInt(Match::start))
                 .toList();
-        var dupSeasons = ctx.matches.named(SEASON)
+        var dupSeasons = ctx.matches.named(MatchName.SEASON)
                 .filter(m -> m.tags().contains(WEAK_DUPLICATE))
                 .sorted(Comparator.comparingInt(Match::start))
                 .toList();
@@ -214,7 +215,7 @@ public final class WeakDuplicateExtractor implements Extractor {
                 if (dupS.start() < lead.end()) continue;
                 String gap = ctx.input.substring(lead.end(), dupS.start());
                 if (!isRangeGap(gap)) continue;
-                var dupE = ctx.matches.named(EPISODE)
+                var dupE = ctx.matches.named(MatchName.EPISODE)
                         .filter(em -> em.tags().contains(WEAK_DUPLICATE) && em.start() == dupS.end())
                         .findFirst().orElse(null);
                 if (dupE == null) continue;
@@ -223,7 +224,7 @@ public final class WeakDuplicateExtractor implements Extractor {
                 int combined = Integer.parseInt(ctx.input.substring(spanStart, spanEnd));
                 toRemove.add(dupS);
                 toRemove.add(dupE);
-                toAdd.add(new Match(EPISODE, combined, spanStart, spanEnd,
+                toAdd.add(new Match(MatchName.EPISODE, combined, spanStart, spanEnd,
                         ctx.input.substring(spanStart, spanEnd), 800,
                         Set.of(WEAK_EPISODE), false));
                 break;
@@ -239,11 +240,11 @@ public final class WeakDuplicateExtractor implements Extractor {
      * immediately following the year (separator-only gap).
      */
     private static void dropWeakIfMoviePerFilepart(ParseContext ctx) {
-        if (EPISODE.equals(ctx.options.type())) return;
+        if ("episode".equals(ctx.options.type())) return;
         var fileparts = Markers.named(ctx.markers, "path").toList();
         var dropForMovie = new ArrayList<Match>();
         for (var fp : fileparts) {
-            var year = ctx.matches.named("year")
+            var year = ctx.matches.named(MatchName.YEAR)
                     .filter(y -> y.start() >= fp.start() && y.end() <= fp.end())
                     .findFirst().orElse(null);
             if (year == null) continue;
@@ -261,7 +262,7 @@ public final class WeakDuplicateExtractor implements Extractor {
      *  after {@code yearEnd} via separator-only gap, restricted to the filepart. */
     private static Set<Integer> collectWeakDupPairStartsAfterYear(ParseContext ctx, Marker fp, int yearEnd) {
         var pairStarts = new HashSet<Integer>();
-        ctx.matches.named(SEASON)
+        ctx.matches.named(MatchName.SEASON)
                 .filter(s -> s.tags().contains(WEAK_DUPLICATE))
                 .filter(s -> s.start() >= fp.start() && s.end() <= fp.end())
                 .filter(s -> s.start() >= yearEnd)
@@ -278,7 +279,7 @@ public final class WeakDuplicateExtractor implements Extractor {
         // episode start is ps+1 or ps+2.
         for (int ps : pairStarts) {
             if (m.start() != ps + 1 && m.start() != ps + 2) continue;
-            var seasonMatch = ctx.matches.named(SEASON)
+            var seasonMatch = ctx.matches.named(MatchName.SEASON)
                     .filter(s -> s.start() == ps && s.tags().contains(WEAK_DUPLICATE))
                     .findFirst().orElse(null);
             if (seasonMatch != null && m.start() == seasonMatch.end()) return true;
@@ -291,12 +292,12 @@ public final class WeakDuplicateExtractor implements Extractor {
      * expected-title span. The user told us those digits are part of the title.
      */
     private static void dropInsideExpectedTitle(ParseContext ctx, boolean includeWeakEpisode) {
-        var expectedTitles = ctx.matches.named("title")
+        var expectedTitles = ctx.matches.named(MatchName.TITLE)
                 .filter(m -> m.tags().contains(EXPECTED))
                 .toList();
         if (expectedTitles.isEmpty()) return;
         var drop = ctx.matches.all()
-                .filter(m -> SEASON.equals(m.name()) || EPISODE.equals(m.name()))
+                .filter(m -> MatchName.SEASON == m.name() || MatchName.EPISODE == m.name())
                 .filter(m -> m.tags().contains(WEAK_DUPLICATE)
                         || (includeWeakEpisode && m.tags().contains(WEAK_EPISODE)))
                 .filter(m -> expectedTitles.stream().anyMatch(t -> t.start() <= m.start() && m.end() <= t.end()))
@@ -311,25 +312,25 @@ public final class WeakDuplicateExtractor implements Extractor {
      * conflict solver running before WeakConflictSolver/RemoveWeakDuplicate.
      */
     private static void dropOverlappingStrongerProperty(ParseContext ctx) {
-        var years = ctx.matches.named("year").toList();
-        var dates = ctx.matches.named("date").toList();
+        var years = ctx.matches.named(MatchName.YEAR).toList();
+        var dates = ctx.matches.named(MatchName.DATE).toList();
         var codecs = ctx.matches.all()
-                .filter(x -> x.name().equals("video_codec") || x.name().equals("audio_codec"))
+                .filter(x -> x.name() == MatchName.VIDEO_CODEC || x.name() == MatchName.AUDIO_CODEC)
                 .toList();
-        var screens = ctx.matches.named("screen_size").toList();
+        var screens = ctx.matches.named(MatchName.SCREEN_SIZE).toList();
         // Restrict "other" overlaps to multi-token raws containing digits
         // (e.g. "BT.2020") to avoid blanket-overlap of generic single-word others.
-        var others = ctx.matches.named("other")
+        var others = ctx.matches.named(MatchName.OTHER)
                 .filter(m -> m.raw() != null && m.raw().length() >= 4
                         && m.raw().chars().anyMatch(Character::isDigit))
                 .toList();
         var bitRates = ctx.matches.all()
-                .filter(m -> m.name().equals("audio_bit_rate") || m.name().equals("video_bit_rate"))
+                .filter(m -> m.name() == MatchName.AUDIO_BIT_RATE || m.name() == MatchName.VIDEO_BIT_RATE)
                 .toList();
         @SuppressWarnings("unchecked")
         List<Match>[] groups = new List[]{years, dates, codecs, screens, others, bitRates};
         var preClean = new ArrayList<Match>();
-        for (var name : new String[]{SEASON, EPISODE}) {
+        for (var name : new MatchName[]{MatchName.SEASON, MatchName.EPISODE}) {
             for (var m : ctx.matches.named(name).toList()) {
                 if (!m.tags().contains(WEAK_DUPLICATE)) continue;
                 for (var group : groups) {
@@ -378,9 +379,9 @@ public final class WeakDuplicateExtractor implements Extractor {
                     .toList();
             var dropDup = new ArrayList<Match>();
             for (var m : localDup) {
-                if (SEASON.equals(m.name())) {
+                if (MatchName.SEASON == m.name()) {
                     if (seenSeason) dropDup.add(m); else seenSeason = true;
-                } else if (EPISODE.equals(m.name())) {
+                } else if (MatchName.EPISODE == m.name()) {
                     if (seenEpisode) dropDup.add(m); else seenEpisode = true;
                 }
             }

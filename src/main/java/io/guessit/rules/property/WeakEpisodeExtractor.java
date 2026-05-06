@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -48,9 +49,9 @@ public final class WeakEpisodeExtractor implements Extractor {
     private static final String SEASON = "season";
     private static final String GROUP = "group";
     private static final String PATH = "path";
-    private static final Set<String> BLOCKING_NAMES = Set.of(
-            "audio_codec", "screen_size", "streaming_service",
-            "source", "video_profile", "audio_channels", "audio_profile");
+    private static final Set<MatchName> BLOCKING_NAMES = Set.of(
+            MatchName.AUDIO_CODEC, MatchName.SCREEN_SIZE, MatchName.STREAMING_SERVICE,
+            MatchName.SOURCE, MatchName.VIDEO_PROFILE, MatchName.AUDIO_CHANNELS, MatchName.AUDIO_PROFILE);
 
     @Override public String name() { return "weak_episode"; }
     @Override public int priority() { return 800; }
@@ -62,13 +63,13 @@ public final class WeakEpisodeExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
 
         // Pre-compute SxxExx episodes; skip weak matches that overlap them.
-        var protectedEpisodes = ctx.matches.named(EPISODE)
+        var protectedEpisodes = ctx.matches.named(MatchName.EPISODE)
             .filter(m -> m.tags().contains(SXXEXX))
             .toList();
 
         emit(ctx, input, TWO_DIGIT, seps, protectedEpisodes);
         emit(ctx, input, THREE_OR_FOUR, seps, protectedEpisodes);
-        if (EPISODE.equals(ctx.options.type())) {
+        if ("episode".equals(ctx.options.type())) {
             emit(ctx, input, SINGLE, seps, protectedEpisodes);
         }
     }
@@ -82,10 +83,10 @@ public final class WeakEpisodeExtractor implements Extractor {
             int validateEnd = m.end();
             if (overlapsAnyProtected(ms, me, protectedEpisodes)) continue;
 
-            var head = new Match(EPISODE, null, ms, validateEnd, m.group(1), 800, Set.of(WEAK_EPISODE), false);
+            var head = new Match(MatchName.EPISODE, null, ms, validateEnd, m.group(1), 800, Set.of(WEAK_EPISODE), false);
             if (!seps.test(head)) continue;
             int v = Integer.parseInt(m.group(1));
-            ctx.matches.add(new Match(EPISODE, v, ms, me,
+            ctx.matches.add(new Match(MatchName.EPISODE, v, ms, me,
                     m.group(1), 800, Set.of(WEAK_EPISODE), false));
         }
     }
@@ -106,7 +107,7 @@ public final class WeakEpisodeExtractor implements Extractor {
 
         var toRemove = new ArrayList<>(weakEpisodesAdjacentToBlocking(ctx));
 
-        var weaks = ctx.matches.named(EPISODE).filter(m -> m.tags().contains(WEAK_EPISODE)).toList();
+        var weaks = ctx.matches.named(MatchName.EPISODE).filter(m -> m.tags().contains(WEAK_EPISODE)).toList();
         var fileparts = Markers.named(ctx.markers, PATH).toList();
         var strongInFilepart = strongInFilepartPredicate(ctx, fileparts);
 
@@ -130,8 +131,8 @@ public final class WeakEpisodeExtractor implements Extractor {
         // the input is an anime release. Weak-episodes carry the absolute
         // episode number, even with a year present, so don't purge.
         boolean anime = hasScreenSizeInGroup(ctx);
-        boolean hasYear = ctx.matches.named("year").findAny().isPresent();
-        boolean episodeTyped = EPISODE.equals(ctx.options.type());
+        boolean hasYear = ctx.matches.named(MatchName.YEAR).findAny().isPresent();
+        boolean episodeTyped = "episode".equals(ctx.options.type());
         if (!rangePaired && !anime && hasYear && !episodeTyped) {
             removeAllWeak(ctx);
             return true;
@@ -147,7 +148,7 @@ public final class WeakEpisodeExtractor implements Extractor {
      *  via separator-only gap of ≤3 chars. */
     private static List<Match> weakEpisodesAdjacentToBlocking(ParseContext ctx) {
         var blocking = ctx.matches.all().filter(m -> BLOCKING_NAMES.contains(m.name())).toList();
-        var weaks = ctx.matches.named(EPISODE).filter(m -> m.tags().contains(WEAK_EPISODE)).toList();
+        var weaks = ctx.matches.named(MatchName.EPISODE).filter(m -> m.tags().contains(WEAK_EPISODE)).toList();
         var drop = new ArrayList<Match>();
         for (var weak : weaks) {
             for (var b : blocking) {
@@ -168,17 +169,17 @@ public final class WeakEpisodeExtractor implements Extractor {
      * filepart. SxxExx matches inside a title span don't anchor.
      */
     private static Predicate<Match> strongInFilepartPredicate(ParseContext ctx, List<Marker> fileparts) {
-        var titleSpans = ctx.matches.named("title")
+        var titleSpans = ctx.matches.named(MatchName.TITLE)
             .map(m -> new int[]{m.start(), m.end()}).toList();
         Predicate<Match> insideTitle = m -> titleSpans.stream()
             .anyMatch(t -> t[0] <= m.start() && m.end() <= t[1]);
 
-        boolean anyEpisodeSxxExx = ctx.matches.named(EPISODE)
+        boolean anyEpisodeSxxExx = ctx.matches.named(MatchName.EPISODE)
             .anyMatch(m -> !m.isPrivate() && m.tags().contains(SXXEXX) && !insideTitle.test(m));
 
         var seasonStrongSpans = ctx.matches.all()
             .filter(m -> !m.isPrivate() && m.tags().contains(SXXEXX)
-                && SEASON.equals(m.name()) && !insideTitle.test(m))
+                && MatchName.SEASON == m.name() && !insideTitle.test(m))
             .map(m -> new int[]{m.start(), m.end()})
             .toList();
 
@@ -203,7 +204,7 @@ public final class WeakEpisodeExtractor implements Extractor {
      */
     private static void applyStrongEpisodeRule(ParseContext ctx, List<Match> weaks,
                                                List<Marker> fileparts, Predicate<Match> strongInFilepart, List<Match> toRemove) {
-        var allEpisodes = ctx.matches.named(EPISODE)
+        var allEpisodes = ctx.matches.named(MatchName.EPISODE)
                 .sorted(Comparator.comparingInt(Match::start))
                 .toList();
         long highWeakCount = weaks.stream()
@@ -232,7 +233,7 @@ public final class WeakEpisodeExtractor implements Extractor {
         }
 
         if (shouldConvertToAbsoluteEpisode(v, highWeakCount, proximity.contiguous())) {
-            ctx.matches.add(new Match("absolute_episode", weak.value(), weak.start(), weak.end(),
+            ctx.matches.add(new Match(MatchName.ABSOLUTE_EPISODE, weak.value(), weak.start(), weak.end(),
                     weak.raw(), weak.priority(), weak.tags(), weak.isPrivate()));
         }
         toRemove.add(weak);
@@ -303,7 +304,7 @@ public final class WeakEpisodeExtractor implements Extractor {
     static boolean hasScreenSizeInGroup(ParseContext ctx) {
         for (var mk : ctx.markers) {
             if (!GROUP.equals(mk.name())) continue;
-            if (ctx.matches.named("screen_size")
+            if (ctx.matches.named(MatchName.SCREEN_SIZE)
                     .anyMatch(m -> m.start() >= mk.start() && m.end() <= mk.end())) {
                 return true;
             }
@@ -312,7 +313,7 @@ public final class WeakEpisodeExtractor implements Extractor {
     }
 
     private static boolean hasRangePairedWeakEpisodes(ParseContext ctx) {
-        var weaks = ctx.matches.named(EPISODE)
+        var weaks = ctx.matches.named(MatchName.EPISODE)
                 .filter(m -> m.tags().contains(WEAK_EPISODE) && !m.tags().contains(WEAK_DUPLICATE))
                 .filter(m -> m.value() instanceof Integer i && i >= 100)
                 .sorted(Comparator.comparingInt(Match::start))
@@ -339,11 +340,11 @@ public final class WeakEpisodeExtractor implements Extractor {
         // group bracket) it produces phantom season=1 episode=28. Only keep
         // weak-duplicate exclusion when the pair sits OUTSIDE any group
         // marker — those are the canonical SSEE shapes.
-        var weaks = ctx.matches.named(EPISODE)
+        var weaks = ctx.matches.named(MatchName.EPISODE)
             .filter(m -> m.tags().contains(WEAK_EPISODE))
             .filter(m -> !(m.tags().contains(WEAK_DUPLICATE) && !inAnyGroupMarker(ctx, m)))
             .toList();
-        var weakSeasons = ctx.matches.named(SEASON)
+        var weakSeasons = ctx.matches.named(MatchName.SEASON)
             .filter(m -> m.tags().contains(WEAK_EPISODE) && m.tags().contains(WEAK_DUPLICATE))
             .filter(m -> inAnyGroupMarker(ctx, m))
             .toList();

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.guessit.engine.MatchName.*;
 
 class TraceDiffTest {
 
@@ -18,7 +19,7 @@ class TraceDiffTest {
 
     @Test
     void emitsAddedForMatchPresentOnlyInAfter() {
-        var year = Match.of("year", 2020, 11, 15, "2020");
+        var year = Match.of(YEAR, 2020, 11, 15, "2020");
         var trace = new CapturingTrace();
         TraceDiff.emit(List.of(), List.of(year), trace);
         assertThat(trace.events).containsExactly("+ 2020:(11,15)+name=year");
@@ -26,7 +27,7 @@ class TraceDiffTest {
 
     @Test
     void emitsRemovedForMatchPresentOnlyInBefore() {
-        var year = Match.of("year", 2020, 11, 15, "2020");
+        var year = Match.of(YEAR, 2020, 11, 15, "2020");
         var trace = new CapturingTrace();
         TraceDiff.emit(List.of(year), List.of(), trace);
         assertThat(trace.events).containsExactly("- 2020:(11,15)+name=year");
@@ -34,7 +35,7 @@ class TraceDiffTest {
 
     @Test
     void emitsNoChangesWhenIdentical() {
-        var year = Match.of("year", 2020, 11, 15, "2020");
+        var year = Match.of(YEAR, 2020, 11, 15, "2020");
         var trace = new CapturingTrace();
         TraceDiff.emit(List.of(year), List.of(year), trace);
         assertThat(trace.events).containsExactly("(no changes)");
@@ -42,8 +43,8 @@ class TraceDiffTest {
 
     @Test
     void emitsRemovesBeforeAdds() {
-        var year = Match.of("year", 2020, 11, 15, "2020");
-        var screen = Match.of("screen_size", "1080p", 16, 21, "1080p");
+        var year = Match.of(YEAR, 2020, 11, 15, "2020");
+        var screen = Match.of(SCREEN_SIZE, "1080p", 16, 21, "1080p");
         var trace = new CapturingTrace();
         TraceDiff.emit(List.of(year), List.of(screen), trace);
         assertThat(trace.events).containsExactly(
@@ -54,8 +55,8 @@ class TraceDiffTest {
 
     @Test
     void preservesAfterOrderForAdds() {
-        var a = Match.of("year", 2020, 11, 15, "2020");
-        var b = Match.of("screen_size", "1080p", 16, 21, "1080p");
+        var a = Match.of(YEAR, 2020, 11, 15, "2020");
+        var b = Match.of(SCREEN_SIZE, "1080p", 16, 21, "1080p");
         var trace = new CapturingTrace();
         TraceDiff.emit(List.of(), List.of(a, b), trace);
         assertThat(trace.events).containsExactly(

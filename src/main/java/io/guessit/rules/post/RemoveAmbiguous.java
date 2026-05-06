@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -39,8 +40,8 @@ public class RemoveAmbiguous implements PostProcessor {
         var paths = new ArrayList<>(io.guessit.engine.Markers.markerSorted(pathsSorted, ctx.matches));
         if (reverseFileparts) Collections.reverse(paths);
 
-        var seenNames = new HashSet<String>();
-        var values = new HashMap<String, Set<Object>>();
+        var seenNames = new HashSet<MatchName>();
+        var values = new HashMap<MatchName, Set<Object>>();
         var toRemove = new ArrayList<Match>();
 
         for (var fp : paths) {
@@ -50,7 +51,7 @@ public class RemoveAmbiguous implements PostProcessor {
                 .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
                 .sorted(tieBreak)
                 .toList();
-            var fpNames = new HashSet<String>();
+            var fpNames = new HashSet<MatchName>();
             for (var m : inFp) {
                 fpNames.add(m.name());
                 var bucket = values.computeIfAbsent(m.name(), _ -> new LinkedHashSet<>());

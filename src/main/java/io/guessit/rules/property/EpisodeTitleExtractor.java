@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,9 +11,8 @@ public final class EpisodeTitleExtractor implements Extractor {
     public static final String TITLE = "title";
     public static final String EPISODE = "episode";
     public static final String SEASON = "season";
-    public static final String EPISODE_COUNT = "episode_count";
-    private static final Set<String> PREVIOUS_NAMES = Set.of(
-            EPISODE, EPISODE_COUNT, SEASON, "season_count", "date", TITLE, "year");
+    private static final Set<MatchName> PREVIOUS_NAMES = Set.of(
+            MatchName.EPISODE, MatchName.EPISODE_COUNT, MatchName.SEASON, MatchName.SEASON_COUNT, MatchName.DATE, MatchName.TITLE, MatchName.YEAR);
     /**
      * Subset of {@link #PREVIOUS_NAMES} excluding {@code title}: in Python,
      * RemoveConflictsWithEpisodeTitle (priority 64) fires before
@@ -22,13 +22,13 @@ public final class EpisodeTitleExtractor implements Extractor {
      * incorrectly dropping a valid {@code year} that sits between the title
      * hole and downstream markers (e.g. {@code Show.Name.2015.Nice.Title.1080p.PBS...}).
      */
-    private static final Set<String> CONFLICT_PREVIOUS_NAMES = Set.of(
-            EPISODE, EPISODE_COUNT, SEASON, "season_count", "date", "year");
-    private static final Set<String> NEXT_NAMES = Set.of(
-            "streaming_service", "screen_size", "source", "video_codec",
-            "audio_codec", "other", "container");
-    private static final Set<String> AFFECTED_NAMES = Set.of("part", "year");
-    private static final Set<String> AFFECTED_IF_HOLES_AFTER = Set.of("part");
+    private static final Set<MatchName> CONFLICT_PREVIOUS_NAMES = Set.of(
+            MatchName.EPISODE, MatchName.EPISODE_COUNT, MatchName.SEASON, MatchName.SEASON_COUNT, MatchName.DATE, MatchName.YEAR);
+    private static final Set<MatchName> NEXT_NAMES = Set.of(
+            MatchName.STREAMING_SERVICE, MatchName.SCREEN_SIZE, MatchName.SOURCE, MatchName.VIDEO_CODEC,
+            MatchName.AUDIO_CODEC, MatchName.OTHER, MatchName.CONTAINER);
+    private static final Set<MatchName> AFFECTED_NAMES = Set.of(MatchName.PART, MatchName.YEAR);
+    private static final Set<MatchName> AFFECTED_IF_HOLES_AFTER = Set.of(MatchName.PART);
     public static final String EPISODE_TITLE = "episode_title";
 
     @Override
@@ -59,14 +59,14 @@ public final class EpisodeTitleExtractor implements Extractor {
      */
     private static void dropLanguagesInsideTitleHoles(ParseContext ctx) {
         var titleSpans = ctx.matches.all()
-                .filter(m -> TITLE.equals(m.name()) || "alternative_title".equals(m.name())
-                        || EPISODE_TITLE.equals(m.name()))
+                .filter(m -> m.name() == MatchName.TITLE || m.name() == MatchName.ALTERNATIVE_TITLE
+                        || m.name() == MatchName.EPISODE_TITLE)
                 .map(m -> new int[]{m.start(), m.end()})
                 .toList();
         if (titleSpans.isEmpty()) return;
         var toRemove = new java.util.ArrayList<Match>();
         for (var m : ctx.matches.all().toList()) {
-            if (!"language".equals(m.name()) && !"subtitle_language".equals(m.name())) continue;
+            if (m.name() != MatchName.LANGUAGE && m.name() != MatchName.SUBTITLE_LANGUAGE) continue;
             if (m.length() > 3) continue;
             for (var sp : titleSpans) {
                 if (m.start() >= sp[0] && m.end() <= sp[1]
@@ -105,7 +105,7 @@ public final class EpisodeTitleExtractor implements Extractor {
     }
 
     private void titleToEpisodeTitle(ParseContext ctx) {
-        var titles = ctx.matches.named(TITLE).toList();
+        var titles = ctx.matches.named(MatchName.TITLE).toList();
         var values = new java.util.HashSet<>();
         for (var t : titles) values.add(t.value());
         if (values.size() < 2) return;
@@ -126,25 +126,25 @@ public final class EpisodeTitleExtractor implements Extractor {
             final int pe = prevEnd;
             var hasEpisodeAtPrevEnd = ctx.matches.snapshot().stream()
                     .filter(m -> !m.isPrivate())
-                    .anyMatch(m -> m.end() == pe && EPISODE.equals(m.name()));
+                    .anyMatch(m -> m.end() == pe && m.name() == MatchName.EPISODE);
             if (hasEpisodeAtPrevEnd) {
-                ctx.matches.replace(t, new Match(EPISODE_TITLE, t.value(), t.start(), t.end(),
+                ctx.matches.replace(t, new Match(MatchName.EPISODE_TITLE, t.value(), t.start(), t.end(),
                         t.raw(), t.priority(), t.tags(), t.isPrivate()));
             }
         }
     }
 
     private void episodeTitleFromPosition(ParseContext ctx) {
-        if (ctx.matches.named(EPISODE_TITLE).findAny().isPresent()) return;
-        var paths = ctx.markers.stream().filter(m -> "path".equals(m.name())).toList();
+        if (ctx.matches.named(MatchName.EPISODE_TITLE).findAny().isPresent()) return;
+        var paths = ctx.markers.stream().filter(m -> m.name().equals("path")).toList();
         var titleExtractor = new TitleExtractor();
-        var hasCrc = ctx.matches.named("crc32").findAny().isPresent();
+        var hasCrc = ctx.matches.named(MatchName.CRC32).findAny().isPresent();
         boolean isMovie = "movie".equals(predictedType(ctx));
         for (var fp : Markers.markerSorted(paths, ctx.matches)) {
-            var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> TITLE.equals(m.name())).findAny().isPresent();
+            var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> m.name() == MatchName.TITLE).findAny().isPresent();
             if (!hasTitle) continue;
             var titles = titleExtractor.checkTitlesInFilepart(ctx, fp,
-                    TitleExtractor::isIgnored, EPISODE_TITLE, List.of(TITLE), null, true);
+                    TitleExtractor::isIgnored, MatchName.EPISODE_TITLE, List.of(TITLE), null, true);
             if (titles == null) continue;
             boolean addedAny = false;
             for (var t : titles.titles()) {
@@ -177,9 +177,9 @@ public final class EpisodeTitleExtractor implements Extractor {
      * audio_codec / screen_size / etc.). Such holes are noise, not titles.
      */
     private static boolean wedgedBetweenProperties(ParseContext ctx, Marker filepart, Match candidate) {
-        Set<String> trailingNames = Set.of("source", "video_codec", "audio_codec",
-                "screen_size", "audio_channels", "audio_profile", "video_profile",
-                "streaming_service", "container", "part", "release_group", "website");
+        Set<MatchName> trailingNames = Set.of(MatchName.SOURCE, MatchName.VIDEO_CODEC, MatchName.AUDIO_CODEC,
+                MatchName.SCREEN_SIZE, MatchName.AUDIO_CHANNELS, MatchName.AUDIO_PROFILE, MatchName.VIDEO_PROFILE,
+                MatchName.STREAMING_SERVICE, MatchName.CONTAINER, MatchName.PART, MatchName.RELEASE_GROUP, MatchName.WEBSITE);
         boolean propBefore = ctx.matches.all().anyMatch(m -> trailingNames.contains(m.name())
                 && m.start() >= filepart.start() && m.end() <= candidate.start());
         boolean propAfter = ctx.matches.all().anyMatch(m -> trailingNames.contains(m.name())
@@ -195,16 +195,16 @@ public final class EpisodeTitleExtractor implements Extractor {
     private static String predictedType(ParseContext ctx) {
         var optType = ctx.options.type();
         if (optType != null) return optType;
-        if (anyNamed(ctx, EPISODE) || anyNamed(ctx, SEASON)
-                || anyNamed(ctx, "episode_details") || anyNamed(ctx, "absolute_episode")) {
+        if (anyNamed(ctx, MatchName.EPISODE) || anyNamed(ctx, MatchName.SEASON)
+                || anyNamed(ctx, MatchName.EPISODE_DETAILS) || anyNamed(ctx, MatchName.ABSOLUTE_EPISODE)) {
             return EPISODE;
         }
-        if (anyNamed(ctx, "film")) return "movie";
-        boolean hasYear = anyNamed(ctx, "year");
-        if (anyNamed(ctx, "date") && !hasYear) return EPISODE;
-        if (anyNamed(ctx, "bonus") && !hasYear) return EPISODE;
-        boolean hasCrc = anyNamed(ctx, "crc32");
-        boolean anyAnimeRg = ctx.matches.named("release_group").anyMatch(m -> m.tags().contains("anime"));
+        if (anyNamed(ctx, MatchName.FILM)) return "movie";
+        boolean hasYear = anyNamed(ctx, MatchName.YEAR);
+        if (anyNamed(ctx, MatchName.DATE) && !hasYear) return EPISODE;
+        if (anyNamed(ctx, MatchName.BONUS) && !hasYear) return EPISODE;
+        boolean hasCrc = anyNamed(ctx, MatchName.CRC32);
+        boolean anyAnimeRg = ctx.matches.named(MatchName.RELEASE_GROUP).anyMatch(m -> m.tags().contains("anime"));
         if (hasCrc && anyAnimeRg) return EPISODE;
         return "movie";
     }
@@ -220,13 +220,13 @@ public final class EpisodeTitleExtractor implements Extractor {
         return java.util.Optional.empty();
     }
 
-    private static boolean anyNamed(ParseContext ctx, String name) {
+    private static boolean anyNamed(ParseContext ctx, MatchName name) {
         return ctx.matches.named(name).anyMatch(m -> !m.isPrivate());
     }
 
     private void alternativeTitleReplace(ParseContext ctx) {
-        if (ctx.matches.named(EPISODE_TITLE).findAny().isPresent()) return;
-        var alt = ctx.matches.named("alternative_title").findFirst().orElse(null);
+        if (ctx.matches.named(MatchName.EPISODE_TITLE).findAny().isPresent()) return;
+        var alt = ctx.matches.named(MatchName.ALTERNATIVE_TITLE).findFirst().orElse(null);
         if (alt == null) return;
         var mainTitle = ctx.matches.chainBefore(alt.start(), ctx.input, Seps.CHARS,
                 m -> m.tags().contains(TITLE)).orElse(null);
@@ -237,11 +237,11 @@ public final class EpisodeTitleExtractor implements Extractor {
         // Java's MatchSet.previous() flat-scans, which finds far-away outer
         // titles/episodes and wrongly converts alt titles to episode_title.
         var prev = previousAdjacent(ctx, mainTitle.start(), m -> PREVIOUS_NAMES.contains(m.name()));
-        var hasCrc = ctx.matches.named("crc32").findAny().isPresent();
+        var hasCrc = ctx.matches.named(MatchName.CRC32).findAny().isPresent();
         if (prev.isPresent() || hasCrc) {
             var newTags = new java.util.HashSet<>(alt.tags());
             newTags.add("alternative-replaced");
-            ctx.matches.replace(alt, new Match(EPISODE_TITLE, alt.value(), alt.start(), alt.end(),
+            ctx.matches.replace(alt, new Match(MatchName.EPISODE_TITLE, alt.value(), alt.start(), alt.end(),
                     alt.raw(), alt.priority(), Set.copyOf(newTags), alt.isPrivate()));
         }
     }
@@ -261,18 +261,18 @@ public final class EpisodeTitleExtractor implements Extractor {
         var filename = paths.getLast();
         var directory = paths.get(paths.size() - 2);
         var subdirectory = paths.get(paths.size() - 3);
-        if (ctx.matches.range(filename.start(), filename.end(), m -> EPISODE.equals(m.name())).findAny().isEmpty())
+        if (ctx.matches.range(filename.start(), filename.end(), m -> m.name() == MatchName.EPISODE).findAny().isEmpty())
             return;
-        if (ctx.matches.range(directory.start(), directory.end(), m -> SEASON.equals(m.name())).findAny().isEmpty())
+        if (ctx.matches.range(directory.start(), directory.end(), m -> m.name() == MatchName.SEASON).findAny().isEmpty())
             return;
         // Skip if filename already produced a title — the file gave the show
         // name, the subdir is generic ("/series/").
-        var hasFilenameTitle = ctx.matches.named(TITLE)
+        var hasFilenameTitle = ctx.matches.named(MatchName.TITLE)
                 .anyMatch(m -> m.start() >= filename.start() && m.end() <= filename.end());
         if (hasFilenameTitle) return;
         var h = findEpisodeTitleHoles(ctx, subdirectory);
         if (h == null) return;
-        ctx.matches.add(new Match(TITLE, h.value(), h.start, h.end, h.raw(), 1000, Set.of(), false));
+        ctx.matches.add(new Match(MatchName.TITLE, h.value(), h.start, h.end, h.raw(), 1000, Set.of(), false));
     }
 
     private static Holes.Hole findEpisodeTitleHoles(ParseContext ctx, Marker subdirectory) {
@@ -285,7 +285,7 @@ public final class EpisodeTitleExtractor implements Extractor {
         java.util.function.Predicate<Match> ignore = m -> {
             if (m.tags().contains("weak-episode")) return true;
             if (!TitleExtractor.isIgnored(m)) return false;
-            return (!"country".equals(m.name()) && !"language".equals(m.name()))
+            return (m.name() != MatchName.COUNTRY && m.name() != MatchName.LANGUAGE)
                     || !isBracketWrapped(ctx.input, m);
         };
         var holes = Holes.compute(ctx.input, subdirectory.start(), subdirectory.end(),
@@ -309,14 +309,14 @@ public final class EpisodeTitleExtractor implements Extractor {
         if (paths.size() < 2) return;
         var filename = paths.getLast();
         var directory = paths.get(paths.size() - 2);
-        if (ctx.matches.range(filename.start(), filename.end(), m -> EPISODE.equals(m.name())).findAny().isEmpty())
+        if (ctx.matches.range(filename.start(), filename.end(), m -> m.name() == MatchName.EPISODE).findAny().isEmpty())
             return;
-        var hasSeason = ctx.matches.range(directory.start(), directory.end(), m -> SEASON.equals(m.name())).findAny().isPresent()
-                || ctx.matches.range(filename.start(), filename.end(), m -> SEASON.equals(m.name())).findAny().isPresent();
+        var hasSeason = ctx.matches.range(directory.start(), directory.end(), m -> m.name() == MatchName.SEASON).findAny().isPresent()
+                || ctx.matches.range(filename.start(), filename.end(), m -> m.name() == MatchName.SEASON).findAny().isPresent();
         if (!hasSeason) return;
         var h = findEpisodeTitleHoles(ctx, directory);
         if (h == null) return;
         var tags = Set.of("filepart-title");
-        ctx.matches.add(new Match(TITLE, h.value(), h.start, h.end, h.raw(), 1000, tags, false));
+        ctx.matches.add(new Match(MatchName.TITLE, h.value(), h.start, h.end, h.raw(), 1000, tags, false));
     }
 }

@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -17,7 +18,7 @@ import java.util.regex.Pattern;
 public final class FilmExtractor implements Extractor {
     private static final Pattern P = Pattern.compile("(?i)f(?<n>\\d{1,2})");
 
-    @Override public String name() { return "film"; }
+    @Override public String name() { return MatchName.FILM.toString().toLowerCase(); }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -26,23 +27,23 @@ public final class FilmExtractor implements Extractor {
         var m = P.matcher(input);
         while (m.find()) {
             // Use the full match span for separator-surround check.
-            var head = new Match("film", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
+            var head = new Match(MatchName.FILM, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
 
             // Span covers the full "fNN" so the leading 'f' doesn't leak into
             // the surrounding title hole.
-            ctx.matches.add(new Match("film", Integer.parseInt(m.group("n")),
+            ctx.matches.add(new Match(MatchName.FILM, Integer.parseInt(m.group("n")),
                 m.start(), m.end(), m.group(), priority(), Set.of(), false));
         }
     }
 
     @Override
     public void postProcess(ParseContext ctx) {
-        var film = ctx.matches.named("film")
+        var film = ctx.matches.named(MatchName.FILM)
             .filter(x -> !x.isPrivate())
             .findFirst().orElse(null);
         if (film == null) return;
-        if (ctx.matches.named("film_title").findAny().isPresent()) return;
+        if (ctx.matches.named(MatchName.FILM_TITLE).findAny().isPresent()) return;
 
         // Find the filepart (path marker) that contains this film match.
         var fpOpt = ctx.markers.stream()
@@ -71,7 +72,7 @@ public final class FilmExtractor implements Extractor {
         var title = hole.value();
         if (title == null || title.isBlank()) return;
 
-        ctx.matches.add(new Match("film_title", title,
+        ctx.matches.add(new Match(MatchName.FILM_TITLE, title,
             hole.start, hole.end, hole.raw(), priority(), Set.of(), false));
     }
 }

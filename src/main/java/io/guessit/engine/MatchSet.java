@@ -50,7 +50,7 @@ public final class MatchSet {
     public Stream<Match> all() { return matches.stream(); }
 
     /** All matches whose {@link Match#name()} equals {@code name}. */
-    public Stream<Match> named(String name) { return matches.stream().filter(m -> m.name().equals(name)); }
+    public Stream<Match> named(MatchName matchName) { return matches.stream().filter(m -> m.name().equals(matchName)); }
 
     /** All matches whose span overlaps the half-open range {@code [start, end)}. */
     public Stream<Match> overlapping(int start, int end) {

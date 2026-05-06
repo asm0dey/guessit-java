@@ -2,6 +2,7 @@ package io.guessit.rules.post;
 
 import io.guessit.engine.Markers;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -20,9 +21,9 @@ import java.util.*;
  * {@code S01E07} pattern IS tagged, so it sorts first and its values win.
  */
 public final class RemoveLessSpecificSeasonEpisode implements PostProcessor {
-    private final String targetName;
+    private final MatchName targetName;
 
-    public RemoveLessSpecificSeasonEpisode(String name) {
+    public RemoveLessSpecificSeasonEpisode(MatchName name) {
         this.targetName = name;
     }
 
@@ -36,21 +37,21 @@ public final class RemoveLessSpecificSeasonEpisode implements PostProcessor {
         var reversed = new ArrayList<>(paths);
         Collections.reverse(reversed);
         var sorted = Markers.markerSorted(reversed, ctx.matches,
-            m -> targetName.equals(m.name()) && m.tags().contains("SxxExx"));
+            m -> m.name() == targetName && m.tags().contains("SxxExx"));
 
-        var seenNames = new HashSet<String>();
-        var values = new HashMap<String, Set<Object>>();
+        var seenNames = new HashSet<MatchName>();
+        var values = new HashMap<MatchName, Set<Object>>();
         var toRemove = new ArrayList<Match>();
 
         var sxxTie = Comparator.comparing((Match m) -> m.tags().contains("SxxExx") ? 0 : 1);
         for (var fp : sorted) {
             var inFp = ctx.matches.snapshot().stream()
                 .filter(m -> !m.isPrivate())
-                .filter(m -> targetName.equals(m.name()))
+                .filter(m -> m.name() == targetName)
                 .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
                 .sorted(sxxTie)
                 .toList();
-            var fpNames = new HashSet<String>();
+            var fpNames = new HashSet<MatchName>();
             for (var m : inFp) {
                 fpNames.add(m.name());
                 var bucket = values.computeIfAbsent(m.name(), _ -> new LinkedHashSet<>());

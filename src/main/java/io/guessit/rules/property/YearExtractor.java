@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.regex.Pattern;
@@ -32,7 +33,7 @@ public final class YearExtractor implements Extractor {
                     int v = (Integer) m.value();
                     return 1920 <= v && v < 2030;
                 });
-        for (var match : PatternMatcher.regex(input, PATTERN, "year", opts)) {
+        for (var match : PatternMatcher.regex(input, PATTERN, MatchName.YEAR, opts)) {
             ctx.matches.add(match);
         }
     }
@@ -53,7 +54,7 @@ public final class YearExtractor implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
-        var years = ctx.matches.named("year").toList();
+        var years = ctx.matches.named(MatchName.YEAR).toList();
         if (years.size() <= 1) return;
 
         var toRemove = new ArrayList<Match>();
@@ -94,7 +95,7 @@ public final class YearExtractor implements Extractor {
         for (var dropped : toRemove) {
             var weakDups = ctx.matches.all()
                     .filter(m -> m.tags().contains("weak-duplicate"))
-                    .filter(m -> "season".equals(m.name()) || "episode".equals(m.name()))
+                    .filter(m -> m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE)
                     .filter(dropped::overlaps)
                     .toList();
             for (var m : weakDups) ctx.matches.remove(m);

@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.*;
 
@@ -45,7 +46,7 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
      * values as additional {@code absolute_episode} matches.
      */
     private static void absoluteRangeFill(ParseContext ctx) {
-        var absEps = ctx.matches.named("absolute_episode")
+        var absEps = ctx.matches.named(MatchName.ABSOLUTE_EPISODE)
             .filter(m -> m.value() instanceof Integer)
             .sorted(Comparator.comparingInt(Match::start))
             .toList();
@@ -66,7 +67,7 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
 
             // Insert intermediates at the same position as b (zero-width).
             for (int v = va + 1; v < vb; v++) {
-                fills.add(new Match("absolute_episode", v,
+                fills.add(new Match(MatchName.ABSOLUTE_EPISODE, v,
                     b.start(), b.start(),
                     "", a.priority(), Set.of("range-fill"), false));
             }
@@ -128,19 +129,19 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
         if (!gapBetweenGroupsIsSepOnly(ctx, lower, higher)) return;
 
         for (var m : higher) {
-            ctx.matches.replace(m, m.withName("absolute_episode"));
+            ctx.matches.replace(m, m.withName(MatchName.ABSOLUTE_EPISODE));
         }
     }
 
     private static boolean hasSxxExxEpisode(ParseContext ctx, Marker fp) {
-        return ctx.matches.named("episode")
+        return ctx.matches.named(MatchName.EPISODE)
             .anyMatch(m -> m.tags().contains("SxxExx")
                 && m.start() >= fp.start() && m.end() <= fp.end());
     }
 
     private static List<Match> collectEpisodesInFilepart(ParseContext ctx, Marker fp) {
         return ctx.matches.snapshot().stream()
-            .filter(m -> "episode".equals(m.name())
+            .filter(m -> m.name() == MatchName.EPISODE
                 && !m.isPrivate()
                 && m.start() >= fp.start() && m.end() <= fp.end())
             .sorted(Comparator.comparingInt(Match::start))

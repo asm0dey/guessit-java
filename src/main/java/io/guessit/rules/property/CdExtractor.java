@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -22,16 +23,16 @@ public final class CdExtractor implements Extractor {
 
         var m = CD_OF.matcher(input);
         while (m.find()) {
-            var head = new Match("cd", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
+            var head = new Match(MatchName.CD, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
             var cd = Integer.parseInt(m.group("cd"));
             if (cd <= 0 || cd >= 100) continue;
-            ctx.matches.add(new Match("cd", cd,
+            ctx.matches.add(new Match(MatchName.CD, cd,
                 m.start("cd"), m.end("cd"), m.group("cd"), priority(), Set.of(), false));
             if (m.group(COUNT) != null) {
                 var c = Integer.parseInt(m.group(COUNT));
                 if (c > 0 && c < 100) {
-                    ctx.matches.add(new Match("cd_count", c,
+                    ctx.matches.add(new Match(MatchName.CD_COUNT, c,
                         m.start(COUNT), m.end(COUNT), m.group(COUNT),
                         priority(), Set.of(), false));
                 }
@@ -40,11 +41,11 @@ public final class CdExtractor implements Extractor {
 
         m = CD_COUNT.matcher(input);
         while (m.find()) {
-            var head = new Match("cd_count", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
+            var head = new Match(MatchName.CD_COUNT, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
             var c = Integer.parseInt(m.group(COUNT));
             if (c <= 0 || c >= 100) continue;
-            ctx.matches.add(new Match("cd_count", c,
+            ctx.matches.add(new Match(MatchName.CD_COUNT, c,
                 m.start(COUNT), m.end(COUNT), m.group(COUNT),
                 priority(), Set.of(), false));
             // Cover the trailing "cd"/"cds" literal with a private marker so
@@ -53,7 +54,7 @@ public final class CdExtractor implements Extractor {
             int litEnd = m.end();
             while (litStart < litEnd && Seps.isSep(input.charAt(litStart))) litStart++;
             if (litEnd > litStart) {
-                ctx.matches.add(new Match("cd_marker", null, litStart, litEnd,
+                ctx.matches.add(new Match(MatchName.CD_MARKER, null, litStart, litEnd,
                     input.substring(litStart, litEnd), priority(), Set.of(), true));
             }
         }

@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Marker;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -17,8 +18,8 @@ import java.util.HashSet;
  * source for the work itself, so let it win whenever it spoke up.
  */
 public final class PreferLastPath implements PostProcessor {
-    private static final java.util.Set<String> TITLE_FAMILY =
-        java.util.Set.of("title", "alternative_title", "episode_title");
+    private static final java.util.Set<MatchName> TITLE_FAMILY =
+        java.util.Set.of(MatchName.TITLE, MatchName.ALTERNATIVE_TITLE, MatchName.EPISODE_TITLE);
 
 
     @Override
@@ -33,7 +34,7 @@ public final class PreferLastPath implements PostProcessor {
         // filepart. Only those names are eligible for parent-segment pruning;
         // everything else (e.g. a year only present in a parent dir) stays.
         // Map name -> set of values present in the last filepart.
-        var inLastValues = new java.util.HashMap<String, java.util.Set<Object>>();
+        var inLastValues = new java.util.HashMap<MatchName, java.util.Set<Object>>();
         ctx.matches.all()
             .filter(m -> !m.isPrivate())
             .filter(m -> m.start() >= last.start() && m.end() <= last.end())
@@ -70,7 +71,7 @@ public final class PreferLastPath implements PostProcessor {
             // picked because their filepart has a year-in-group. Dropping
             // them lets the inner filepart's title (often poorer casing or
             // has a release-group prefix like "blow-…") win.
-            .filter(m -> !("title".equals(m.name()) && m.tags().contains("equivalent-ignore")))
+            .filter(m -> !(m.name() == MatchName.TITLE && m.tags().contains("equivalent-ignore")))
             // Preserve outer SxxExx-tagged season/episode when the last
             // filepart only has non-SxxExx matches for that name. Palindrome-
             // tail filenames produce bogus weak-episode/weak-duplicate matches
@@ -79,7 +80,7 @@ public final class PreferLastPath implements PostProcessor {
             // RemoveLessSpecificSeasonEpisode handles the proper marker_sorted
             // comparison later.
             .filter(m -> {
-                if (!"season".equals(m.name()) && !"episode".equals(m.name())) return true;
+                if (m.name() != MatchName.SEASON && m.name() != MatchName.EPISODE) return true;
                 if (!m.tags().contains("SxxExx")) return true;
                 return ctx.matches.snapshot().stream()
                     .filter(s -> !s.isPrivate())

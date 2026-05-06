@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.regex.Pattern;
@@ -33,7 +34,7 @@ public final class VersionExtractor implements Extractor {
                     char prev = input.charAt(s - 1);
                     return Seps.isSep(prev) || Character.isDigit(prev);
                 });
-        for (var m : PatternMatcher.regex(input, PATTERN, "version", opts)) {
+        for (var m : PatternMatcher.regex(input, PATTERN, MatchName.VERSION, opts)) {
             ctx.matches.add(m);
         }
     }
@@ -43,8 +44,8 @@ public final class VersionExtractor implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
-        var versions = ctx.matches.named("version").toList();
-        var episodes = ctx.matches.named("episode").toList();
+        var versions = ctx.matches.named(MatchName.VERSION).toList();
+        var episodes = ctx.matches.named(MatchName.EPISODE).toList();
         var toRemove = new ArrayList<Match>();
         var input = ctx.input;
         for (var v : versions) {

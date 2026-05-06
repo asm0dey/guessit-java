@@ -8,15 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class EpisodeFormatExtractorTest {
     @Test void minisode() {
-        var r = Guessit.parse("Show.S01E02.Minisode.mkv").toMap();
-        assertEquals("Minisode", r.get("episode_format"));
+        var r = Guessit.parse("Show.S01E02.Minisode.mkv");
+        assertEquals("Minisode", r.episodeFormat());
     }
     @Test void minisodesPlural() {
-        var r = Guessit.parse("Show.S01.Minisodes.Pack.mkv").toMap();
-        assertEquals("Minisode", r.get("episode_format"));
+        var r = Guessit.parse("Show.S01.Minisodes.Pack.mkv");
+        assertEquals("Minisode", r.episodeFormat());
     }
     @Test void noFormat() {
-        var r = Guessit.parse("Show.S01E02.mkv").toMap();
-        assertNull(r.get("episode_format"));
+        var r = Guessit.parse("Show.S01E02.mkv");
+        assertNull(r.episodeFormat());
     }
 }

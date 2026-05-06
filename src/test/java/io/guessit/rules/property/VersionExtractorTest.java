@@ -8,15 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class VersionExtractorTest {
     @Test void versionAfterEpisode() {
-        var r = Guessit.parse("Show.E02v2.mkv").toMap();
-        assertEquals(2, r.get("version"));
+        var r = Guessit.parse("Show.E02v2.mkv");
+        assertEquals(2, r.version());
     }
     @Test void detachedVersionNoEpisodeIsDropped() {
-        var r = Guessit.parse("v3 randomshow.mkv").toMap();
-        assertEquals(3, r.get("version"));
+        var r = Guessit.parse("v3 randomshow.mkv");
+        assertEquals(3, r.version());
     }
     @Test void noVersion() {
-        var r = Guessit.parse("Show.S01E02.mkv").toMap();
-        assertNull(r.get("version"));
+        var r = Guessit.parse("Show.S01E02.mkv");
+        assertNull(r.version());
     }
 }

@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.Locale;
 
 /**
  * Extracts {@code streaming_service} (NF, AMZN, HULU, …).
@@ -76,7 +77,7 @@ public final class StreamingServiceExtractor implements Extractor {
             if (i < 0) break;
             int e = i + n.length();
             if (boundsOk(ctx, input, i, e)) {
-                ctx.matches.add(new Match(STREAMING_SERVICE, value, i, e,
+                ctx.matches.add(new Match(MatchName.STREAMING_SERVICE, value, i, e,
                     input.substring(i, e), 1000, Set.of("source-prefix"), false));
             }
             from = i + 1;
@@ -94,7 +95,7 @@ public final class StreamingServiceExtractor implements Extractor {
             int s = matcher.start();
             int e = matcher.end();
             if (boundsOk(ctx, input, s, e)) {
-                ctx.matches.add(new Match(STREAMING_SERVICE, value, s, e,
+                ctx.matches.add(new Match(MatchName.STREAMING_SERVICE, value, s, e,
                     input.substring(s, e), 1000, Set.of("source-prefix"), false));
             }
         }
@@ -115,7 +116,7 @@ public final class StreamingServiceExtractor implements Extractor {
 
     private static boolean abutsStreamingTagged(ParseContext ctx, int pos, boolean prefixSide) {
         var tag = prefixSide ? "streaming_service.prefix" : "streaming_service.suffix";
-        return ctx.matches.named("other")
+        return ctx.matches.named(MatchName.OTHER)
             .filter(m -> m.tags().contains(tag))
             .anyMatch(m -> prefixSide ? m.end() == pos : m.start() == pos);
     }
@@ -126,7 +127,7 @@ public final class StreamingServiceExtractor implements Extractor {
      *  between the service and the neighbor. */
     @Override
     public void postProcess(ParseContext ctx) {
-        var services = ctx.matches.named(STREAMING_SERVICE).toList();
+        var services = ctx.matches.named(MatchName.STREAMING_SERVICE).toList();
         if (services.isEmpty()) return;
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();

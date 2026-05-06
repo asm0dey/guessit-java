@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -23,12 +24,12 @@ public final class SeasonYearLink implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        if (ctx.matches.named("year").findAny().isPresent()) return;
-        var seasons = ctx.matches.named("season").toList();
+        if (ctx.matches.named(MatchName.YEAR).findAny().isPresent()) return;
+        var seasons = ctx.matches.named(MatchName.SEASON).toList();
         for (var s : seasons) {
             if (!(s.value() instanceof Integer i)) continue;
             if (i < MIN_YEAR || i > MAX_YEAR) continue;
-            ctx.matches.add(new Match("year", i, s.start(), s.end(), s.raw(),
+            ctx.matches.add(new Match(MatchName.YEAR, i, s.start(), s.end(), s.raw(),
                 s.priority(), Set.of("season-derived"), false));
             return;
         }

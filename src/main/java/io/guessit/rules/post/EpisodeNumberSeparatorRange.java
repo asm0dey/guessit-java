@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -39,7 +40,7 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
      */
     private static final Pattern RANGE_THEN_NUM = Pattern.compile(
         "(?i)[\\s._]*[-~][\\s._]*(\\d+)|[\\s._]+to[\\s._]+(\\d+)");
-    public static final String EPISODE = "episode";
+    public static final MatchName EPISODE = MatchName.EPISODE;
 
     @Override
     public void process(ParseContext ctx) {

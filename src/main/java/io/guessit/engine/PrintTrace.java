@@ -19,7 +19,7 @@ public final class PrintTrace implements Trace {
         var sb = new StringBuilder();
         sb.append(m.raw()).append(':').append('(').append(m.start()).append(',').append(m.end()).append(')');
         if (m.isPrivate()) sb.append("+private");
-        sb.append("+name=").append(m.name());
+        sb.append("+name=").append(m.name().name().toLowerCase(java.util.Locale.ROOT));
         if (m.priority() != 1000) sb.append("+priority=").append(m.priority());
         if (!m.tags().isEmpty()) {
             var sorted = new java.util.ArrayList<>(m.tags());

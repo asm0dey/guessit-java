@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,14 +19,14 @@ import java.util.Set;
 public final class EpisodeDetailsExtractor implements Extractor {
     private static final List<String> DETAILS = List.of("Special", "Pilot", "Unaired", "Final");
 
-    @Override public String name() { return "episode_details"; }
+    @Override public String name() { return MatchName.EPISODE_DETAILS.toString().toLowerCase(); }
 
     @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         for (var detail : DETAILS) {
             var opts = StringOpts.defaults().withValidator(m -> Validators.sepsSurround(input).test(m));
-            var matches = PatternMatcher.string(input, Set.of(detail), "episode_details", opts);
+            var matches = PatternMatcher.string(input, Set.of(detail), MatchName.EPISODE_DETAILS, opts);
             for (var m : matches) ctx.matches.add(m);
         }
     }
@@ -38,13 +39,13 @@ public final class EpisodeDetailsExtractor implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
-        var details = ctx.matches.named("episode_details").toList();
+        var details = ctx.matches.named(MatchName.EPISODE_DETAILS).toList();
         var toRemove = new ArrayList<Match>();
         var seps = Validators.sepsSurround(ctx.input);
         for (var d : details) {
             if (seps.test(d)) continue;
             boolean seasonOrEpisode = ctx.matches.all()
-                .anyMatch(m -> ("season".equals(m.name()) || "episode".equals(m.name())));
+                .anyMatch(m -> (m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE));
             if (!seasonOrEpisode) toRemove.add(d);
         }
         for (var m : toRemove) ctx.matches.remove(m);

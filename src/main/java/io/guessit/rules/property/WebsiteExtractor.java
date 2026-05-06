@@ -2,6 +2,7 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.Seps;
 import io.guessit.engine.Validators;
@@ -37,8 +38,15 @@ public final class WebsiteExtractor implements Extractor {
 
     public static final String WEBSITE = "website";
 
-    @Override public String name() { return WEBSITE; }
-    @Override public int priority() { return 100; }
+    @Override
+    public String name() {
+        return WEBSITE;
+    }
+
+    @Override
+    public int priority() {
+        return 100;
+    }
 
     private static final String TLD_PATH = "/io/guessit/data/tlds-alpha-by-domain.txt";
 
@@ -68,15 +76,15 @@ public final class WebsiteExtractor implements Extractor {
 
         // Pattern 1: safe subdomain + any TLD
         this.pattern1 = safeCompile(
-            "(?:[^a-z0-9]|^)((?:www\\.)+(?:[a-z0-9-]+\\.)+" + tldOr + ")(?:[^a-z0-9]|$)");
+                "(?:[^a-z0-9]|^)((?:www\\.)+(?:[a-z0-9-]+\\.)+" + tldOr + ")(?:[^a-z0-9]|$)");
 
         // Pattern 2: safe TLD with optional subdomains
         this.pattern2 = safeCompile(
-            "(?:[^a-z0-9]|^)((?:www\\.)*[a-z0-9-]+\\.(?:" + safeTldOr + "))(?:[^a-z0-9]|$)");
+                "(?:[^a-z0-9]|^)((?:www\\.)*[a-z0-9-]+\\.(?:" + safeTldOr + "))(?:[^a-z0-9]|$)");
 
         // Pattern 3: safe prefix + any TLD
         this.pattern3 = safeCompile(
-            "(?:[^a-z0-9]|^)((?:www\\.)*[a-z0-9-]+\\.(?:" + safePrefixOr + "\\.)+(?:" + tldOr + "))(?:[^a-z0-9]|$)");
+                "(?:[^a-z0-9]|^)((?:www\\.)*[a-z0-9-]+\\.(?:" + safePrefixOr + "\\.)+(?:" + tldOr + "))(?:[^a-z0-9]|$)");
     }
 
     @Override
@@ -93,7 +101,7 @@ public final class WebsiteExtractor implements Extractor {
                 int i = hay.indexOf(needle, idxFrom);
                 if (i < 0) break;
                 int end = i + needle.length();
-                var m = new Match(WEBSITE, prefix, i, end, input.substring(i, end), 0, Set.of("website.prefix"), true);
+                var m = new Match(MatchName.WEBSITE, prefix, i, end, input.substring(i, end), 0, Set.of("website.prefix"), true);
                 if (validator.test(m)) ctx.matches.add(m);
                 idxFrom = i + 1;
             }
@@ -116,7 +124,7 @@ public final class WebsiteExtractor implements Extractor {
             // enforce non-alphanum boundaries; no extra sepsSurround needed.
             // check inner match has valid chars
             if (!isValidDomainChars(raw)) continue;
-            var m = new Match(WEBSITE, raw, s, e, raw, 100, Set.of(), false);
+            var m = new Match(MatchName.WEBSITE, raw, s, e, raw, 100, Set.of(), false);
             ctx.matches.add(m);
         }
     }
@@ -140,7 +148,7 @@ public final class WebsiteExtractor implements Extractor {
         // Skip private website.prefix matches; ValidateWebsitePrefix below
         // handles their lifecycle. Removing them here strips the "from" span
         // before TitleExtractor sees it, leaving "From" as a usable title hole.
-        var sites = ctx.matches.named(WEBSITE).filter(m -> !m.isPrivate()).toList();
+        var sites = ctx.matches.named(MatchName.WEBSITE).filter(m -> !m.isPrivate()).toList();
         for (var w : sites) {
             if (shouldRemoveUnsafeWebsite(w, ctx)) {
                 toRemove.add(w);
@@ -175,8 +183,8 @@ public final class WebsiteExtractor implements Extractor {
 
     private boolean hasFollowingSeasonEpisodeOrDate(Match w, ParseContext ctx) {
         return ctx.matches.all().anyMatch(o ->
-                ("season".equals(o.name()) || "episode".equals(o.name())
-                        || "year".equals(o.name()) || "date".equals(o.name()))
+                (o.name() == MatchName.SEASON || o.name() == MatchName.EPISODE
+                        || o.name() == MatchName.YEAR || o.name() == MatchName.DATE)
                         && o.start() >= w.end());
     }
 
@@ -186,7 +194,7 @@ public final class WebsiteExtractor implements Extractor {
     }
 
     private boolean shouldRemovePrefixMatch(Match m, ParseContext ctx, ArrayList<Match> toRemove) {
-        var websiteMatch = ctx.matches.named(WEBSITE)
+        var websiteMatch = ctx.matches.named(MatchName.WEBSITE)
                 .filter(w -> w.start() > m.end() && !toRemove.contains(w))
                 .findFirst().orElse(null);
 
@@ -214,8 +222,11 @@ public final class WebsiteExtractor implements Extractor {
     }
 
     private static Pattern safeCompile(String src) {
-        try { return Pattern.compile(src, Pattern.CASE_INSENSITIVE); }
-        catch (Exception e) { throw new RuntimeException("Bad pattern: " + src, e); }
+        try {
+            return Pattern.compile(src, Pattern.CASE_INSENSITIVE);
+        } catch (Exception e) {
+            throw new RuntimeException("Bad pattern: " + src, e);
+        }
     }
 
     private static List<String> loadTlds() {
@@ -226,7 +237,10 @@ public final class WebsiteExtractor implements Extractor {
             boolean first = true;
             while ((line = reader.readLine()) != null) {
                 line = line.strip();
-                if (first) { first = false; continue; } // skip header
+                if (first) {
+                    first = false;
+                    continue;
+                } // skip header
                 if (line.isEmpty() || line.contains("--")) continue;
                 tlds.add(line.toLowerCase(java.util.Locale.ROOT));
             }
@@ -236,7 +250,9 @@ public final class WebsiteExtractor implements Extractor {
         return tlds;
     }
 
-    /** Lazily loads config so the static initializer works in tests. */
+    /**
+     * Lazily loads config so the static initializer works in tests.
+     */
     private static class ConfigHolder {
         private static java.util.Map<String, Object> websiteConfig() {
             var config = io.guessit.config.ConfigLoader.load(io.guessit.Options.defaults());

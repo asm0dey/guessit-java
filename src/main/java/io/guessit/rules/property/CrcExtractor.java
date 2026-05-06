@@ -2,6 +2,7 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.Validators;
 
@@ -49,14 +50,14 @@ public final class CrcExtractor implements Extractor {
      */
     @SuppressWarnings("JavadocReference")
     private void dropSeasonEpisodeInsideCrc(ParseContext ctx) {
-        var crcSpans = ctx.matches.named("crc32")
+        var crcSpans = ctx.matches.named(MatchName.CRC32)
             .map(m -> new int[]{m.start(), m.end()})
             .toList();
         if (crcSpans.isEmpty()) return;
         var toRemove = new java.util.ArrayList<Match>();
         ctx.matches.all().forEach(m -> {
-            String n = m.name();
-            if (!"season".equals(n) && !"episode".equals(n) && !"seasonHead".equals(n)) return;
+            MatchName n = m.name();
+            if (n != MatchName.SEASON && n != MatchName.EPISODE && n != MatchName.SEASON_HEAD) return;
             for (var s : crcSpans) {
                 if (m.start() >= s[0] && m.end() <= s[1]) {
                     toRemove.add(m);
@@ -72,9 +73,9 @@ public final class CrcExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var m = CRC.matcher(input);
         while (m.find()) {
-            var head = new Match("crc32", null, m.start(1), m.end(1), m.group(1), priority(), Set.of(), false);
+            var head = new Match(MatchName.CRC32, null, m.start(1), m.end(1), m.group(1), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
-            ctx.matches.add(new Match("crc32", m.group(1),
+            ctx.matches.add(new Match(MatchName.CRC32, m.group(1),
                 m.start(1), m.end(1), m.group(1), priority(), Set.of(), false));
         }
     }
@@ -91,9 +92,9 @@ public final class CrcExtractor implements Extractor {
             // uuid in place, so without this guard a string like
             // "S01E01E07-FooBar-Group" becomes uuid AND blocks episode_title.
             if (SXX_EXX_INSIDE.matcher(raw).find()) continue;
-            var head = new Match("uuid", null, m.start(1), m.end(1), raw, priority(), Set.of(), false);
+            var head = new Match(MatchName.UUID, null, m.start(1), m.end(1), raw, priority(), Set.of(), false);
             if (!seps.test(head)) continue;
-            ctx.matches.add(new Match("uuid", raw,
+            ctx.matches.add(new Match(MatchName.UUID, raw,
                 m.start(1), m.end(1), raw, priority(), Set.of(), false));
         }
     }

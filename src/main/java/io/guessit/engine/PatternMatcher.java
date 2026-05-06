@@ -33,7 +33,7 @@ public final class PatternMatcher {
      * {@code valueFormatter} optionally remaps it (e.g. canonicalisation).
      * The {@code validator} sees the constructed match and may veto it.
      */
-    public static List<Match> regex(String input, Pattern pattern, String name, RegexOpts opts) {
+    public static List<Match> regex(String input, Pattern pattern, MatchName name, RegexOpts opts) {
         var out = new ArrayList<Match>();
         var m = pattern.matcher(input);
         boolean hasValueGroup = HAS_VALUE_GROUP.computeIfAbsent(pattern, PatternMatcher::detectValueGroup);
@@ -65,7 +65,7 @@ public final class PatternMatcher {
      * needles is unspecified.
      */
     @SuppressWarnings("JavadocReference")
-    public static List<Match> string(String input, Set<String> needles, String name, StringOpts opts) {
+    public static List<Match> string(String input, Set<String> needles, MatchName name, StringOpts opts) {
         var out = new ArrayList<Match>();
         var hay = opts.caseSensitive() ? input : input.toLowerCase(java.util.Locale.ROOT);
         for (var raw : needles) {

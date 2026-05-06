@@ -12,6 +12,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import static io.guessit.engine.MatchName.*;
+
 /**
  * Extracts {@code source} (BluRay, WEB-DL, HDTV, DVD, …).
  *
@@ -149,7 +151,7 @@ public final class SourceExtractor implements Extractor {
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var sourceMatch = new Match(SOURCE, rule.source(), s, e,
+            var sourceMatch = new Match(MatchName.SOURCE, rule.source(), s, e,
                     input.substring(s, e), 1000, rule.tags(), false);
             if (!validator.test(sourceMatch)) continue;
             if (overlapsExtension(ctx, s, e)) continue;
@@ -161,18 +163,18 @@ public final class SourceExtractor implements Extractor {
             // streaming_service literal can validate against it.
             // Mirrors python's source private_parent semantics where private
             // source matches survive overlap with streaming_service.
-            boolean insideStream = ctx.matches.named(StreamingServiceExtractor.STREAMING_SERVICE)
+            boolean insideStream = ctx.matches.named(MatchName.STREAMING_SERVICE)
                 .anyMatch(ss -> ss.start() <= s && e <= ss.end() && (ss.start() < s || e < ss.end()));
             var emit = insideStream
-                ? new Match(SOURCE, rule.source(), s, e,
+                ? new Match(MatchName.SOURCE, rule.source(), s, e,
                     input.substring(s, e), 1000, rule.tags(), true)
                 : sourceMatch;
             ctx.matches.add(emit);
             if (rule.otherValue() != null) {
-                int os = groupStart(matcher, OTHER);
-                int oe = groupEnd(matcher, OTHER);
+                int os = groupStart(matcher, "other");
+                int oe = groupEnd(matcher, "other");
                 if (os >= 0 && oe > os) {
-                    ctx.matches.add(new Match(OTHER, rule.otherValue(), os, oe,
+                    ctx.matches.add(new Match(MatchName.OTHER, rule.otherValue(), os, oe,
                             input.substring(os, oe), 1000, Set.of("coexist", "derivedFrom:source"), false));
                 }
             }
@@ -180,7 +182,7 @@ public final class SourceExtractor implements Extractor {
                 int as = groupStart(matcher, "another");
                 int ae = groupEnd(matcher, "another");
                 if (as >= 0 && ae > as) {
-                    ctx.matches.add(new Match(OTHER, rule.anotherValue(), as, ae,
+                    ctx.matches.add(new Match(MatchName.OTHER, rule.anotherValue(), as, ae,
                             input.substring(as, ae), 1000, Set.of("coexist", "derivedFrom:source"), false));
                 }
             }
@@ -188,7 +190,7 @@ public final class SourceExtractor implements Extractor {
     }
 
     private static boolean overlapsExtension(ParseContext ctx, int s, int e) {
-        return ctx.matches.named("container")
+        return ctx.matches.named(MatchName.CONTAINER)
                 .anyMatch(m -> m.tags().contains("extension")
                         && m.start() < e && s < m.end());
     }
@@ -218,7 +220,7 @@ public final class SourceExtractor implements Extractor {
 
     private void validatePrefixSuffix(ParseContext ctx) {
         var input = ctx.input;
-        var sources = ctx.matches.named(SOURCE).toList();
+        var sources = ctx.matches.named(MatchName.SOURCE).toList();
         var toRemove = new ArrayList<Match>();
         var sepsBefore = Validators.sepsBefore(input);
         var sepsAfter = Validators.sepsAfter(input);
@@ -233,7 +235,7 @@ public final class SourceExtractor implements Extractor {
     }
 
     private void validateWeakSource(ParseContext ctx) {
-        var weaks = ctx.matches.named(SOURCE)
+        var weaks = ctx.matches.named(MatchName.SOURCE)
                 .filter(m -> m.tags().contains("weak.source"))
                 .toList();
         if (weaks.isEmpty()) return;
@@ -242,7 +244,7 @@ public final class SourceExtractor implements Extractor {
             if (!"path".equals(filepart.name())) continue;
             for (var weak : weaks) {
                 if (!filepart.covers(weak.start(), weak.end())) continue;
-                boolean later = ctx.matches.named(SOURCE)
+                boolean later = ctx.matches.named(MatchName.SOURCE)
                         .anyMatch(m -> m != weak && m.start() >= weak.end() && m.end() <= filepart.end());
                 if (!later) continue;
                 var pre = ctx.input.substring(filepart.start(), weak.start());
@@ -253,7 +255,7 @@ public final class SourceExtractor implements Extractor {
     }
 
     private void upgradeUltraHdBluray(ParseContext ctx) {
-        var bds = ctx.matches.named(SOURCE)
+        var bds = ctx.matches.named(MatchName.SOURCE)
                 .filter(m -> "Blu-ray".equals(m.value()))
                 .toList();
         if (bds.isEmpty()) return;
@@ -269,7 +271,7 @@ public final class SourceExtractor implements Extractor {
                     ok = uhdOther != null && validRange(ctx, bd.end(), uhdOther.start());
                 }
                 if (!ok) {
-                    boolean has2160p = ctx.matches.named("screen_size")
+                    boolean has2160p = ctx.matches.named(MatchName.SCREEN_SIZE)
                             .anyMatch(m -> "2160p".equals(m.value()) && filepart.covers(m.start(), m.end()));
                     if (!has2160p) continue;
                     uhdOther = null;
@@ -277,7 +279,7 @@ public final class SourceExtractor implements Extractor {
                 if (uhdOther != null) {
                     ctx.matches.remove(uhdOther);
                 }
-                ctx.matches.replace(bd, new Match(SOURCE, "Ultra HD Blu-ray",
+                ctx.matches.replace(bd, new Match(MatchName.SOURCE, "Ultra HD Blu-ray",
                         bd.start(), bd.end(), bd.raw(), bd.priority(), bd.tags(), bd.isPrivate()));
             }
         }
@@ -285,7 +287,7 @@ public final class SourceExtractor implements Extractor {
 
     private static Match findUltraHd(ParseContext ctx, int start, int end, boolean preferLast) {
         Match best = null;
-        for (var m : ctx.matches.named(OTHER).toList()) {
+        for (var m : ctx.matches.named(MatchName.OTHER).toList()) {
             if (m.isPrivate()) continue;
             if (!"Ultra HD".equals(m.value())) continue;
             if (m.start() < start || m.end() > end) continue;
@@ -324,9 +326,9 @@ public final class SourceExtractor implements Extractor {
     }
 
     private static boolean isAllowedMatch(Match m) {
-        if ("screen_size".equals(m.name())) return true;
-        if ("color_depth".equals(m.name())) return true;
-        return OTHER.equals(m.name()) && m.tags().contains("uhdbluray-neighbor");
+        if (m.name() == MatchName.SCREEN_SIZE) return true;
+        if (m.name() == MatchName.COLOR_DEPTH) return true;
+        return m.name() == MatchName.OTHER && m.tags().contains("uhdbluray-neighbor");
     }
 
     private static boolean hasNonSeparatorHoles(ParseContext ctx, int s, int e) {

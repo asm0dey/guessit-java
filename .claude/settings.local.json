@@ -54,7 +54,15 @@
       "mcp__idea__xdebug_list_breakpoints",
       "Bash(read f *)",
       "Bash(uvx guessit *)",
-      "Bash(./gradlew compileJava compileTestJava)"
+      "Bash(./gradlew compileJava compileTestJava)",
+      "Bash(awk -F: '{print $1}')",
+      "mcp__idea__read_file",
+      "mcp__idea__replace_text_in_file",
+      "Bash(javac -cp /home/finkel/work_self/guessit-java/target/classes:/home/finkel/.m2/repository/junit/junit/4.13.2/junit-4.13.2.jar -sourcepath /home/finkel/work_self/guessit-java/src/main/java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/EpisodeDetailsExtractor.java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/EpisodeFormatExtractor.java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/EpisodeTitleExtractor.java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/FilmExtractor.java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/OtherExtractor.java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/PartExtractor.java /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/ReleaseGroupExtractor.java)",
+      "mcp__idea__get_file_problems",
+      "Bash(javac -cp target/classes src/test/java/io/guessit/rules/property/AudioCodecExtractorTest.java)",
+      "Bash(javac -cp target/classes:__TRACKED_VAR__ /tmp/Probe.java -d /tmp/)",
+      "Bash(java -cp target/classes:/tmp:__TRACKED_VAR__ Probe)"
     ]
   }
 }

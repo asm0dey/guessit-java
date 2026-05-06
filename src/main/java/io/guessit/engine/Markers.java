@@ -29,10 +29,10 @@ public final class Markers {
         // exclusion predicate matching Python's marker_comparator_predicate
         return markerSorted(paths, matches, m ->
             !m.isPrivate()
-            && !m.name().equals("proper_count")
-            && !m.name().equals("title")
-            && !(m.name().equals("container") && m.tags().contains("extension"))
-            && !(m.name().equals("other") && "Rip".equals(m.value())));
+            && m.name() != MatchName.PROPER_COUNT
+            && m.name() != MatchName.TITLE
+            && !(m.name() == MatchName.CONTAINER && m.tags().contains("extension"))
+            && !(m.name() == MatchName.OTHER && "Rip".equals(m.value())));
     }
 
     /** Like {@link #markerSorted(List, MatchSet)} but with a custom counting

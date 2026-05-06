@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.PostPhase.PostProcessor;
 
 import java.util.Objects;
@@ -30,7 +31,7 @@ public final class EquivalentHoles implements PostProcessor {
             // letting the rule flip the better-cased existing value to the worse
             // one. Title casing is the primary win here anyway.
             Stream
-                    .of("title", "alternative_title", "episode_title")
+                    .of(MatchName.TITLE, MatchName.ALTERNATIVE_TITLE, MatchName.EPISODE_TITLE)
                     .flatMap(name -> holes
                             .stream()
                             .filter(hole -> hole != null && hole.value() != null && !hole.value().isEmpty())

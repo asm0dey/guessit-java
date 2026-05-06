@@ -4,6 +4,7 @@ import io.guessit.Guessit;
 import io.guessit.Options;
 import io.guessit.config.ConfigLoader;
 import io.guessit.engine.ConflictSolver;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.rules.markers.GroupMarker;
 import io.guessit.rules.markers.PathMarker;
@@ -28,36 +29,36 @@ class ScreenSizeExtractorTest {
 
     @Test void progressive1080p() {
         var ctx = run("Movie.2015.1080p.BluRay.mkv");
-        assertEquals("1080p", ctx.matches.named("screen_size").findFirst().get().value());
+        assertEquals("1080p", ctx.matches.named(MatchName.SCREEN_SIZE).findFirst().get().value());
     }
     @Test void interlaced1080i() {
         var ctx = run("Show.2015.1080i.HDTV.mkv");
-        assertEquals("1080i", ctx.matches.named("screen_size").findFirst().get().value());
+        assertEquals("1080i", ctx.matches.named(MatchName.SCREEN_SIZE).findFirst().get().value());
     }
     @Test void widthByHeight() {
         var ctx = run("Movie.2015.1920x1080.mkv");
         // standard ar, width+height present → normalize to "1080p"
-        assertEquals("1080p", ctx.matches.named("screen_size").findFirst().get().value());
-        assertEquals(1.778, ((Number) ctx.matches.named("aspect_ratio").findFirst().get().value()).doubleValue(), 0.001);
+        assertEquals("1080p", ctx.matches.named(MatchName.SCREEN_SIZE).findFirst().get().value());
+        assertEquals(1.778, ((Number) ctx.matches.named(MatchName.ASPECT_RATIO).findFirst().get().value()).doubleValue(), 0.001);
     }
     @Test void fourK() {
         var ctx = run("Movie.4K.mkv");
-        assertEquals("2160p", ctx.matches.named("screen_size").findFirst().get().value());
+        assertEquals("2160p", ctx.matches.named(MatchName.SCREEN_SIZE).findFirst().get().value());
     }
     @Test void frameRate24p() {
         var ctx = run("Movie.2015.1080p24.mkv");
-        assertEquals("1080p", ctx.matches.named("screen_size").findFirst().get().value());
-        assertNotNull(ctx.matches.named("frame_rate").findFirst().orElse(null));
+        assertEquals("1080p", ctx.matches.named(MatchName.SCREEN_SIZE).findFirst().get().value());
+        assertNotNull(ctx.matches.named(MatchName.FRAME_RATE).findFirst().orElse(null));
     }
     @Test void rejectsLooseDigits() {
         var ctx = run("File.no.resolution.here.mkv");
-        assertEquals(0L, ctx.matches.named("screen_size").count());
+        assertEquals(0L, ctx.matches.named(MatchName.SCREEN_SIZE).count());
     }
 
     @Test void widthHeightWithSpaces() {
-        var r1 = Guessit.parse("500 x 480", Options.defaults()).toMap();
-        assertEquals("500x480", r1.get("screen_size"));
-        var r2 = Guessit.parse("500 * 480", Options.defaults()).toMap();
-        assertEquals("500x480", r2.get("screen_size"));
+        var r1 = Guessit.parse("500 x 480", Options.defaults());
+        assertEquals("500x480", r1.screenSize());
+        var r2 = Guessit.parse("500 * 480", Options.defaults());
+        assertEquals("500x480", r2.screenSize());
     }
 }

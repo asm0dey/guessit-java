@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -129,7 +130,7 @@ final class ConfigPatternHelpers {
         return Validators.sepsSurround(input);
     }
 
-    static Match createMatch(String name, String input, String value, Set<String> tags, int s, int e) {
+    static Match createMatch(MatchName name, String input, String value, Set<String> tags, int s, int e) {
         return new Match(name, value, s, e, input.substring(s, e), 1000, tags, false);
     }
 
@@ -137,7 +138,7 @@ final class ConfigPatternHelpers {
      * Scan {@code input} for every (case-insensitive) occurrence of {@code needle},
      * adding a match per hit that passes {@code validatorSrc}.
      */
-    static void emitString(ParseContext ctx, String propName, String input, String value,
+    static void emitString(ParseContext ctx, MatchName propName, String input, String value,
                            String needle, Object validatorSrc, Set<String> tags) {
         var validator = resolveValidator(input, validatorSrc);
         var hay = input.toLowerCase(Locale.ROOT);
@@ -187,7 +188,7 @@ final class ConfigPatternHelpers {
      * Remove every {@code propName} match tagged with {@code tag} that lacks
      * the requested adjacency.
      */
-    static void removeUnlessNeighbor(ParseContext ctx, String propName, String tag,
+    static void removeUnlessNeighbor(ParseContext ctx, MatchName propName, String tag,
                                      boolean checkBefore, boolean checkAfter) {
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();
@@ -207,7 +208,7 @@ final class ConfigPatternHelpers {
     }
 
     /** Drop later matches that share start, end, and value with an earlier one. */
-    static void dedupSameSpan(ParseContext ctx, String propName) {
+    static void dedupSameSpan(ParseContext ctx, MatchName propName) {
         var seen = new HashSet<String>();
         var toRemove = new ArrayList<Match>();
         for (var m : ctx.matches.named(propName).toList()) {

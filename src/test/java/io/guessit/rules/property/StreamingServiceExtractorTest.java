@@ -8,19 +8,19 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class StreamingServiceExtractorTest {
     @Test void amzn() {
-        var r = Guessit.parse("Show.S01.AMZN.WEB-DL.mkv").toMap();
-        assertEquals("Amazon Prime", r.get("streaming_service"));
+        var r = Guessit.parse("Show.S01.AMZN.WEB-DL.mkv");
+        assertEquals("Amazon Prime", r.streamingService());
     }
     @Test void atvp() {
-        var r = Guessit.parse("Show.S01.ATVP.WEB-DL.mkv").toMap();
-        assertEquals("AppleTV", r.get("streaming_service"));
+        var r = Guessit.parse("Show.S01.ATVP.WEB-DL.mkv");
+        assertEquals("AppleTV", r.streamingService());
     }
     @Test void disneyPlus() {
-        var r = Guessit.parse("Show.S01.DSNP.WEB-DL.mkv").toMap();
-        assertEquals("Disney+", r.get("streaming_service"));
+        var r = Guessit.parse("Show.S01.DSNP.WEB-DL.mkv");
+        assertEquals("Disney+", r.streamingService());
     }
     @Test void notMatchedWithoutSourceContext() {
-        var r = Guessit.parse("File.CC.foo").toMap();
-        assertNotEquals("Comedy Central", r.get("streaming_service"));
+        var r = Guessit.parse("File.CC.foo");
+        assertNotEquals("Comedy Central", r.streamingService());
     }
 }

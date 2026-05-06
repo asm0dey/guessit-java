@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.*;
 
@@ -63,7 +64,7 @@ public final class EditionExtractor implements Extractor {
         if (s.startsWith("re:")) {
             emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags());
         } else {
-            emitString(ctx, EDITION, input, key, s, SENTINEL, defaultTags());
+            emitString(ctx, MatchName.EDITION, input, key, s, SENTINEL, defaultTags());
         }
     }
 
@@ -85,7 +86,7 @@ public final class EditionExtractor implements Extractor {
     private static void emitPatterns(ParseContext ctx, String input, String editionValue,
                                      Object stringList, Object regexList,
                                      Object validatorSrc, Set<String> tags) {
-        forEachString(stringList, s -> emitString(ctx, EDITION, input, editionValue, s, validatorSrc, tags));
+        forEachString(stringList, s -> emitString(ctx, MatchName.EDITION, input, editionValue, s, validatorSrc, tags));
         forEachString(regexList, s -> emitRegex(ctx, input, editionValue, s, validatorSrc, tags));
     }
 
@@ -103,7 +104,7 @@ public final class EditionExtractor implements Extractor {
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var m = createMatch(EDITION, input, value, tags, s, e);
+            var m = createMatch(MatchName.EDITION, input, value, tags, s, e);
             if (!validator.test(m)) continue;
             ctx.matches.add(m);
         }
@@ -111,19 +112,19 @@ public final class EditionExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
-        removeUnlessNeighbor(ctx, EDITION, "has-neighbor", true, true);
-        removeUnlessNeighbor(ctx, EDITION, "has-neighbor-before", true, false);
-        removeUnlessNeighbor(ctx, EDITION, "has-neighbor-after", false, true);
+        removeUnlessNeighbor(ctx, MatchName.EDITION, "has-neighbor", true, true);
+        removeUnlessNeighbor(ctx, MatchName.EDITION, "has-neighbor-before", true, false);
+        removeUnlessNeighbor(ctx, MatchName.EDITION, "has-neighbor-after", false, true);
         dropOverlappingStreamingService(ctx);
-        dedupSameSpan(ctx, EDITION);
+        dedupSameSpan(ctx, MatchName.EDITION);
     }
 
     private static void dropOverlappingStreamingService(ParseContext ctx) {
-        var services = ctx.matches.named("streaming_service").toList();
+        var services = ctx.matches.named(MatchName.STREAMING_SERVICE).toList();
         if (services.isEmpty()) return;
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();
-        for (var ed : ctx.matches.named(EDITION).toList()) {
+        for (var ed : ctx.matches.named(MatchName.EDITION).toList()) {
             for (var svc : services) {
                 if (svc.start() != ed.start() || svc.end() != ed.end()) continue;
                 if (!streamingServiceWillSurvive(ctx, input, svc)) continue;

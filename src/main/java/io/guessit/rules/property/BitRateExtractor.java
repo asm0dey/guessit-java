@@ -2,6 +2,7 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.Validators;
 import io.guessit.util.BitRate;
@@ -37,14 +38,14 @@ public final class BitRateExtractor implements Extractor {
         // bit_rate match when it overlaps an existing non-weak audio_channels
         // match so "5.1.448kbps" → channels=5.1 + bit_rate=448kbps, not the
         // longer "1.448kbps" winning by length in ConflictSolver.
-        var channels = ctx.matches.named("audio_channels")
+        var channels = ctx.matches.named(MatchName.AUDIO_CHANNELS)
             .filter(m -> !m.tags().contains("weak-audio_channels"))
             .toList();
         for (var p : new Pattern[]{P_INT, P_DEC}) {
             var m = p.matcher(input);
             while (m.find()) {
                 int s = m.start(1), e = m.end(1);
-                var head = new Match("audio_bit_rate", null, s, e, m.group(1), priority(), Set.of(), false);
+                var head = new Match(MatchName.AUDIO_BIT_RATE, null, s, e, m.group(1), priority(), Set.of(), false);
                 if (!seps.test(head)) continue;
                 boolean overlapsChannels = false;
                 for (var ch : channels) {
@@ -52,7 +53,7 @@ public final class BitRateExtractor implements Extractor {
                 }
                 if (overlapsChannels) continue;
                 var raw = m.group(1);
-                ctx.matches.add(new Match("audio_bit_rate", BitRate.fromString(raw), s, e, raw,
+                ctx.matches.add(new Match(MatchName.AUDIO_BIT_RATE, BitRate.fromString(raw), s, e, raw,
                     priority(), Set.of("release-group-prefix"), false));
             }
         }

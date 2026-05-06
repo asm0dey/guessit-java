@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.compileDashedCi;
 import static io.guessit.rules.property.ConfigPatternHelpers.forEachString;
@@ -27,16 +28,16 @@ public final class AudioCodecExtractor implements Extractor {
 
     public static final String AUDIO_CODEC = "audio_codec";
     public static final String AUDIO_PROFILE = "audio_profile";
-    private static final Set<String> AUDIO_PROPS = Set.of(AUDIO_CODEC, AUDIO_PROFILE, "audio_channels");
+    private static final Set<MatchName> AUDIO_PROPS = Set.of(MatchName.AUDIO_CODEC, MatchName.AUDIO_PROFILE, MatchName.AUDIO_CHANNELS);
 
     @Override public String name() { return AUDIO_CODEC; }
 
     @Override
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(AUDIO_CODEC);
-        loadGroup(ctx, AUDIO_CODEC, asMap(section.get(AUDIO_CODEC)));
-        loadGroup(ctx, AUDIO_PROFILE, asMap(section.get(AUDIO_PROFILE)));
-        loadGroup(ctx, "audio_channels", asMap(section.get("audio_channels")));
+        loadGroup(ctx, MatchName.AUDIO_CODEC, asMap(section.get(AUDIO_CODEC)));
+        loadGroup(ctx, MatchName.AUDIO_PROFILE, asMap(section.get(AUDIO_PROFILE)));
+        loadGroup(ctx, MatchName.AUDIO_CHANNELS, asMap(section.get("audio_channels")));
     }
 
     /**
@@ -77,20 +78,20 @@ public final class AudioCodecExtractor implements Extractor {
 
     private void removeWeakAudioChannels(ParseContext ctx, List<Match> audio) {
         var weakChannels = ctx.matches.all()
-                .filter(m -> m.name().equals("audio_channels") && m.tags().contains("weak-audio_channels"))
+                .filter(m -> m.name() == MatchName.AUDIO_CHANNELS && m.tags().contains("weak-audio_channels"))
                 .toList();
         for (var wc : weakChannels) {
             boolean hasCodecBefore = audio.stream().anyMatch(o ->
-                    o.name().equals(AUDIO_CODEC) && o.end() == wc.start());
+                    o.name() == MatchName.AUDIO_CODEC && o.end() == wc.start());
             if (!hasCodecBefore) ctx.matches.remove(wc);
         }
     }
 
     private void removeOrphanedAudioProfiles(ParseContext ctx) {
-        var profilesWithRule = ctx.matches.named(AUDIO_PROFILE)
+        var profilesWithRule = ctx.matches.named(MatchName.AUDIO_PROFILE)
                 .filter(m -> m.tags().contains("audio_profile.rule"))
                 .toList();
-        var codecMatches = ctx.matches.named(AUDIO_CODEC).toList();
+        var codecMatches = ctx.matches.named(MatchName.AUDIO_CODEC).toList();
 
         for (var prof : profilesWithRule) {
             String requiredCodec = extractRequiredCodec(prof);
@@ -142,14 +143,14 @@ public final class AudioCodecExtractor implements Extractor {
     }
 
     private void removeConflictingHighQualityMatches(ParseContext ctx) {
-        var hqProfileSpans = ctx.matches.named(AUDIO_PROFILE)
+        var hqProfileSpans = ctx.matches.named(MatchName.AUDIO_PROFILE)
                 .filter(m -> "High Quality".equals(m.value()))
                 .map(m -> new int[]{m.start(), m.end()})
             .toList();
     
         if (hqProfileSpans.isEmpty()) return;
     
-        var hqOthers = ctx.matches.named("other")
+        var hqOthers = ctx.matches.named(MatchName.OTHER)
             .filter(m -> "High Quality".equals(m.value()))
             .filter(m -> hqProfileSpans.stream()
                 .anyMatch(sp -> sp[0] == m.start() && sp[1] == m.end()))
@@ -161,7 +162,7 @@ public final class AudioCodecExtractor implements Extractor {
         return o instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
     }
 
-    private void loadGroup(ParseContext ctx, String propName, Map<String, Object> group) {
+    private void loadGroup(ParseContext ctx, MatchName propName, Map<String, Object> group) {
         // No edge validator at extract time: AudioValidatorRule re-checks both sides in
         // postProcess and allows audio matches to touch other audio matches
         // (e.g. "True-HD51", "AAC2.0").

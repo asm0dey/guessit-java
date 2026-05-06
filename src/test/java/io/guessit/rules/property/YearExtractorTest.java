@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.Options;
 import io.guessit.config.OptionsConfig;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.rules.markers.GroupMarker;
 import io.guessit.rules.markers.PathMarker;
@@ -22,7 +23,7 @@ class YearExtractorTest {
         var x = new YearExtractor();
         x.extract(ctx);
         x.postProcess(ctx);
-        return ctx.matches.named("year").toList();
+        return ctx.matches.named(MatchName.YEAR).toList();
     }
 
     @Test void simpleYear() {

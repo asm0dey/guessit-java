@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.Options;
 import io.guessit.config.ConfigLoader;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,7 @@ class ContainerExtractorTest {
     private static List<Object> run(String input) {
         var ctx = new ParseContext(input, Options.defaults(), ConfigLoader.load(Options.defaults()));
         new ContainerExtractor().extract(ctx);
-        return ctx.matches.named("container").map(Match::value).toList();
+        return ctx.matches.named(MatchName.CONTAINER).map(Match::value).toList();
     }
 
     @Test void videoExtension() { assertEquals(List.of("mkv"), run("Movie.2015.mkv")); }

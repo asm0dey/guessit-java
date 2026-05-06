@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -28,28 +29,28 @@ public final class BonusExtractor implements Extractor {
         var m = P.matcher(input);
         while (m.find()) {
             // Use the full match span for separator-surround check.
-            var head = new Match("bonus", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
+            var head = new Match(MatchName.BONUS, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
 
             // Skip if any video_codec or strong episode overlaps this span.
             boolean conflict = ctx.matches.snapshot().stream().anyMatch(x ->
-                (x.name().equals("video_codec") ||
-                 (x.name().equals("episode") && !x.tags().contains("weak-episode")))
+                (x.name() == MatchName.VIDEO_CODEC ||
+                 (x.name() == MatchName.EPISODE && !x.tags().contains("weak-episode")))
                 && x.start() < m.end() && x.end() > m.start());
             if (conflict) continue;
 
             // Span covers the full "xNN" so the leading 'x' doesn't leak into
             // the surrounding title hole.
-            ctx.matches.add(new Match("bonus", Integer.parseInt(m.group("n")),
+            ctx.matches.add(new Match(MatchName.BONUS, Integer.parseInt(m.group("n")),
                 m.start(), m.end(), m.group(), priority(), Set.of(), false));
         }
     }
 
     @Override
     public void postProcess(ParseContext ctx) {
-        var bonusMatches = ctx.matches.named("bonus").toList();
+        var bonusMatches = ctx.matches.named(MatchName.BONUS).toList();
         if (bonusMatches.isEmpty()) return;
-        if (ctx.matches.named("bonus_title").findAny().isPresent()) return;
+        if (ctx.matches.named(MatchName.BONUS_TITLE).findAny().isPresent()) return;
 
         for (var bonus : bonusMatches) {
             // Find the filepart (path marker) that contains this bonus match.
@@ -81,7 +82,7 @@ public final class BonusExtractor implements Extractor {
             var title = hole.value();
             if (title == null || title.isBlank()) continue;
 
-            ctx.matches.add(new Match("bonus_title", title,
+            ctx.matches.add(new Match(MatchName.BONUS_TITLE, title,
                 hole.start, hole.end, hole.raw(), priority(), Set.of(), false));
             break; // one bonus_title per parse
         }

@@ -4,6 +4,7 @@ import io.guessit.Options;
 import io.guessit.config.OptionsConfig;
 import io.guessit.engine.Marker;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
@@ -23,11 +24,11 @@ class EnlargeGroupMatchesTest {
         // expected after processing: start=0, end=4
         var ctx = ctx("[abc value]");
         ctx.markers.add(new Marker("group", 0, 11, "[abc value]"));
-        ctx.matches.add(Match.of("title", "abc", 1, 4, "abc"));
+        ctx.matches.add(Match.of(MatchName.TITLE, "abc", 1, 4, "abc"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named("title").findFirst().orElseThrow();
+        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isZero();
         assertThat(result.end()).isEqualTo(4);
     }
@@ -40,11 +41,11 @@ class EnlargeGroupMatchesTest {
         // expected after processing: start=5, end=11
         var ctx = ctx("[abc value]");
         ctx.markers.add(new Marker("group", 0, 11, "[abc value]"));
-        ctx.matches.add(Match.of("title", "value", 5, 10, "value"));
+        ctx.matches.add(Match.of(MatchName.TITLE, "value", 5, 10, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named("title").findFirst().orElseThrow();
+        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isEqualTo(5);
         assertThat(result.end()).isEqualTo(11);
     }
@@ -57,11 +58,11 @@ class EnlargeGroupMatchesTest {
         // expected after processing: start=0, end=7
         var ctx = ctx("[value]");
         ctx.markers.add(new Marker("group", 0, 7, "[value]"));
-        ctx.matches.add(Match.of("title", "value", 1, 6, "value"));
+        ctx.matches.add(Match.of(MatchName.TITLE, "value", 1, 6, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named("title").findFirst().orElseThrow();
+        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isZero();
         assertThat(result.end()).isEqualTo(7);
     }
@@ -71,11 +72,11 @@ class EnlargeGroupMatchesTest {
         // "path" markers should not trigger enlargement
         var ctx = ctx("[value]");
         ctx.markers.add(new Marker("path", 0, 7, "[value]"));
-        ctx.matches.add(Match.of("title", "value", 1, 6, "value"));
+        ctx.matches.add(Match.of(MatchName.TITLE, "value", 1, 6, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named("title").findFirst().orElseThrow();
+        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isEqualTo(1);
         assertThat(result.end()).isEqualTo(6);
     }
@@ -85,11 +86,11 @@ class EnlargeGroupMatchesTest {
         // match entirely inside the group but not at boundaries
         var ctx = ctx("[abc value xyz]");
         ctx.markers.add(new Marker("group", 0, 15, "[abc value xyz]"));
-        ctx.matches.add(Match.of("title", "value", 5, 10, "value"));
+        ctx.matches.add(Match.of(MatchName.TITLE, "value", 5, 10, "value"));
 
         new EnlargeGroupMatches().process(ctx);
 
-        var result = ctx.matches.named("title").findFirst().orElseThrow();
+        var result = ctx.matches.named(MatchName.TITLE).findFirst().orElseThrow();
         assertThat(result.start()).isEqualTo(5);
         assertThat(result.end()).isEqualTo(10);
     }

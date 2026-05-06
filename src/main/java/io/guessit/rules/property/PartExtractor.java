@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -23,7 +24,7 @@ public final class PartExtractor implements Extractor {
         var seps = Validators.sepsSurround(input);
         var m = P.matcher(input);
         while (m.find()) {
-            var head = new Match("part", null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
+            var head = new Match(MatchName.PART, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
             if (!seps.test(head)) continue;
 
             var raw = m.group("n");
@@ -37,7 +38,7 @@ public final class PartExtractor implements Extractor {
 
             // Span covers the whole "part N" so the prefix word doesn't leak
             // into the surrounding title hole.
-            ctx.matches.add(new Match("part", v,
+            ctx.matches.add(new Match(MatchName.PART, v,
                 m.start(), m.end(), m.group(), priority(), Set.of(), false));
         }
     }

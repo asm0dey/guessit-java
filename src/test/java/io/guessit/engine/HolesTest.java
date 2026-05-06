@@ -6,23 +6,24 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.guessit.engine.MatchName.*;
 
 class HolesTest {
     @Test void computeReturnsGapsBetweenMatches() {
         var input = "Movie.Name.2020.1080p.x264";
         var matches = List.of(
-            Match.of("year", 2020, 11, 15, "2020"),
-            Match.of("screen_size", "1080p", 16, 21, "1080p"),
-            Match.of("video_codec", "H.264", 22, 26, "x264"));
+            Match.of(YEAR, 2020, 11, 15, "2020"),
+            Match.of(SCREEN_SIZE, "1080p", 16, 21, "1080p"),
+            Match.of(VIDEO_CODEC, "H.264", 22, 26, "x264"));
         var holes = Holes.compute(input, 0, input.length(), matches, _ -> false, null, Formatters::cleanup);
         assertEquals(1, holes.size());
         assertEquals("Movie Name", holes.getFirst().value());
     }
     @Test void ignoredMatchesAreTransparent() {
         var input = "Hello.world.bar";
-        var matches = List.of(Match.of("language", "en", 6, 11, "world"));
+        var matches = List.of(Match.of(LANGUAGE, "en", 6, 11, "world"));
         var holes = Holes.compute(input, 0, input.length(), matches,
-            m -> m.name().equals("language"), null, Formatters::cleanup);
+            m -> m.name() == LANGUAGE, null, Formatters::cleanup);
         assertEquals(1, holes.size());
         assertEquals("Hello world bar", holes.getFirst().value());
     }
@@ -43,7 +44,7 @@ class HolesTest {
     }
     @Test void emptyHoleSkipped() {
         var input = "ab";
-        var matches = List.of(Match.of("x", null, 0, 2, "ab"));
+        var matches = List.of(Match.of(G, null, 0, 2, "ab"));
         var holes = Holes.compute(input, 0, input.length(), matches, _ -> false, null, Formatters::cleanup);
         assertTrue(holes.isEmpty());
     }

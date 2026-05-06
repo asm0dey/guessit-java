@@ -8,6 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static io.guessit.engine.MatchName.*;
 
 class PipelineTest {
 
@@ -18,7 +19,7 @@ class PipelineTest {
             new MarkerPhase(List.of(c -> trace.add("marker"))),
             new ExtractorPhase(List.of(new Extractor() {
                 public String name() { return "test"; }
-                public void extract(ParseContext c) { trace.add("extract"); c.matches.add(Match.of("test", "x", 0, 1, "x")); }
+                public void extract(ParseContext c) { trace.add("extract"); c.matches.add(Match.of(EDITION, "x", 0, 1, "x")); }
             })),
             new ConflictPhase(),
             new PostPhase(List.of(c -> trace.add("post"))),

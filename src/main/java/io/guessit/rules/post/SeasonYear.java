@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -21,11 +22,11 @@ public final class SeasonYear implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        if (ctx.matches.named("year").findAny().isPresent()) return;
-        ctx.matches.named("season").toList().forEach(season -> {
+        if (ctx.matches.named(MatchName.YEAR).findAny().isPresent()) return;
+        ctx.matches.named(MatchName.SEASON).toList().forEach(season -> {
             if (!(season.value() instanceof Integer v)) return;
             if (v < MIN_YEAR || v > CUR + 1) return;
-            ctx.matches.add(new Match("year", v, season.start(), season.end(),
+            ctx.matches.add(new Match(MatchName.YEAR, v, season.start(), season.end(),
                 season.raw(), season.priority(), Set.copyOf(season.tags()), false));
         });
     }

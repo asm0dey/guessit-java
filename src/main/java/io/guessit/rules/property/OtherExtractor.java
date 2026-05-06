@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.*;
 
@@ -40,7 +41,7 @@ public final class OtherExtractor implements Extractor {
 
     public static final String OTHER = "other";
 
-    @Override public String name() { return OTHER; }
+    @Override public String name() { return "other"; }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -71,7 +72,7 @@ public final class OtherExtractor implements Extractor {
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var match = createMatch(OTHER, input, "Complete", Set.of(), s, e);
+            var match = createMatch(MatchName.OTHER, input, "Complete", Set.of(), s, e);
             if (validator.test(match)) ctx.matches.add(match);
         }
     }
@@ -89,7 +90,7 @@ public final class OtherExtractor implements Extractor {
         if (spec instanceof String s) {
             if (key.startsWith("_")) return; // private with no value override skipped
             if (s.startsWith("re:")) emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags(), null, false);
-            else emitString(ctx, OTHER, input, key, s, SENTINEL, defaultTags());
+            else emitString(ctx, MatchName.OTHER, input, key, s, SENTINEL, defaultTags());
             return;
         }
         if (!(spec instanceof Map<?, ?> m)) return;
@@ -98,7 +99,7 @@ public final class OtherExtractor implements Extractor {
         String otherValue = key.startsWith("_") ? null : key;
         String anotherValue = null;
         if (valueOverride instanceof Map<?, ?> vm) {
-            if (vm.get(OTHER) != null) otherValue = vm.get(OTHER).toString();
+            if (vm.get("other") != null) otherValue = vm.get("other").toString();
             if (vm.get("another") != null) anotherValue = vm.get("another").toString();
         }
         if (otherValue == null) return;
@@ -110,7 +111,7 @@ public final class OtherExtractor implements Extractor {
         var finalOtherValue = otherValue;
         var finalAnother = anotherValue;
         forEachString(m.get("string"),
-            s -> emitString(ctx, OTHER, input, finalOtherValue, s, validatorSrc, tags));
+            s -> emitString(ctx, MatchName.OTHER, input, finalOtherValue, s, validatorSrc, tags));
         forEachString(m.get("regex"),
             s -> emitRegex(ctx, input, finalOtherValue, s, validatorSrc, tags, finalAnother, privateParent));
     }
@@ -136,7 +137,7 @@ public final class OtherExtractor implements Extractor {
                                                  Predicate<Match> validator, Matcher matcher) {
         int s = matcher.start();
         int e = matcher.end();
-        var parent = createMatch(OTHER, input, value, tags, s, e);
+        var parent = createMatch(MatchName.OTHER, input, value, tags, s, e);
         if (!validator.test(parent)) return;
 
         addGroupMatchIfValid(ctx, input, value, tags, matcher, s, e);
@@ -148,7 +149,7 @@ public final class OtherExtractor implements Extractor {
                                             Predicate<Match> validator, Matcher matcher) {
         int s = matcher.start();
         int e = matcher.end();
-        var m = createMatch(OTHER, input, value, tags, s, e);
+        var m = createMatch(MatchName.OTHER, input, value, tags, s, e);
         if (!validator.test(m)) return;
 
         ctx.matches.add(m);
@@ -161,7 +162,7 @@ public final class OtherExtractor implements Extractor {
         int groupS = matcher.groupCount() >= 1 ? matcher.start(1) : defaultStart;
         int groupE = matcher.groupCount() >= 1 ? matcher.end(1) : defaultEnd;
         if (groupS >= 0 && groupE > groupS) {
-            ctx.matches.add(createMatch(OTHER, input, value, tags, groupS, groupE));
+            ctx.matches.add(createMatch(MatchName.OTHER, input, value, tags, groupS, groupE));
         }
     }
 
@@ -173,7 +174,7 @@ public final class OtherExtractor implements Extractor {
         int anotherS = groupStart(matcher);
         int anotherE = groupEnd(matcher);
         if (anotherS >= 0 && anotherE > anotherS) {
-            ctx.matches.add(createMatch(OTHER, input, anotherValue, tags, anotherS, anotherE));
+            ctx.matches.add(createMatch(MatchName.OTHER, input, anotherValue, tags, anotherS, anotherE));
         }
     }
 
@@ -203,9 +204,9 @@ public final class OtherExtractor implements Extractor {
 
     @Override
     public void postProcess(ParseContext ctx) {
-        removeUnlessNeighbor(ctx, OTHER, "has-neighbor", true, true);
-        removeUnlessNeighbor(ctx, OTHER, "has-neighbor-before", true, false);
-        removeUnlessNeighbor(ctx, OTHER, "has-neighbor-after", false, true);
+        removeUnlessNeighbor(ctx, MatchName.OTHER, "has-neighbor", true, true);
+        removeUnlessNeighbor(ctx, MatchName.OTHER, "has-neighbor-before", true, false);
+        removeUnlessNeighbor(ctx, MatchName.OTHER, "has-neighbor-after", false, true);
         validateScreener(ctx);
         validateMux(ctx);
         validateStreamingServiceNeighbor(ctx);
@@ -224,9 +225,9 @@ public final class OtherExtractor implements Extractor {
      */
     private static void validateHardcodedSubs(ParseContext ctx) {
         var input = ctx.input;
-        var subLangs = ctx.matches.named("subtitle_language").toList();
+        var subLangs = ctx.matches.named(MatchName.SUBTITLE_LANGUAGE).toList();
         var toRemove = new ArrayList<Match>();
-        for (var hc : ctx.matches.named(OTHER)
+        for (var hc : ctx.matches.named(MatchName.OTHER)
             .filter(m -> "Hardcoded Subtitles".equals(m.value()))
             .toList()) {
             boolean keep = false;
@@ -254,9 +255,9 @@ public final class OtherExtractor implements Extractor {
     private static void validateStreamingServiceNeighbor(ParseContext ctx) {
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();
-        var ssMatches = ctx.matches.named("streaming_service").toList();
+        var ssMatches = ctx.matches.named(MatchName.STREAMING_SERVICE).toList();
 
-        for (var m : ctx.matches.named(OTHER).toList()) {
+        for (var m : ctx.matches.named(MatchName.OTHER).toList()) {
             if (shouldRemoveStreamingServiceMatch(input, m, ssMatches)) {
                 toRemove.add(m);
             }
@@ -305,10 +306,10 @@ public final class OtherExtractor implements Extractor {
 
     private static void validateScreener(ParseContext ctx) {
         var input = ctx.input;
-        var screeners = ctx.matches.named(OTHER)
+        var screeners = ctx.matches.named(MatchName.OTHER)
             .filter(m -> m.tags().contains("other.validate.screener"))
             .toList();
-        var sources = ctx.matches.named("source").toList();
+        var sources = ctx.matches.named(MatchName.SOURCE).toList();
         var toRemove = new ArrayList<Match>();
         for (var sc : screeners) {
             var src = sources.stream()
@@ -322,10 +323,10 @@ public final class OtherExtractor implements Extractor {
     }
 
     private static void validateMux(ParseContext ctx) {
-        var muxes = ctx.matches.named(OTHER)
+        var muxes = ctx.matches.named(MatchName.OTHER)
             .filter(m -> m.tags().contains("other.validate.mux"))
             .toList();
-        var sources = ctx.matches.named("source").toList();
+        var sources = ctx.matches.named(MatchName.SOURCE).toList();
         var toRemove = new ArrayList<Match>();
         for (var mx : muxes) {
             boolean hasPrevSource = sources.stream().anyMatch(s -> s.end() <= mx.start());
@@ -336,7 +337,7 @@ public final class OtherExtractor implements Extractor {
 
     private static void validateAtEnd(ParseContext ctx) {
         var input = ctx.input;
-        var atEnds = ctx.matches.named(OTHER)
+        var atEnds = ctx.matches.named(MatchName.OTHER)
             .filter(m -> m.tags().contains("at-end"))
             .toList();
         var toRemove = new ArrayList<Match>();
@@ -348,7 +349,7 @@ public final class OtherExtractor implements Extractor {
                 boolean nonOtherAfter = ctx.matches.all()
                     .filter(x -> !x.isPrivate())
                     .filter(x -> x.start() >= m.end() && x.end() <= filepart.end())
-                    .anyMatch(x -> !x.name().equals(OTHER) && !x.name().equals("container"));
+                    .anyMatch(x -> x.name() != MatchName.OTHER && x.name() != MatchName.CONTAINER);
                 if (nonOtherAfter) { toRemove.add(m); continue; }
                 // Holes in [m.end, filepart.end] (gaps not covered by any non-private
                 // match) must contain only separator chars. Mirrors python's
@@ -384,7 +385,7 @@ public final class OtherExtractor implements Extractor {
      */
     private static void dedupSameSpan(ParseContext ctx) {
         var groups = new LinkedHashMap<String, List<Match>>();
-        for (var m : ctx.matches.named(OTHER).toList()) {
+        for (var m : ctx.matches.named(MatchName.OTHER).toList()) {
             var key = m.start() + ":" + m.end() + ":" + m.value();
             groups.computeIfAbsent(key, _ -> new ArrayList<>()).add(m);
         }

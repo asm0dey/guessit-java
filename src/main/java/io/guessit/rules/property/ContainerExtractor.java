@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.HashSet;
 import java.util.List;
@@ -59,16 +60,16 @@ public final class ContainerExtractor implements Extractor {
         var opts = StringOpts.defaults()
             .withValidator(Validators.sepsSurround(input))
             .withTags(Set.of("body"));
-        for (var m : PatternMatcher.string(input, body, CONTAINER, opts)) {
+        for (var m : PatternMatcher.string(input, body, MatchName.CONTAINER, opts)) {
             // Skip body matches that overlap an extension match — extension wins.
-            boolean overlapsExt = ctx.matches.named(CONTAINER)
+            boolean overlapsExt = ctx.matches.named(MatchName.CONTAINER)
                 .anyMatch(other -> other.tags().contains("extension")
                                 && other.start() < m.end() && m.start() < other.end());
             // Skip body matches that overlap a video_codec/audio_codec/screen_size — codec wins.
             boolean overlapsCodec = ctx.matches.all()
-                .anyMatch(other -> (other.name().equals("video_codec")
-                                 || other.name().equals("audio_codec")
-                                 || other.name().equals("screen_size"))
+                .anyMatch(other -> (other.name() == MatchName.VIDEO_CODEC
+                                 || other.name() == MatchName.AUDIO_CODEC
+                                 || other.name() == MatchName.SCREEN_SIZE)
                                 && other.start() < m.end() && m.start() < other.end());
             if (!overlapsExt && !overlapsCodec) ctx.matches.add(m);
         }
@@ -82,7 +83,7 @@ public final class ContainerExtractor implements Extractor {
         var opts = RegexOpts.defaults()
             .withValue(s -> s.startsWith(".") ? s.substring(1).toLowerCase(Locale.ROOT) : s.toLowerCase(Locale.ROOT))
             .withTags(Set.of("extension", kindTag));
-        for (var m : PatternMatcher.regex(input, p, CONTAINER, opts)) {
+        for (var m : PatternMatcher.regex(input, p, MatchName.CONTAINER, opts)) {
             ctx.matches.add(m);
         }
     }

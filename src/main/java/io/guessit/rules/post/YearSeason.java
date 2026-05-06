@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -18,10 +19,10 @@ import java.util.Set;
 public final class YearSeason implements PostProcessor {
     @Override
     public void process(ParseContext ctx) {
-        if (ctx.matches.named("season").findAny().isPresent()) return;
-        if (ctx.matches.named("episode").findAny().isEmpty()) return;
-        ctx.matches.named("year").toList().forEach(year ->
-            ctx.matches.add(new Match("season", year.value(), year.start(), year.end(),
+        if (ctx.matches.named(MatchName.SEASON).findAny().isPresent()) return;
+        if (ctx.matches.named(MatchName.EPISODE).findAny().isEmpty()) return;
+        ctx.matches.named(MatchName.YEAR).toList().forEach(year ->
+            ctx.matches.add(new Match(MatchName.SEASON, year.value(), year.start(), year.end(),
                 year.raw(), year.priority(), Set.copyOf(year.tags()), false)));
     }
 }

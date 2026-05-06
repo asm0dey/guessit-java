@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.Options;
 import io.guessit.config.OptionsConfig;
 import io.guessit.engine.ConflictSolver;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class OtherExtractorTest {
             Options.defaults(),
             cfg(Map.of("3D", "3D")));
         new OtherExtractor().extract(ctx);
-        var values = ctx.matches.named("other").map(m -> m.value().toString()).toList();
+        var values = ctx.matches.named(MatchName.OTHER).map(m -> m.value().toString()).toList();
         assertEquals(List.of("3D"), values);
     }
 
@@ -31,7 +32,7 @@ class OtherExtractorTest {
             Options.defaults(),
             cfg(Map.of("Rip", Map.of("regex", List.of("(?:HD)Rip")))));
         new OtherExtractor().extract(ctx);
-        var values = ctx.matches.named("other").map(m -> m.value().toString()).toList();
+        var values = ctx.matches.named(MatchName.OTHER).map(m -> m.value().toString()).toList();
         assertEquals(List.of("Rip"), values);
     }
 
@@ -41,7 +42,7 @@ class OtherExtractorTest {
             cfg(Map.of("Proper", List.of("Proper", "Repack"))));
         new OtherExtractor().extract(ctx);
         ConflictSolver.solve(ctx.matches);
-        var values = ctx.matches.named("other").map(m -> m.value().toString()).sorted().toList();
+        var values = ctx.matches.named(MatchName.OTHER).map(m -> m.value().toString()).sorted().toList();
         assertEquals(List.of("Proper", "Proper"), values);
     }
 }

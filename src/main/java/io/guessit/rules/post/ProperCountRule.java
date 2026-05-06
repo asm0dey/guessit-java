@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -16,7 +17,7 @@ public final class ProperCountRule implements PostProcessor {
     @Override
     public void process(ParseContext ctx) {
         var distinct = new LinkedHashMap<String, Match>();
-        ctx.matches.named("other")
+        ctx.matches.named(MatchName.OTHER)
             .filter(m -> "Proper".equals(m.value()))
             .forEach(m -> distinct.putIfAbsent(rawCleanup(m.raw()), m));
         if (distinct.isEmpty()) return;
@@ -31,7 +32,7 @@ public final class ProperCountRule implements PostProcessor {
             if (m.start() < start) start = m.start();
             if (m.end() > end) end = m.end();
         }
-        ctx.matches.add(new Match("proper_count", total, start, end,
+        ctx.matches.add(new Match(MatchName.PROPER_COUNT, total, start, end,
             ctx.input.substring(start, end), 1000, java.util.Set.of(), false));
     }
 

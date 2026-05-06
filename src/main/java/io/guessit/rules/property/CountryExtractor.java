@@ -2,6 +2,7 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.Words;
 import io.guessit.lang.Country;
@@ -40,7 +41,7 @@ public final class CountryExtractor implements Extractor {
             if (country == null) continue;
             if (!allowedLc.contains(country.alpha2().toLowerCase(Locale.ROOT))
                     && !allowedLc.contains(country.name().toLowerCase(Locale.ROOT))) continue;
-            ctx.matches.add(new Match("country", country, word.start(), word.end(),
+            ctx.matches.add(new Match(MatchName.COUNTRY, country, word.start(), word.end(),
                 input.substring(word.start(), word.end()), 1000, Set.of(), false));
         }
     }
@@ -54,8 +55,8 @@ public final class CountryExtractor implements Extractor {
     /** Resolve "country vs language" conflict: prefer language unless country is US/GB. */
     @Override
     public void postProcess(ParseContext ctx) {
-        var countries = ctx.matches.named("country").toList();
-        var langs = ctx.matches.named("language").toList();
+        var countries = ctx.matches.named(MatchName.COUNTRY).toList();
+        var langs = ctx.matches.named(MatchName.LANGUAGE).toList();
         var toRemove = new ArrayList<Match>();
         for (var c : countries) {
             for (var l : langs) {

@@ -6,10 +6,11 @@ import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.guessit.engine.MatchName.*;
 
 class ValidatorsTest {
     private static Match m(int s, int e, String input) {
-        return new Match("x", null, s, e, input.substring(s, e), 1000, java.util.Set.of(), false);
+        return new Match(G, null, s, e, input.substring(s, e), 1000, java.util.Set.of(), false);
     }
 
     @Test void sepsSurround_atStartOfString() {

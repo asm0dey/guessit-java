@@ -2,6 +2,7 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.Validators;
 
@@ -30,10 +31,10 @@ public final class DiscRule implements Extractor {
         var seps = Validators.sepsSurround(input);
         var m = PATTERN.matcher(input);
         while (m.find()) {
-            var head = new Match("disc", null, m.start(), m.end(), m.group(), 1000, Set.of(), false);
+            var head = new Match(MatchName.DISC, null, m.start(), m.end(), m.group(), 1000, Set.of(), false);
             if (!seps.test(head)) continue;
             int v = Integer.parseInt(m.group(1));
-            ctx.matches.add(new Match("disc", v, m.start(1), m.end(1),
+            ctx.matches.add(new Match(MatchName.DISC, v, m.start(1), m.end(1),
                 m.group(1), 1000, Set.of(), false));
         }
     }
@@ -41,7 +42,7 @@ public final class DiscRule implements Extractor {
     /** Mirror Python RenameToDiscMatch: episodes from chains with `D` marker become discs. */
     @Override
     public void postProcess(ParseContext ctx) {
-        var marked = ctx.matches.named("episode")
+        var marked = ctx.matches.named(MatchName.EPISODE)
             .filter(m -> m.tags().contains("disc-marker"))
             .toList();
         if (marked.isEmpty()) return;
@@ -49,7 +50,7 @@ public final class DiscRule implements Extractor {
         for (var m : marked) {
             var newTags = new java.util.HashSet<>(m.tags());
             newTags.remove("disc-marker");
-            renamed.add(new Match("disc", m.value(), m.start(), m.end(), m.raw(), m.priority(), newTags, m.isPrivate()));
+            renamed.add(new Match(MatchName.DISC, m.value(), m.start(), m.end(), m.raw(), m.priority(), newTags, m.isPrivate()));
         }
         for (var m : marked) ctx.matches.remove(m);
         for (var m : renamed) ctx.matches.add(m);

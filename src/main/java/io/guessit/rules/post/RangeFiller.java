@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -33,11 +34,11 @@ public final class RangeFiller implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        fillProp(ctx, "episode");
-        fillProp(ctx, "season");
+        fillProp(ctx, MatchName.EPISODE);
+        fillProp(ctx, MatchName.SEASON);
     }
 
-    private static void fillProp(ParseContext ctx, String prop) {
+    private static void fillProp(ParseContext ctx, MatchName prop) {
         var matches = ctx.matches.named(prop)
             .filter(m -> m.value() instanceof Integer)
             .sorted(Comparator.comparingInt(Match::start))

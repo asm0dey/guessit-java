@@ -23,7 +23,7 @@ import java.util.Set;
  * </ul>
  */
 public record Match(
-    String name,
+    MatchName name,
     Object value,
     int start,
     int end,
@@ -37,7 +37,7 @@ public record Match(
     }
 
     /** Convenience factory: default priority {@code 1000}, no tags, public. */
-    public static Match of(String name, Object value, int start, int end, String raw) {
+    public static Match of(MatchName name, Object value, int start, int end, String raw) {
         return new Match(name, value, start, end, raw, 1000, Set.of(), false);
     }
 
@@ -61,7 +61,7 @@ public record Match(
         return new Match(name, v, start, end, raw, priority, tags, isPrivate);
     }
 
-    public Match withName(String n) {
+    public Match withName(MatchName n) {
         return new Match(n, value, start, end, raw, priority, tags, isPrivate);
     }
 

@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase;
 import io.guessit.engine.Seps;
@@ -24,12 +25,12 @@ import java.util.List;
  */
 public final class BitRateTypeRule implements PostPhase.PostProcessor {
 
-    private static final java.util.Set<String> VIDEO_CONTEXT = java.util.Set.of(
-            "source", "screen_size", "video_codec");
+    private static final java.util.Set<MatchName> VIDEO_CONTEXT = java.util.Set.of(
+            MatchName.SOURCE, MatchName.SCREEN_SIZE, MatchName.VIDEO_CODEC);
 
     @Override
     public void process(ParseContext ctx) {
-        var bitRates = ctx.matches.named("audio_bit_rate")
+        var bitRates = ctx.matches.named(MatchName.AUDIO_BIT_RATE)
                 .sorted(Comparator.comparingInt(Match::start))
                 .toList();
         if (bitRates.isEmpty()) return;
@@ -44,7 +45,7 @@ public final class BitRateTypeRule implements PostPhase.PostProcessor {
             if (shouldRenameToVideo(ctx, br, allMatches)) toRename.add(br);
         }
         for (var m : toRename) {
-            ctx.matches.replace(m, m.withName("video_bit_rate"));
+            ctx.matches.replace(m, m.withName(MatchName.VIDEO_BIT_RATE));
         }
     }
 
@@ -73,7 +74,7 @@ public final class BitRateTypeRule implements PostPhase.PostProcessor {
     private static Match adjacentTrailingAudioCodec(ParseContext ctx, List<Match> allMatches, Match br) {
         for (var m : allMatches) {
             if (m.start() < br.end()) continue;
-            if (!"audio_codec".equals(m.name())) return null;
+            if (m.name() != MatchName.AUDIO_CODEC) return null;
             return allSeps(ctx.input.substring(br.end(), m.start())) ? m : null;
         }
         return null;

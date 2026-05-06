@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.MatchName;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +27,10 @@ public final class VideoCodecExtractor implements Extractor {
 
     public static final String VIDEO_PROFILE = "video_profile";
     public static final String VIDEO_CODEC = "video_codec";
+    private static final MatchName VIDEO_CODEC_NAME = MatchName.VIDEO_CODEC;
+    private static final MatchName VIDEO_PROFILE_NAME = MatchName.VIDEO_PROFILE;
+    private static final MatchName COLOR_DEPTH_NAME = MatchName.COLOR_DEPTH;
+    private static final MatchName VIDEO_API_NAME = MatchName.VIDEO_API;
 
     private static final Pattern HEVC10 = Pattern.compile("(hevc)(10)", Pattern.CASE_INSENSITIVE);
     private static final Pattern AVC_HD = Pattern.compile(Abbreviations.dash("AVC(?:HD)?"), Pattern.CASE_INSENSITIVE);
@@ -66,18 +71,18 @@ public final class VideoCodecExtractor implements Extractor {
             int g1s = m.start(1), g1e = m.end(1), g2s = m.start(2), g2e = m.end(2);
             String raw1 = m.group(1), raw2 = m.group(2);
             if (!Validators.sepsBefore(input).test(
-                    new Match("dummy", "", g1s, g1e, raw1, 0, Set.of(), false)))
+                    new Match(MatchName.DUMMY, "", g1s, g1e, raw1, 0, Set.of(), false)))
                 continue;
             // Remove any shorter video_codec match at same start that overlaps (e.g., HEVC within HEVC10)
-            ctx.matches.named(VIDEO_CODEC)
+            ctx.matches.named(VIDEO_CODEC_NAME)
                 .filter(e -> e.start() == g1s && e.end() < g1e)
                 .toList()
                 .forEach(ctx.matches::remove);
-            ctx.matches.add(new Match(VIDEO_CODEC, "H.265", g1s, g1e, raw1, 1000,
+            ctx.matches.add(new Match(VIDEO_CODEC_NAME, "H.265", g1s, g1e, raw1, 1000,
                 Set.of("source-suffix", "streaming_service.suffix"), false));
             // Tag color_depth suffix as video-codec-suffix so the abutting codec
             // match passes validateVideoCodec without sepsAfter.
-            ctx.matches.add(new Match("color_depth", "10-bit", g2s, g2e, raw2, 1000,
+            ctx.matches.add(new Match(COLOR_DEPTH_NAME, "10-bit", g2s, g2e, raw2, 1000,
                 Set.of("video-codec-suffix", "derivedFrom:video_codec"), false));
         }
 
@@ -98,18 +103,18 @@ public final class VideoCodecExtractor implements Extractor {
         addStr(ctx, Set.of("DXVA"), v);
 
         // color_depth
-        addRegexNamed(ctx, "color_depth", "12.?bits?", "12-bit", v);
-        addRegexNamed(ctx, "color_depth", "10.?bits?|YUV420P10|Hi10P?", "10-bit", v);
-        addRegexNamed(ctx, "color_depth", "8.?bits?",  "8-bit",  v);
+        addRegexNamed(ctx, COLOR_DEPTH_NAME, "12.?bits?", "12-bit", v);
+        addRegexNamed(ctx, COLOR_DEPTH_NAME, "10.?bits?|YUV420P10|Hi10P?", "10-bit", v);
+        addRegexNamed(ctx, COLOR_DEPTH_NAME, "8.?bits?",  "8-bit",  v);
     }
 
     /** Replicates ValidateVideoCodec + VideoProfileRule. */
     @Override
     public void postProcess(ParseContext ctx) {
         validateVideoCodec(ctx);
-        boolean hasCodec = ctx.matches.named(VIDEO_CODEC).findAny().isPresent();
+        boolean hasCodec = ctx.matches.named(VIDEO_CODEC_NAME).findAny().isPresent();
         if (hasCodec) return;
-        ctx.matches.named(VIDEO_PROFILE)
+        ctx.matches.named(VIDEO_PROFILE_NAME)
             .filter(p -> p.tags().contains("video_profile.rule"))
             .toList()
             .forEach(ctx.matches::remove);
@@ -121,7 +126,7 @@ public final class VideoCodecExtractor implements Extractor {
         var sepsAfter = Validators.sepsAfter(input);
         var allMatches = ctx.matches.all().toList();
         var toRemove = new java.util.ArrayList<Match>();
-        for (var codec : ctx.matches.named(VIDEO_CODEC).toList()) {
+        for (var codec : ctx.matches.named(VIDEO_CODEC_NAME).toList()) {
             boolean before = sepsBefore.test(codec)
                 || allMatches.stream().anyMatch(m -> m.end() == codec.start()
                     && m.tags().contains("video-codec-prefix"));
@@ -139,15 +144,15 @@ public final class VideoCodecExtractor implements Extractor {
         // Tag video_codec matches with source-suffix so adjacent source matches
         // (e.g. PDTV in "PDTVx264") pass ValidateSourcePrefixSuffix when the
         // codec abuts the source without a separator.
-        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_CODEC, opts)) {
-            ctx.matches.add(new Match(VIDEO_CODEC, m.value(), m.start(), m.end(), m.raw(),
+        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_CODEC_NAME, opts)) {
+            ctx.matches.add(new Match(VIDEO_CODEC_NAME, m.value(), m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("source-suffix", "streaming_service.suffix"), false));
         }
     }
     private void addRegexProfile(ParseContext ctx, String src, String value, java.util.function.Predicate<Match> v) {
-        addRegexNamed(ctx, VIDEO_PROFILE, src, value, v);
+        addRegexNamed(ctx, MatchName.VIDEO_PROFILE, src, value, v);
     }
-    private void addRegexNamed(ParseContext ctx, String name, String src, String value, java.util.function.Predicate<Match> v) {
+    private void addRegexNamed(ParseContext ctx, MatchName name, String src, String value, java.util.function.Predicate<Match> v) {
         var p = compileDashed(src);
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
         for (var m : PatternMatcher.regex(ctx.input, p, name, opts)) ctx.matches.add(m);
@@ -155,24 +160,24 @@ public final class VideoCodecExtractor implements Extractor {
     private void addStr(ParseContext ctx, Set<String> needles,
                         Predicate<Match> v) {
         var opts = StringOpts.defaults().withValidator(v);
-        for (var m : PatternMatcher.string(ctx.input, needles, "video_api", opts)) {
-            ctx.matches.add(new Match("video_api", "DXVA", m.start(), m.end(), m.raw(),
+        for (var m : PatternMatcher.string(ctx.input, needles, VIDEO_API_NAME, opts)) {
+            ctx.matches.add(new Match(VIDEO_API_NAME, "DXVA", m.start(), m.end(), m.raw(),
                 m.priority(), m.tags(), m.isPrivate()));
         }
     }
     private void addStrTagged(ParseContext ctx, String value, Set<String> needles,
                               Predicate<Match> v) {
         var opts = StringOpts.defaults().withValidator(v);
-        for (var m : PatternMatcher.string(ctx.input, needles, VideoCodecExtractor.VIDEO_PROFILE, opts)) {
-            ctx.matches.add(new Match(VideoCodecExtractor.VIDEO_PROFILE, value, m.start(), m.end(), m.raw(),
+        for (var m : PatternMatcher.string(ctx.input, needles, VIDEO_PROFILE_NAME, opts)) {
+            ctx.matches.add(new Match(VIDEO_PROFILE_NAME,value, m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("video_profile.rule"), m.isPrivate()));
         }
     }
     private void addRegexProfileTagged(ParseContext ctx,
                                        Predicate<Match> v) {
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> "Advanced Video Codec High Definition");
-        for (var m : PatternMatcher.regex(ctx.input, AVC_HD, VIDEO_PROFILE, opts)) {
-            ctx.matches.add(new Match(VIDEO_PROFILE, "Advanced Video Codec High Definition", m.start(), m.end(), m.raw(),
+        for (var m : PatternMatcher.regex(ctx.input, AVC_HD, VIDEO_PROFILE_NAME, opts)) {
+            ctx.matches.add(new Match(VIDEO_PROFILE_NAME,"Advanced Video Codec High Definition", m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("video_profile.rule"), m.isPrivate()));
         }
     }

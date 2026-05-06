@@ -3,6 +3,7 @@ package io.guessit.rules.property;
 import io.guessit.engine.DatePatterns;
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ public final class DateExtractor implements Extractor {
         var result = DatePatterns.search(input, ctx.options.dateYearFirst(), ctx.options.dateDayFirst());
         if (result.isEmpty()) return;
         var r = result.get();
-        ctx.matches.add(new Match("date", r.date(), r.start(), r.end(),
+        ctx.matches.add(new Match(MatchName.DATE, r.date(), r.start(), r.end(),
                 input.substring(r.start(), r.end()), 1100, null, false));
     }
 
@@ -52,7 +53,7 @@ public final class DateExtractor implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
-        var dateMatch = ctx.matches.named("date").findFirst();
+        var dateMatch = ctx.matches.named(MatchName.DATE).findFirst();
         if (dateMatch.isEmpty()) return;
         var dm = dateMatch.get();
         // Honor excludes/includes: when date is filtered out, keep the
@@ -66,14 +67,14 @@ public final class DateExtractor implements Extractor {
         var toRemove = new ArrayList<Match>();
         for (var m : ctx.matches.all().toList()) {
             if (m.equals(dm)) continue;
-            if ("date".equals(m.name())) continue;
+            if (m.name() == MatchName.DATE) continue;
             if (m.start() >= dm.start()
                     && m.end() <= dm.end()
                     &&
-                    (m.name().equals("year")
-                            || m.name().equals("season")
-                            || m.name().equals("episode")
-                            || m.name().equals("crc32"))) {
+                    (m.name() == MatchName.YEAR
+                            || m.name() == MatchName.SEASON
+                            || m.name() == MatchName.EPISODE
+                            || m.name() == MatchName.CRC32)) {
                 toRemove.add(m);
             }
 

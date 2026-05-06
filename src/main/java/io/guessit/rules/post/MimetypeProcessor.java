@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -41,6 +42,6 @@ public final class MimetypeProcessor implements PostProcessor {
         if (mime == null) mime = URLConnection.guessContentTypeFromName(ctx.input);
         if (mime == null) return;
         var pos = ctx.input.length();
-        ctx.matches.add(Match.of("mimetype", mime, pos, pos, ""));
+        ctx.matches.add(Match.of(MatchName.MIMETYPE, mime, pos, pos, ""));
     }
 }

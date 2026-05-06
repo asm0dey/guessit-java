@@ -1,6 +1,7 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.Match;
+import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
@@ -13,19 +14,19 @@ import io.guessit.engine.PostPhase.PostProcessor;
  */
 public final class TypeProcessor implements PostProcessor {
 
-    public static final String EPISODE = "episode";
+    public static final MatchName EPISODE = MatchName.EPISODE;
 
     @Override
     public void process(ParseContext ctx) {
         var type = decide(ctx);
         var len = ctx.input.length();
-        ctx.matches.add(Match.of("type", type, len, len, ""));
-        if (!EPISODE.equals(type)) {
-            var toRename = ctx.matches.named("episode_title")
+        ctx.matches.add(Match.of(MatchName.TYPE, type, len, len, ""));
+        if (!"episode".equals(type)) {
+            var toRename = ctx.matches.named(MatchName.EPISODE_TITLE)
                 .filter(m -> !m.tags().contains("alternative-replaced"))
                 .toList();
             for (var m : toRename) {
-                ctx.matches.replace(m, new Match("alternative_title", m.value(),
+                ctx.matches.replace(m, new Match(MatchName.ALTERNATIVE_TITLE, m.value(),
                     m.start(), m.end(), m.raw(), m.priority(), m.tags(), m.isPrivate()));
             }
         }
@@ -34,21 +35,21 @@ public final class TypeProcessor implements PostProcessor {
     private static String decide(ParseContext ctx) {
         var optType = ctx.options.type();
         if (optType != null) return optType;
-        if (anyNamed(ctx, EPISODE) || anyNamed(ctx, "season")
-                || anyNamed(ctx, "episode_details") || anyNamed(ctx, "absolute_episode")) {
-            return EPISODE;
+        if (anyNamed(ctx, MatchName.EPISODE) || anyNamed(ctx, MatchName.SEASON)
+                || anyNamed(ctx, MatchName.EPISODE_DETAILS) || anyNamed(ctx, MatchName.ABSOLUTE_EPISODE)) {
+            return "episode";
         }
-        if (anyNamed(ctx, "film")) return "movie";
-        var hasYear = anyNamed(ctx, "year");
-        if (anyNamed(ctx, "date") && !hasYear) return EPISODE;
-        if (anyNamed(ctx, "bonus") && !hasYear) return EPISODE;
-        var hasCrc = anyNamed(ctx, "crc32");
-        var anyAnimeRg = ctx.matches.named("release_group").anyMatch(m -> m.tags().contains("anime"));
-        if (hasCrc && anyAnimeRg) return EPISODE;
+        if (anyNamed(ctx, MatchName.FILM)) return "movie";
+        var hasYear = anyNamed(ctx, MatchName.YEAR);
+        if (anyNamed(ctx, MatchName.DATE) && !hasYear) return "episode";
+        if (anyNamed(ctx, MatchName.BONUS) && !hasYear) return "episode";
+        var hasCrc = anyNamed(ctx, MatchName.CRC32);
+        var anyAnimeRg = ctx.matches.named(MatchName.RELEASE_GROUP).anyMatch(m -> m.tags().contains("anime"));
+        if (hasCrc && anyAnimeRg) return "episode";
         return "movie";
     }
 
-    private static boolean anyNamed(ParseContext ctx, String name) {
+    private static boolean anyNamed(ParseContext ctx, MatchName name) {
         return ctx.matches.named(name).anyMatch(m -> !m.isPrivate());
     }
 

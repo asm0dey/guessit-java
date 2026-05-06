@@ -10,24 +10,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ReleaseGroupExtractorTest {
     @Test void dashSeparatedAtEnd() {
-        var r = Guessit.parse("Series.S01E02.Pilot.DVDRip.x264-CS.mkv").toMap();
-        assertEquals("CS", r.get("release_group"));
+        var r = Guessit.parse("Series.S01E02.Pilot.DVDRip.x264-CS.mkv");
+        assertEquals("CS", r.releaseGroup());
     }
     @Test void dashSeparatedAtBeginning() {
-        var r = Guessit.parse("abc-the.title.name.1983.1080p.bluray.x264.mkv").toMap();
-        assertEquals("abc", r.get("release_group"));
+        var r = Guessit.parse("abc-the.title.name.1983.1080p.bluray.x264.mkv");
+        assertEquals("abc", r.releaseGroup());
     }
     @Test void scene() {
-        var r = Guessit.parse("Something.XViD-ReleaseGroup.mkv").toMap();
-        assertEquals("ReleaseGroup", r.get("release_group"));
+        var r = Guessit.parse("Something.XViD-ReleaseGroup.mkv");
+        assertEquals("ReleaseGroup", r.releaseGroup());
     }
     @Test void animeBracketedAtStart() {
-        var r = Guessit.parse("[ReleaseGroup] Something.S01E01.mkv").toMap();
-        assertEquals("ReleaseGroup", r.get("release_group"));
+        var r = Guessit.parse("[ReleaseGroup] Something.S01E01.mkv");
+        assertEquals("ReleaseGroup", r.releaseGroup());
     }
     @Test void expectedGroupWins() {
         var opts = OptionsBuilder.options().expectedGroup(List.of("MyGroup")).build();
-        var r = Guessit.parse("Movie.MyGroup.x264.mkv", opts).toMap();
-        assertEquals("MyGroup", r.get("release_group"));
+        var r = Guessit.parse("Movie.MyGroup.x264.mkv", opts);
+        assertEquals("MyGroup", r.releaseGroup());
     }
 }
