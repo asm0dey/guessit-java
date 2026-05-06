@@ -6,6 +6,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,28 +51,31 @@ public final class ConfigLoader {
             if (in == null) return null;
             return JSON.readValue(in, Map.class);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read bundled options.json", e);
+            throw new UncheckedIOException("Failed to read bundled options.json", e);
         }
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> readFile(Path p) {
         if (!Files.isReadable(p)) return null;
+        var name = p.getFileName().toString().toLowerCase(Locale.ROOT);
         try {
-            var name = p.getFileName().toString().toLowerCase(Locale.ROOT);
-            try (var r = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
-                if (name.endsWith(".json")) {
+            if (name.endsWith(".json")) {
+                try (var r = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
                     return JSON.readValue(r, Map.class);
                 }
-                if (name.endsWith(".yml") || name.endsWith(".yaml")) {
+            }
+            if (name.endsWith(".yml") || name.endsWith(".yaml")) {
+                try (var r = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
                     Object v = new Yaml().load(r);
                     return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
                 }
-                var content = Files.readString(p, StandardCharsets.UTF_8);
-                return loadConfigFromString(content);
             }
+            // Unknown extension — read once, sniff JSON-then-YAML.
+            var content = Files.readString(p, StandardCharsets.UTF_8);
+            return loadConfigFromString(content);
         } catch (IOException e) {
-            throw new RuntimeException("Failed to read config: " + p, e);
+            throw new UncheckedIOException("Failed to read config: " + p, e);
         }
     }
 

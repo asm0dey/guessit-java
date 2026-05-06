@@ -5,6 +5,8 @@ import org.jilt.BuilderStyle;
 import org.jilt.Opt;
 
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +38,9 @@ public record Options(
         allowedLanguages = allowedLanguages == null ? List.of() : List.copyOf(allowedLanguages);
         allowedCountries = allowedCountries == null ? List.of() : List.copyOf(allowedCountries);
         configPaths      = configPaths      == null ? List.of() : List.copyOf(configPaths);
-        raw              = raw              == null ? Map.of()  : Map.copyOf(raw);
+        // unmodifiableMap (vs Map.copyOf) so configs with explicit-null entries
+        // — legitimate in YAML/JSON — don't NPE in the canonical constructor.
+        raw              = raw              == null ? Map.of()  : Collections.unmodifiableMap(new LinkedHashMap<>(raw));
     }
 
     public static Options defaults() { return OptionsBuilder.options().build(); }

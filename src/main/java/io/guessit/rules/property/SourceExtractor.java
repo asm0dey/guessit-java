@@ -6,8 +6,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Extracts {@code source} (BluRay, WEB-DL, HDTV, DVD, …).
@@ -128,14 +131,15 @@ public final class SourceExtractor implements Extractor {
         return rules;
     }
 
+    private static final ConcurrentMap<String, Pattern> RULE_CACHE = new ConcurrentHashMap<>();
+
     private static Pattern compileRule(Rule rule) {
         var alt = String.join("|", rule.patterns());
         var src = rule.prefix() + "(" + alt + ")" + rule.suffix();
-        try {
-            return Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE);
-        } catch (Exception _) {
-            return null;
-        }
+        return RULE_CACHE.computeIfAbsent(src, s -> {
+            try { return Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE); }
+            catch (PatternSyntaxException ex) { ConfigPatternHelpers.warnBadRegex(s, ex); return null; }
+        });
     }
 
     private static void apply(ParseContext ctx, Pattern p, Rule rule) {

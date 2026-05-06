@@ -27,6 +27,13 @@ public final class DatePatterns {
     private static final String DSEP = "[-/ .]";
     private static final String DSEP_BIS = "[-/ .x]";
 
+    private static final Pattern NORMALIZE_SEP = Pattern.compile("[/ .x]");
+    private static final Pattern EIGHT_DIGITS = Pattern.compile("\\d{8}");
+    private static final Pattern SIX_DIGITS = Pattern.compile("\\d{6}");
+    private static final Pattern MONTH_NAME_PATTERN = Pattern.compile(
+        "^(\\d{1,2})(?:st|nd|rd|th)?-([A-Z]{3,10})-(\\d{4})$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NUM_PATTERN = Pattern.compile("^(\\d{1,4})-(\\d{1,2})-(\\d{1,4})$");
+
     /** Each regex captures group 1 = the date span. */
     public static final List<Pattern> REGEXPS = List.of(
         Pattern.compile("[-/ .](\\d{8})[-/ .]", Pattern.CASE_INSENSITIVE),
@@ -112,7 +119,7 @@ public final class DatePatterns {
     }
 
     private static Optional<LocalDate> parseAllValid(String raw, Boolean yearFirst, Boolean dayFirst) {
-        var normalized = raw.replaceAll("[/ .x]", "-");
+        var normalized = NORMALIZE_SEP.matcher(raw).replaceAll("-");
         var attempt = tryParse(normalized, yearFirst, dayFirst);
         if (attempt.isPresent() && validYear(attempt.get().getYear())) return attempt;
         return Optional.empty();
@@ -120,26 +127,24 @@ public final class DatePatterns {
 
     /** Try the formatter combinations Python dateutil would consider. */
     private static Optional<LocalDate> tryParse(String raw, Boolean yearFirst, Boolean dayFirst) {
-        if (raw.matches("\\d{8}")) {
+        if (EIGHT_DIGITS.matcher(raw).matches()) {
             try { return Optional.of(LocalDate.parse(raw, DateTimeFormatter.BASIC_ISO_DATE)); }
             catch (Exception _) {}
         }
-        if (raw.matches("\\d{6}")) {
+        if (SIX_DIGITS.matcher(raw).matches()) {
             int y = 2000 + Integer.parseInt(raw.substring(0, 2));
             int mo = Integer.parseInt(raw.substring(2, 4));
             int d = Integer.parseInt(raw.substring(4, 6));
             try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception _) {}
         }
-        var monthPattern = Pattern.compile("^(\\d{1,2})(?:st|nd|rd|th)?-([A-Z]{3,10})-(\\d{4})$", Pattern.CASE_INSENSITIVE);
-        var mm = monthPattern.matcher(raw);
+        var mm = MONTH_NAME_PATTERN.matcher(raw);
         if (mm.matches()) {
             int d = Integer.parseInt(mm.group(1));
             int mo = monthIndex(mm.group(2));
             int y = Integer.parseInt(mm.group(3));
             if (mo > 0) try { return Optional.of(LocalDate.of(y, mo, d)); } catch (Exception _) {}
         }
-        var numPattern = Pattern.compile("^(\\d{1,4})-(\\d{1,2})-(\\d{1,4})$");
-        var nm = numPattern.matcher(raw);
+        var nm = NUM_PATTERN.matcher(raw);
         if (!nm.matches()) return Optional.empty();
         int a = Integer.parseInt(nm.group(1));
         int b = Integer.parseInt(nm.group(2));

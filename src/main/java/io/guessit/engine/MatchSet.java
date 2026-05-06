@@ -1,7 +1,9 @@
 package io.guessit.engine;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -22,6 +24,16 @@ public final class MatchSet {
     public void add(Match m) { matches.add(m); }
 
     public boolean remove(Match m) { return matches.remove(m); }
+
+    /**
+     * Bulk remove. O(n) total instead of O(n*k) for n elements, k removals.
+     * Membership is tested by {@link Match#equals}, identical to {@link #remove}.
+     */
+    public boolean removeAll(Collection<Match> toRemove) {
+        if (toRemove.isEmpty()) return false;
+        var set = (toRemove instanceof HashSet<Match> hs) ? hs : new HashSet<>(toRemove);
+        return matches.removeIf(set::contains);
+    }
 
     /**
      * Replaces an existing match in place, preserving insertion position so

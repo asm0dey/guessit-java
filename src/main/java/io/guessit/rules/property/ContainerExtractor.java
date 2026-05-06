@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 /**
@@ -27,6 +29,8 @@ import java.util.regex.Pattern;
 public final class ContainerExtractor implements Extractor {
 
     public static final String CONTAINER = "container";
+
+    private static final ConcurrentMap<String, Pattern> EXT_CACHE = new ConcurrentHashMap<>();
 
     @Override public String name() { return CONTAINER; }
 
@@ -73,7 +77,8 @@ public final class ContainerExtractor implements Extractor {
     private static void addExtensionRegex(ParseContext ctx, String input, List<String> exts, String kindTag) {
         if (exts.isEmpty()) return;
         var or = String.join("|", exts.stream().map(Pattern::quote).toList());
-        var p = Pattern.compile("\\.(?:" + or + ")$", Pattern.CASE_INSENSITIVE);
+        var src = "\\.(?:" + or + ")$";
+        var p = EXT_CACHE.computeIfAbsent(src, s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE));
         var opts = RegexOpts.defaults()
             .withValue(s -> s.startsWith(".") ? s.substring(1).toLowerCase(Locale.ROOT) : s.toLowerCase(Locale.ROOT))
             .withTags(Set.of("extension", kindTag));
@@ -82,9 +87,10 @@ public final class ContainerExtractor implements Extractor {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static List<String> stringList(Object o) {
-        if (o instanceof List<?> l) return (List<String>) l;
-        return List.of();
+        if (!(o instanceof List<?> l)) return List.of();
+        var out = new java.util.ArrayList<String>(l.size());
+        for (var v : l) if (v != null) out.add(v.toString());
+        return out;
     }
 }

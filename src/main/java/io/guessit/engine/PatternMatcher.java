@@ -4,7 +4,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 /**
@@ -35,6 +36,7 @@ public final class PatternMatcher {
     public static List<Match> regex(String input, Pattern pattern, String name, RegexOpts opts) {
         var out = new ArrayList<Match>();
         var m = pattern.matcher(input);
+        boolean hasValueGroup = HAS_VALUE_GROUP.computeIfAbsent(pattern, PatternMatcher::detectValueGroup);
         while (m.find()) {
             String raw = m.group();
             int start = m.start();
@@ -42,7 +44,7 @@ public final class PatternMatcher {
             // Prefer the named "value" group when defined so patterns can match
             // surrounding context (separators, anchors) without bleeding it into
             // the property value.
-            String valueText = hasGroup(m) ? m.group("value") : raw;
+            String valueText = hasValueGroup ? m.group("value") : raw;
             Object extracted = opts.valueExtractor().apply(valueText);
             Object formatted = opts.valueFormatter().apply(extracted);
             var match = new Match(name, formatted, start, end, raw, opts.priority(), opts.tags(), opts.isPrivate());
@@ -87,14 +89,16 @@ public final class PatternMatcher {
         return out;
     }
 
+    private static final ConcurrentMap<Pattern, Boolean> HAS_VALUE_GROUP = new ConcurrentHashMap<>();
+    private static final Pattern VALUE_GROUP_DECL = Pattern.compile("\\(\\?<value>");
+
     /**
-     * {@link Matcher#group(String)} throws when the named group does not exist;
-     * Java offers no public "has named group" query, so probe-and-catch is the
-     * least-bad option.
+     * Java exposes no public "has named group" query. Parse the pattern source
+     * once for {@code (?<value>}; cache the answer per {@link Pattern}. Cheaper
+     * than catching {@link IllegalArgumentException} per match.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    private static boolean hasGroup(Matcher m) {
-        try { m.group("value"); return true; } catch (IllegalArgumentException _) { return false; }
+    private static boolean detectValueGroup(Pattern p) {
+        return VALUE_GROUP_DECL.matcher(p.pattern()).find();
     }
 
     /**

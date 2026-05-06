@@ -23,12 +23,18 @@ public record OptionsConfig(Map<String, Object> raw) {
         return v instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
     }
 
-    @SuppressWarnings("unchecked")
     public List<String> topLevelList(String name) {
         var v = raw.get(name);
-        if (v instanceof List<?> list) {
-            return (List<String>) list;
+        if (!(v instanceof List<?> list)) return List.of();
+        var out = new java.util.ArrayList<String>(list.size());
+        for (var item : list) {
+            if (item == null) continue;
+            if (!(item instanceof String s)) {
+                throw new IllegalArgumentException(
+                    "Config '" + name + "' must be a list of strings; got " + item.getClass().getSimpleName());
+            }
+            out.add(s);
         }
-        return Collections.emptyList();
+        return List.copyOf(out);
     }
 }

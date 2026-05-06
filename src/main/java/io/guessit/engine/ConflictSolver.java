@@ -54,7 +54,7 @@ public final class ConflictSolver {
             }
         }
 
-        for (var d : toRemove) matches.remove(d);
+        matches.removeAll(toRemove);
     }
 
     /**

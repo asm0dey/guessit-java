@@ -29,7 +29,7 @@ public final class ParseContext {
     public final OptionsConfig config;
     public final MatchSet matches = new MatchSet();
     public final List<Marker> markers = new ArrayList<>();
-    public Trace trace = Trace.NOOP;
+    public final Trace trace;
     public GuessResultBuilder resultBuilder = GuessResultBuilder.result();
     /** Final assembled result; written by {@link OutputPhase}. */
     public GuessResult result;
@@ -45,8 +45,13 @@ public final class ParseContext {
     }
 
     public ParseContext(String input, Options options, OptionsConfig config) {
+        this(input, options, config, Trace.NOOP);
+    }
+
+    public ParseContext(String input, Options options, OptionsConfig config, Trace trace) {
         this.input = input;
         this.options = options;
         this.config = config;
+        this.trace = trace == null ? Trace.NOOP : trace;
     }
 }

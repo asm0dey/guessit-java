@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -63,6 +65,13 @@ public final class Chain {
     public List<Run> scan(String input, java.util.function.ToIntFunction<Run> effectiveEnd) {
         var runs = new ArrayList<Run>();
         var headMatcher = head.matcher(input);
+        // Allocate one Matcher per tail step, reused across all head iterations.
+        var tailMatchers = new Matcher[tails.size()];
+        for (int i = 0; i < tails.size(); i++) {
+            tailMatchers[i] = tails.get(i).pattern.matcher(input)
+                .useAnchoringBounds(true);
+            tailMatchers[i].useTransparentBounds(false);
+        }
         int from = 0;
         while (headMatcher.find(from)) {
             int hStart = headMatcher.start();
@@ -73,19 +82,19 @@ public final class Chain {
 
             int cursor = hEnd;
             int tailCount = 0;
-            for (var step : tails) {
+            for (int si = 0; si < tails.size(); si++) {
+                var step = tails.get(si);
+                var tm = tailMatchers[si];
                 int taken = 0;
                 while (true) {
-                    var tm = step.pattern.matcher(input).region(cursor, input.length()).useAnchoringBounds(true);
-                    tm.useTransparentBounds(false);
+                    tm.region(cursor, input.length());
                     if (!tm.find()) break;
                     // Tail must be contiguous to the cursor, optionally separated
                     // by a small set of innocuous chars. This is what makes a
                     // "chain" — without it, any later occurrence of the tail
                     // pattern in the input would match.
                     if (tm.start() > cursor) {
-                        var gap = input.substring(cursor, tm.start());
-                        if (!gap.isEmpty() && !gap.matches("[ ._\\-~]+")) break;
+                        if (!isGapSeparators(input, cursor, tm.start())) break;
                     }
                     collectNamed(tm, caps, spans);
                     cursor = tm.end();
@@ -130,15 +139,36 @@ public final class Chain {
     }
 
     /**
+     * Char-set check equivalent to regex {@code [ ._\-~]+} on the
+     * {@code [start, end)} slice of {@code input}. Avoids regex overhead in the
+     * tight chain inner loop.
+     */
+    private static boolean isGapSeparators(String input, int start, int end) {
+        if (start >= end) return false;
+        for (int i = start; i < end; i++) {
+            char c = input.charAt(i);
+            if (c != ' ' && c != '.' && c != '_' && c != '-' && c != '~') return false;
+        }
+        return true;
+    }
+
+    private static final Pattern NAMED_GROUP_DECL = Pattern.compile("\\(\\?<([A-Za-z][A-Za-z0-9]*)>");
+    private static final ConcurrentMap<Pattern, List<String>> NAMED_GROUPS_CACHE = new ConcurrentHashMap<>();
+
+    /**
      * Java's {@link Pattern} exposes no API to enumerate declared named groups,
      * so parse the pattern source for {@code (?<name>...)} occurrences directly.
+     * Cached per {@link Pattern} since chain patterns are reused across parses.
      */
     private static List<String> namedGroups(Pattern p) {
+        return NAMED_GROUPS_CACHE.computeIfAbsent(p, Chain::scanNamedGroups);
+    }
+
+    private static List<String> scanNamedGroups(Pattern p) {
         var out = new ArrayList<String>();
-        var src = p.pattern();
-        var nm = Pattern.compile("\\(\\?<([A-Za-z][A-Za-z0-9]*)>").matcher(src);
+        var nm = NAMED_GROUP_DECL.matcher(p.pattern());
         while (nm.find()) out.add(nm.group(1));
-        return out;
+        return List.copyOf(out);
     }
 
     private record Step(Pattern pattern, Repeater rep) {}

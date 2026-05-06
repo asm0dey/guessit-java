@@ -1,9 +1,13 @@
 package io.guessit.engine;
 
+import java.util.LinkedHashSet;
+import java.util.regex.Pattern;
+
 public final class Formatters {
     private Formatters() {}
 
     private static final String EXCLUDED_CLEAN_CHARS = ",:;-/\\";
+    private static final Pattern MULTI_SPACE = Pattern.compile(" +");
 
     private static final String CLEAN_CHARS;
     static {
@@ -47,7 +51,7 @@ public final class Formatters {
         var dots = new java.util.HashSet<Character>();
         if (!indices.isEmpty()) {
             var chars = cleanString.toCharArray();
-            var potential = new java.util.ArrayList<Integer>();
+            var potential = new LinkedHashSet<Integer>();
             for (var i : indices) {
                 if (potentialBefore(i, input) && potentialAfter(i, input)) potential.add(i);
             }
@@ -69,7 +73,7 @@ public final class Formatters {
             if (!dots.contains(c)) stripChars.append(c);
         }
         cleanString = strip(cleanString, stripChars.toString());
-        return cleanString.replaceAll(" +", " ");
+        return MULTI_SPACE.matcher(cleanString).replaceAll(" ");
     }
 
     private static boolean potentialBefore(int i, String input) {

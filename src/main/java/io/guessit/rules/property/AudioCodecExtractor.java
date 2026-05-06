@@ -2,8 +2,10 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
+import static io.guessit.rules.property.ConfigPatternHelpers.compileDashedCi;
+import static io.guessit.rules.property.ConfigPatternHelpers.forEachString;
+
 import java.util.*;
-import java.util.regex.Pattern;
 
 /**
  * Extracts {@code audio_codec}, {@code audio_profile}, and {@code audio_channels}.
@@ -172,7 +174,8 @@ public final class AudioCodecExtractor implements Extractor {
                 Set<String> tags = pattern.tags() != null
                     ? new HashSet<>(pattern.tags()) : new HashSet<>();
                 if (pattern.regex()) {
-                    var p = Pattern.compile(Abbreviations.dash(pattern.source()), Pattern.CASE_INSENSITIVE);
+                    var p = compileDashedCi(pattern.source());
+                    if (p == null) continue;
                     var opts = RegexOpts.defaults().withValue(_ -> value).withPriority(priority);
                     if (!tags.isEmpty()) opts = opts.withTags(tags);
                     for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
@@ -217,14 +220,13 @@ public final class AudioCodecExtractor implements Extractor {
             for (var item : list) out.addAll(flattenPatterns(item));
         } else if (def instanceof Map<?, ?> map) {
             var m = (Map<String, Object>) map;
-            // Extract tags from the map (can be String or List<String>)
+            // Tags can be a String or a List<String>.
             List<String> tags = null;
             if (m.get("tags") instanceof String ts) tags = List.of(ts);
             else if (m.get("tags") instanceof List<?> tl) tags = (List<String>) tl;
-            if (m.get("string") instanceof String ss) out.add(new PatternEntry(ss, false, tags));
-            if (m.get("string") instanceof List<?> sl) for (var s : sl) out.add(new PatternEntry((String) s, false, tags));
-            if (m.get("regex") instanceof String rs) out.add(new PatternEntry(rs, true, tags));
-            if (m.get("regex") instanceof List<?> rl) for (var s : rl) out.add(new PatternEntry((String) s, true, tags));
+            var finalTags = tags;
+            forEachString(m.get("string"), s -> out.add(new PatternEntry(s, false, finalTags)));
+            forEachString(m.get("regex"),  s -> out.add(new PatternEntry(s, true,  finalTags)));
         }
         return out;
     }

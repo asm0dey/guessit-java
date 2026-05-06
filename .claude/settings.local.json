@@ -53,7 +53,8 @@
       "mcp__idea__list_database_connections",
       "mcp__idea__xdebug_list_breakpoints",
       "Bash(read f *)",
-      "Bash(uvx guessit *)"
+      "Bash(uvx guessit *)",
+      "Bash(./gradlew compileJava compileTestJava)"
     ]
   }
 }

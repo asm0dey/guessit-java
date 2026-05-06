@@ -4,8 +4,11 @@ import io.guessit.engine.*;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Extracts {@code release_group} (the scene/p2p group name appended to the
@@ -56,6 +59,8 @@ public final class ReleaseGroupExtractor implements Extractor {
     private static final Pattern PARENS_BRACKETS = Pattern.compile("(.+)\\)\\s?\\[(.+)]");
     public static final String RELEASE_GROUP = "release_group";
 
+    private static final ConcurrentMap<String, Pattern> EXPECTED_RE_CACHE = new ConcurrentHashMap<>();
+
     @Override public String name() { return RELEASE_GROUP; }
 
     @Override
@@ -85,12 +90,11 @@ public final class ReleaseGroupExtractor implements Extractor {
         if (name.startsWith("re:")) {
             // Regex entry: case-insensitive scan; raw is the matched span.
             var rxSrc = name.substring(3);
-            Pattern pat;
-            try {
-                pat = Pattern.compile(rxSrc, Pattern.CASE_INSENSITIVE);
-            } catch (Exception _) {
-                return true;
-            }
+            var pat = EXPECTED_RE_CACHE.computeIfAbsent(rxSrc, s -> {
+                try { return Pattern.compile(s, Pattern.CASE_INSENSITIVE); }
+                catch (PatternSyntaxException ex) { ConfigPatternHelpers.warnBadRegex(s, ex); return null; }
+            });
+            if (pat == null) return true;
             var matcher = pat.matcher(input);
             while (matcher.find()) {
                 int s = matcher.start();
@@ -784,9 +788,7 @@ public final class ReleaseGroupExtractor implements Extractor {
      * predicate filter in {@code release_group.detect}.
      */
     private static final java.util.regex.Pattern KNOWN_TRAILING_EXT = java.util.regex.Pattern.compile(
-        "(?i)\\.(?:mkv|mp4|avi|mov|m4v|mpeg|mpg|ts|m2ts|wmv|webm|flv|ogg|ogm|ogv|"
-        + "iso|3gp|3g2|3gp2|asf|divx|mka|mk2|mk3d|mp4a|qt|ra|ram|rm|vob|wav|wma|"
-        + "srt|idx|sub|ssa|ass|nfo|torrent|nzb)$");
+        "(?i)\\.(?:mkv|mp4|avi|mov|m4v|mpeg|mpg|ts|m2ts|wmv|webm|flv|ogg|ogm|ogv|iso|3gp|3g2|3gp2|asf|divx|mka|mk2|mk3d|mp4a|qt|ra|ram|rm|vob|wav|wma|srt|idx|sub|ssa|ass|nfo|torrent|nzb)$");
 
     /**
      * When no container match is present (e.g. dropped by ConflictPhase in favor

@@ -160,7 +160,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
                 case "title" -> b.title(asString(ms.getFirst()));
                 case "alternative_title" -> b.alternativeTitleList(ms.stream().map(OutputBuilder::asString).toList());
                 case "year" -> b.year(asInt(ms.getFirst()));
-                case "date" -> b.date((LocalDate) ms.getFirst().value());
+                case "date" -> { if (ms.getFirst().value() instanceof LocalDate d) b.date(d); }
                 case "season" -> applyIntList(ms, b::season, b::seasonList);
                 case "episode" -> applyIntList(ms, b::episode, b::episodeList);
                 case "episode_count" -> b.episodeCount(asInt(ms.getFirst()));
@@ -214,7 +214,10 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         var v = m.value();
         if (v instanceof Integer i) return i;
         if (v instanceof Number n) return n.intValue();
-        if (v instanceof String s) return Integer.parseInt(s);
+        if (v instanceof String s) {
+            try { return Integer.parseInt(s); }
+            catch (NumberFormatException _) { return null; }
+        }
         return null;
     }
 
@@ -229,7 +232,10 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         var v = m.value();
         if (v instanceof Double d) return d;
         if (v instanceof Number n) return n.doubleValue();
-        if (v instanceof String s) return Double.parseDouble(s);
+        if (v instanceof String s) {
+            try { return Double.parseDouble(s); }
+            catch (NumberFormatException _) { return null; }
+        }
         return null;
     }
     private static List<Language> asLangList(List<Match> ms) { return ms.stream().map(m -> (Language) m.value()).distinct().toList(); }

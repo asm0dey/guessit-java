@@ -30,6 +30,7 @@ public final class Numerals {
 
     private static final Pattern ROMAN_FULL = Pattern.compile("^" + ROMAN + "$");
     private static final Pattern CLEAN = Pattern.compile("[^\\d]*(\\d+)[^\\d]*");
+    private static final Pattern WS_SPLIT = Pattern.compile("\\s+");
 
     private static final List<List<String>> WORD_LISTS = List.of(ENGLISH_WORDS, FRENCH_WORDS, FRENCH_ALT_WORDS);
 
@@ -53,13 +54,13 @@ public final class Numerals {
             } catch (NumberFormatException _) {}
         }
         if (romanEnabled) {
-            for (var word : value.split("\\s+")) {
+            for (var word : WS_SPLIT.split(value)) {
                 try { return parseRoman(word.toUpperCase(java.util.Locale.ROOT)); }
                 catch (IllegalArgumentException _) {}
             }
         }
         if (wordEnabled) {
-            for (var word : value.split("\\s+")) {
+            for (var word : WS_SPLIT.split(value)) {
                 int idx = wordIndex(word);
                 if (idx >= 0) return idx;
             }

@@ -6,6 +6,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 /**
@@ -30,6 +32,16 @@ public final class ScreenSizeExtractor implements Extractor {
     public static final String WEAK_SCREEN_SIZE = "weak.screen_size";
     public static final String NORMALIZED = "normalized";
 
+    private static final Pattern WH_P = Pattern.compile("(?<width>\\d{3,4})-?\\s*[x*]\\s*-?(?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WIDTH_HEIGHT_NORM = Pattern.compile("(?<width>\\d{3,4})\\s*[x*-]\\s*(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HEIGHT_SCAN_NORM = Pattern.compile("(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
+
+    private final ConcurrentMap<String, Pattern> patternCache = new ConcurrentHashMap<>();
+
+    private Pattern compileCi(String src) {
+        return patternCache.computeIfAbsent(src, s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE));
+    }
+
     @Override public String name() { return SCREEN_SIZE; }
 
     @Override
@@ -50,8 +62,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // width-x-height fallback for non-standard sizes — extract before height+scan
         // so WxH matches are last in MatchSet (ScreenSizeOnlyOne sorts by start DESC).
-        var whP = Pattern.compile("(?<width>\\d{3,4})-?\\s*[x*]\\s*-?(?<height>\\d{3,4})", Pattern.CASE_INSENSITIVE);
-        for (var m : PatternMatcher.regex(input, whP, SCREEN_SIZE, opts)) {
+        for (var m : PatternMatcher.regex(input, WH_P, SCREEN_SIZE, opts)) {
             ctx.matches.add(m);
         }
 
@@ -75,7 +86,7 @@ public final class ScreenSizeExtractor implements Extractor {
         }
 
         // frame_rate standalone, with mandatory `p` or `fps` suffix.
-        var frP = Pattern.compile("(?<value>" + fr + ")-?(?:p|fps)", Pattern.CASE_INSENSITIVE);
+        var frP = compileCi("(?<value>" + fr + ")-?(?:p|fps)");
         var frOpts = RegexOpts.defaults()
             .withValue(s -> Integer.valueOf(s.replaceAll("\\..*$", "")))
             .withTags(Set.of("coexist"))
@@ -89,8 +100,8 @@ public final class ScreenSizeExtractor implements Extractor {
     private static final Pattern FRAME_RATE_PATTERN =
         Pattern.compile("\\d{3,4}[ip](?<fr>\\d{2}(?:\\.\\d{1,3})?)$", Pattern.CASE_INSENSITIVE);
 
-    private static void addRegex(ParseContext ctx, String src, RegexOpts opts) {
-        var p = Pattern.compile(src, Pattern.CASE_INSENSITIVE);
+    private void addRegex(ParseContext ctx, String src, RegexOpts opts) {
+        var p = compileCi(src);
         for (var m : PatternMatcher.regex(ctx.input, p, SCREEN_SIZE, opts)) {
             ctx.matches.add(m);
         }
@@ -110,17 +121,14 @@ public final class ScreenSizeExtractor implements Extractor {
     }
 
     private void normalizeScreenSizeMatches(ParseContext ctx, Set<String> standardHeights, double minAr, double maxAr) {
-        var widthHeight = Pattern.compile("(?<width>\\d{3,4})\\s*[x*-]\\s*(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
-        var heightScan = Pattern.compile("(?<height>\\d{3,4})(?<scan>[ip])?", Pattern.CASE_INSENSITIVE);
-
         for (var m : ctx.matches.named(SCREEN_SIZE).toList()) {
             if (m.tags().contains(NORMALIZED)) continue;
 
-            var wh = widthHeight.matcher(m.raw());
+            var wh = WIDTH_HEIGHT_NORM.matcher(m.raw());
             if (wh.find()) {
                 normalizeWidthHeightMatch(ctx, m, wh, standardHeights, minAr, maxAr);
             } else {
-                var hs = heightScan.matcher(m.raw());
+                var hs = HEIGHT_SCAN_NORM.matcher(m.raw());
                 if (hs.find()) {
                     normalizeHeightScanMatch(ctx, m, hs);
                 }

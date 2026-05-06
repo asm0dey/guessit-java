@@ -3,6 +3,8 @@ package io.guessit.rules.property;
 import io.guessit.engine.*;
 
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -24,6 +26,15 @@ public final class VideoCodecExtractor implements Extractor {
 
     public static final String VIDEO_PROFILE = "video_profile";
     public static final String VIDEO_CODEC = "video_codec";
+
+    private static final Pattern HEVC10 = Pattern.compile("(hevc)(10)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AVC_HD = Pattern.compile(Abbreviations.dash("AVC(?:HD)?"), Pattern.CASE_INSENSITIVE);
+
+    private final ConcurrentMap<String, Pattern> dashCache = new ConcurrentHashMap<>();
+
+    private Pattern compileDashed(String src) {
+        return dashCache.computeIfAbsent(src, s -> Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE));
+    }
 
     @Override public String name() { return VIDEO_CODEC; }
 
@@ -50,8 +61,7 @@ public final class VideoCodecExtractor implements Extractor {
 
         // hevc(10) → H.265 + 10-bit color_depth (sub-span matches to avoid ConflictSolver overlap)
         // Validated with sepsBefore only (right side is '10', not a separator)
-        var hevc10 = Pattern.compile("(hevc)(10)", Pattern.CASE_INSENSITIVE);
-        var m = hevc10.matcher(input);
+        var m = HEVC10.matcher(input);
         while (m.find()) {
             int g1s = m.start(1), g1e = m.end(1), g2s = m.start(2), g2e = m.end(2);
             String raw1 = m.group(1), raw2 = m.group(2);
@@ -124,7 +134,7 @@ public final class VideoCodecExtractor implements Extractor {
     }
 
     private void addCodec(ParseContext ctx, String src, String value, java.util.function.Predicate<Match> v) {
-        var p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE);
+        var p = compileDashed(src);
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
         // Tag video_codec matches with source-suffix so adjacent source matches
         // (e.g. PDTV in "PDTVx264") pass ValidateSourcePrefixSuffix when the
@@ -138,7 +148,7 @@ public final class VideoCodecExtractor implements Extractor {
         addRegexNamed(ctx, VIDEO_PROFILE, src, value, v);
     }
     private void addRegexNamed(ParseContext ctx, String name, String src, String value, java.util.function.Predicate<Match> v) {
-        var p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE);
+        var p = compileDashed(src);
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
         for (var m : PatternMatcher.regex(ctx.input, p, name, opts)) ctx.matches.add(m);
     }
@@ -160,9 +170,8 @@ public final class VideoCodecExtractor implements Extractor {
     }
     private void addRegexProfileTagged(ParseContext ctx,
                                        Predicate<Match> v) {
-        var p = Pattern.compile(Abbreviations.dash("AVC(?:HD)?"), Pattern.CASE_INSENSITIVE);
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> "Advanced Video Codec High Definition");
-        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_PROFILE, opts)) {
+        for (var m : PatternMatcher.regex(ctx.input, AVC_HD, VIDEO_PROFILE, opts)) {
             ctx.matches.add(new Match(VIDEO_PROFILE, "Advanced Video Codec High Definition", m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("video_profile.rule"), m.isPrivate()));
         }

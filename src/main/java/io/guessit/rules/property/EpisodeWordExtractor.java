@@ -40,6 +40,21 @@ public final class EpisodeWordExtractor implements Extractor {
     private static final List<String> SEASON_WORDS = List.of(SEASON, "seasons", "saison", "saisons", "seizoen", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
     private static final List<String> OF_WORDS = List.of("of", "sur", "de");
 
+    private static final Pattern SEASON_RE = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+    private static final Pattern SEASON_TAIL_RE = Pattern.compile(
+        "(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
+    private static final Pattern AFTER_OF_RE = Pattern.compile(
+        "(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
+    private static final Pattern EP_RE_EPISODE_TYPE = Pattern.compile(
+        "(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
+        + "(" + Numerals.NUMERAL + ")(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+    private static final Pattern EP_RE_DEFAULT = Pattern.compile(
+        "(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
+        + "(\\d+)(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
+    private static final Pattern DETACHED_EP_COUNT_RE = Pattern.compile(
+        "(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
+        + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
+
     @Override public String name() { return "episode_word"; }
 
     @Override
@@ -54,9 +69,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void extractSeasonMatches(ParseContext ctx) {
         var input = ctx.input;
         var seasonHeadValidator = createSeasonHeadValidator(input);
-        var seasonRe = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")"
-                + "(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
-        var seasonMatcher = seasonRe.matcher(input);
+        var seasonMatcher = SEASON_RE.matcher(input);
 
         while (seasonMatcher.find()) {
             processSeasonMatch(ctx, seasonMatcher, seasonHeadValidator);
@@ -116,14 +129,13 @@ public final class EpisodeWordExtractor implements Extractor {
 
     private void processSeasonTail(ParseContext ctx, Matcher seasonMatcher, int firstSeasonValue) {
         var input = ctx.input;
-        var seasonTailRe = Pattern.compile("(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
         var blockSpans = getBlockedSpans(ctx);
 
         int prevVal = firstSeasonValue;
         int scanFrom = seasonMatcher.end();
+        var tail = SEASON_TAIL_RE.matcher(input);
 
         while (true) {
-            var tail = seasonTailRe.matcher(input);
             tail.region(scanFrom, input.length());
             if (!tail.lookingAt()) break;
 
@@ -161,7 +173,7 @@ public final class EpisodeWordExtractor implements Extractor {
 
     private TailResult processSeasonTailMatch(ParseContext ctx, Matcher tail,
                                               int prevVal, List<int[]> blockSpans) {
-        String sepToken = tail.group(1).strip().toLowerCase();
+        String sepToken = tail.group(1).strip().toLowerCase(java.util.Locale.ROOT);
         String op = sepToken.replaceAll("^[. _]+|[. _]+$", "");
         boolean strong = op.equals("&") || op.equals("+") || op.equals("and") || op.equals("et");
         boolean range = op.equals("-") || op.equals("~") || op.equals("to") || op.equals("a");
@@ -187,8 +199,7 @@ public final class EpisodeWordExtractor implements Extractor {
     }
 
     private boolean isFollowedByOfClause(String input, int position) {
-        var afterRe = Pattern.compile("(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
-        return afterRe.matcher(input).region(position, input.length()).lookingAt();
+        return AFTER_OF_RE.matcher(input).region(position, input.length()).lookingAt();
     }
 
     private void addRangeSeasons(ParseContext ctx, int prevVal, int v, int tStart) {
@@ -202,10 +213,7 @@ public final class EpisodeWordExtractor implements Extractor {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
         boolean episodeType = EPISODE.equals(ctx.options.type());
-        String numToken = episodeType ? "(" + Numerals.NUMERAL + ")" : "(\\d+)";
-        var epRe = Pattern.compile("(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
-                + numToken + "(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
-        var epMatcher = epRe.matcher(input);
+        var epMatcher = (episodeType ? EP_RE_EPISODE_TYPE : EP_RE_DEFAULT).matcher(input);
 
         while (epMatcher.find()) {
             processEpisodeMatch(ctx, epMatcher, seps, episodeType);
@@ -303,9 +311,7 @@ public final class EpisodeWordExtractor implements Extractor {
     private void extractDetachedEpisodeCount(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
-        var detached = Pattern.compile("(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
-                + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
-        var dm = detached.matcher(input);
+        var dm = DETACHED_EP_COUNT_RE.matcher(input);
 
         while (dm.find()) {
             processDetachedMatch(ctx, dm, seps);

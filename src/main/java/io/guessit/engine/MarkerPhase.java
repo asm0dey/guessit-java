@@ -1,5 +1,6 @@
 package io.guessit.engine;
 
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -21,7 +22,7 @@ public record MarkerPhase(List<MarkerProducer> producers) implements Phase {
     @Override
     public void apply(ParseContext ctx) {
         ctx.trace.phase("markers");
-        var beforeAll = List.copyOf(ctx.markers);
+        var beforeAll = new HashSet<>(ctx.markers);
         for (var p : producers) {
             p.produce(ctx);
         }

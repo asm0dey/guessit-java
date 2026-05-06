@@ -1,6 +1,7 @@
 package io.guessit;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -118,76 +119,9 @@ public record GuessResult(
         m.put(k, list.size() == 1 ? list.getFirst() : list);
     }
 
-    /**
-     * Functional accessor for parity comparisons: returns the typed field value bound to a
-     * snake_case property name (matching YAML expected keys), without the {@link #toMap()}
-     * round-trip. Multi-value lists stay as {@link List}; season/episode collapse to a single
-     * value when only one is present (mirroring Python guessit's scalar-when-single contract).
-     * Returns {@code null} when no value is set or the key is unknown.
-     */
-    public Object field(String key) {
-        return switch (key) {
-            case "title" -> title;
-            case "alternative_title" -> singleOrList(alternativeTitleList);
-            case "year" -> year;
-            case "date" -> date;
-            case "season" -> seasonList != null && !seasonList.isEmpty()
-                ? (seasonList.size() == 1 ? seasonList.getFirst() : seasonList) : season;
-            case "episode" -> episodeList != null && !episodeList.isEmpty()
-                ? (episodeList.size() == 1 ? episodeList.getFirst() : episodeList) : episode;
-            case "episode_count" -> episodeCount;
-            case "season_count" -> seasonCount;
-            case "episode_title" -> episodeTitle;
-            case "episode_format" -> episodeFormat;
-            case "type" -> type;
-            case "language" -> singleOrList(language);
-            case "subtitle_language" -> singleOrList(subtitleLanguage);
-            case "country" -> singleOrList(country);
-            case "source" -> sourceList != null && !sourceList.isEmpty()
-                ? (sourceList.size() == 1 ? sourceList.getFirst() : sourceList) : source;
-            case "other" -> singleOrList(other);
-            case "video_codec" -> singleOrList(videoCodec);
-            case "audio_codec" -> singleOrList(audioCodec);
-            case "audio_channels" -> singleOrList(audioChannels);
-            case "audio_profile" -> singleOrList(audioProfile);
-            case "video_profile" -> singleOrList(videoProfile);
-            case "video_api" -> singleOrList(videoApi);
-            case "screen_size" -> screenSize;
-            case "aspect_ratio" -> aspectRatio;
-            case "frame_rate" -> frameRate;
-            case "bit_rate" -> bitRate == null ? null : bitRate.format();
-            case "audio_bit_rate" -> audioBitRate == null ? null : audioBitRate.format();
-            case "video_bit_rate" -> videoBitRate == null ? null : videoBitRate.format();
-            case "size" -> size == null ? null : size.format();
-            case "container" -> container;
-            case "mimetype" -> mimetype;
-            case "release_group" -> releaseGroup;
-            case "streaming_service" -> streamingService;
-            case "website" -> website;
-            case "edition" -> singleOrList(edition);
-            case "cd" -> cd;
-            case "cd_count" -> cdCount;
-            case "part" -> partList != null && !partList.isEmpty()
-                ? (partList.size() == 1 ? partList.getFirst() : partList) : part;
-            case "version" -> version;
-            case "film" -> film;
-            case "film_title" -> filmTitle;
-            case "bonus" -> bonus;
-            case "bonus_title" -> bonusTitle;
-            case "crc32" -> crc32;
-            case "proper_count" -> properCount;
-            default -> extras == null ? null : extras.get(key);
-        };
-    }
-
-    private static Object singleOrList(List<?> list) {
-        if (list == null || list.isEmpty()) return null;
-        return list.size() == 1 ? list.getFirst() : list;
-    }
-
     public String toJson() {
         try { return JSON.writeValueAsString(toMap()); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("Failed to serialize GuessResult to JSON", e); }
     }
 
     public String toYaml() {

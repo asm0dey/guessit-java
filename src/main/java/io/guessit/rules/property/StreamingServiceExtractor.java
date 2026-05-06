@@ -3,7 +3,10 @@ package io.guessit.rules.property;
 import io.guessit.engine.*;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Extracts {@code streaming_service} (NF, AMZN, HULU, …).
@@ -22,6 +25,8 @@ import java.util.regex.Pattern;
 public final class StreamingServiceExtractor implements Extractor {
 
     public static final String STREAMING_SERVICE = "streaming_service";
+
+    private static final ConcurrentMap<String, Pattern> DASHED_CACHE = new ConcurrentHashMap<>();
 
     @Override public String name() { return STREAMING_SERVICE; }
 
@@ -79,9 +84,11 @@ public final class StreamingServiceExtractor implements Extractor {
     }
 
     private static void emitRegex(ParseContext ctx, String input, String value, String src) {
-        Pattern p;
-        try { p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE); }
-        catch (Exception _) { return; }
+        var p = DASHED_CACHE.computeIfAbsent(src, s -> {
+            try { return Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE); }
+            catch (PatternSyntaxException ex) { ConfigPatternHelpers.warnBadRegex(s, ex); return null; }
+        });
+        if (p == null) return;
         var matcher = p.matcher(input);
         while (matcher.find()) {
             int s = matcher.start();

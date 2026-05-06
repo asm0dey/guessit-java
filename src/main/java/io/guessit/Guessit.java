@@ -32,8 +32,7 @@ public final class Guessit {
     }
 
     public GuessResult guess(String input, Trace trace) {
-        var ctx = new ParseContext(input, options, config);
-        ctx.trace = trace;
+        var ctx = new ParseContext(input, options, config, trace);
         trace.input(input);
         pipeline.run(ctx);
         trace.result(ctx.result);

@@ -2,9 +2,13 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.*;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
+import static io.guessit.rules.property.ConfigPatternHelpers.*;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Extracts the {@code edition} property — release edition tags such as
@@ -30,25 +34,7 @@ public final class EditionExtractor implements Extractor {
 
     @Override
     public void extract(ParseContext ctx) {
-        var section = ctx.config.section(EDITION);
-        var inner = section.get(EDITION);
-        if (!(inner instanceof Map<?, ?> entries)) return;
-
-        var input = ctx.input;
-        for (var e : entries.entrySet()) {
-            var key = String.valueOf(e.getKey());
-            for (var spec : asList(e.getValue())) {
-                emitSpec(ctx, input, key, spec);
-            }
-        }
-    }
-
-    // ── helpers mirroring OtherExtractor ──────────────────────────────────
-
-    private static List<Object> asList(Object v) {
-        if (v == null) return List.of();
-        if (v instanceof List<?> l) return List.copyOf(l);
-        return List.of(v);
+        forEachSpec(ctx, EDITION, EditionExtractor::emitSpec);
     }
 
     private static void emitSpec(ParseContext ctx, String input, String key, Object spec) {
@@ -77,7 +63,7 @@ public final class EditionExtractor implements Extractor {
         if (s.startsWith("re:")) {
             emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags());
         } else {
-            emitString(ctx, input, key, s, SENTINEL, defaultTags());
+            emitString(ctx, EDITION, input, key, s, SENTINEL, defaultTags());
         }
     }
 
@@ -86,7 +72,7 @@ public final class EditionExtractor implements Extractor {
         Object regexList = m.get("regex");
         for (var val : multiValues) {
             var v = val.toString();
-            emitRegexPatterns(ctx, input, v, regexList, SENTINEL, tags);
+            emitRegexPatterns(ctx, input, v, regexList, tags);
         }
     }
 
@@ -99,103 +85,37 @@ public final class EditionExtractor implements Extractor {
     private static void emitPatterns(ParseContext ctx, String input, String editionValue,
                                      Object stringList, Object regexList,
                                      Object validatorSrc, Set<String> tags) {
-        emitStringPatterns(ctx, input, editionValue, stringList, validatorSrc, tags);
-        emitRegexPatterns(ctx, input, editionValue, regexList, validatorSrc, tags);
-    }
-
-    private static void emitStringPatterns(ParseContext ctx, String input, String editionValue,
-                                           Object stringList, Object validatorSrc, Set<String> tags) {
-        if (stringList instanceof String s) {
-            emitString(ctx, input, editionValue, s, validatorSrc, tags);
-        } else if (stringList instanceof List<?> l) {
-            for (var p : l) emitString(ctx, input, editionValue, p.toString(), validatorSrc, tags);
-        }
+        forEachString(stringList, s -> emitString(ctx, EDITION, input, editionValue, s, validatorSrc, tags));
+        forEachString(regexList, s -> emitRegex(ctx, input, editionValue, s, validatorSrc, tags));
     }
 
     private static void emitRegexPatterns(ParseContext ctx, String input, String editionValue,
-                                          Object regexList, Object validatorSrc, Set<String> tags) {
-        if (regexList instanceof String s) {
-            emitRegex(ctx, input, editionValue, s, validatorSrc, tags);
-        } else if (regexList instanceof List<?> l) {
-            for (var p : l) emitRegex(ctx, input, editionValue, p.toString(), validatorSrc, tags);
-        }
-    }
-
-    private static final Object SENTINEL = new Object();
-
-    private static Set<String> defaultTags() { return Set.of(); }
-
-    private static Set<String> parseTags(Object t) {
-        return switch (t) {
-            case String s -> Set.of(s);
-            case List<?> l -> {
-                var out = new HashSet<String>();
-                for (var v : l) if (v != null) out.add(v.toString());
-                yield Set.copyOf(out);
-            }
-            case null, default -> Set.of();
-        };
-    }
-
-    private static Predicate<Match> resolveValidator(String input, Object validatorSrc) {
-        if (validatorSrc == SENTINEL) return Validators.sepsSurround(input);
-        if (validatorSrc == null) return _ -> true;
-        if (validatorSrc instanceof String s) {
-            return switch (s) {
-                case "null" -> _ -> true;
-                case "import:seps_after" -> Validators.sepsAfter(input);
-                case "import:seps_before" -> Validators.sepsBefore(input);
-                default -> Validators.sepsSurround(input);
-            };
-        }
-        return Validators.sepsSurround(input);
-    }
-
-    private static void emitString(ParseContext ctx, String input, String value, String needle,
-                                    Object validatorSrc, Set<String> tags) {
-        var validator = resolveValidator(input, validatorSrc);
-        var hay = input.toLowerCase(java.util.Locale.ROOT);
-        var n = needle.toLowerCase(java.util.Locale.ROOT);
-        int from = 0;
-        while (true) {
-            int i = hay.indexOf(n, from);
-            if (i < 0) break;
-            int end = i + n.length();
-            var match = createMatch(input, value, tags, i, end);
-            if (validator.test(match)) ctx.matches.add(match);
-            from = i + 1;
-        }
+                                          Object regexList, Set<String> tags) {
+        forEachString(regexList, s -> emitRegex(ctx, input, editionValue, s, ConfigPatternHelpers.SENTINEL, tags));
     }
 
     private static void emitRegex(ParseContext ctx, String input, String value, String src,
                                    Object validatorSrc, Set<String> tags) {
-        Pattern p;
-        try { p = Pattern.compile(Abbreviations.dash(src), Pattern.CASE_INSENSITIVE); }
-        catch (Exception _) { return; }
+        var p = compileDashedCi(src);
+        if (p == null) return;
         var validator = resolveValidator(input, validatorSrc);
         var matcher = p.matcher(input);
         while (matcher.find()) {
             int s = matcher.start();
             int e = matcher.end();
-            var m = createMatch(input, value, tags, s, e);
+            var m = createMatch(EDITION, input, value, tags, s, e);
             if (!validator.test(m)) continue;
             ctx.matches.add(m);
         }
     }
 
-    private static Match createMatch(String input, String value, Set<String> tags, int s, int e) {
-        return new Match(EDITION, value, s, e, input.substring(s, e), 1000, tags, false);
-    }
-
-    // ── post-processing ───────────────────────────────────────────────────
-
     @Override
     public void postProcess(ParseContext ctx) {
-        validateHasNeighbor(ctx);
-        validateHasNeighborBefore(ctx);
-        validateHasNeighborAfter(ctx);
+        removeUnlessNeighbor(ctx, EDITION, "has-neighbor", true, true);
+        removeUnlessNeighbor(ctx, EDITION, "has-neighbor-before", true, false);
+        removeUnlessNeighbor(ctx, EDITION, "has-neighbor-after", false, true);
         dropOverlappingStreamingService(ctx);
-        dedupSameSpan(ctx);
+        dedupSameSpan(ctx, EDITION);
     }
 
     private static void dropOverlappingStreamingService(ParseContext ctx) {
@@ -227,7 +147,7 @@ public final class EditionExtractor implements Extractor {
             .filter(m -> !m.isPrivate())
             .filter(m -> m.tags().contains("streaming_service.suffix"))
             .filter(m -> m.start() >= s.end())
-            .min(java.util.Comparator.comparingInt(Match::start))
+            .min(Comparator.comparingInt(Match::start))
             .map(n -> Seps.betweenIsSeps(input, s.end(), n.start())
                     && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1))))
             .orElse(false);
@@ -236,70 +156,9 @@ public final class EditionExtractor implements Extractor {
             .filter(m -> !m.isPrivate())
             .filter(m -> m.tags().contains("streaming_service.prefix"))
             .filter(m -> m.end() <= s.start())
-            .max(java.util.Comparator.comparingInt(Match::end))
+            .max(Comparator.comparingInt(Match::end))
             .map(p -> Seps.betweenIsSeps(input, p.end(), s.start())
                     && (s.end() >= input.length() || Seps.isSep(input.charAt(s.end()))))
             .orElse(false);
-    }
-
-    private static void validateHasNeighbor(ParseContext ctx) {
-        removeUnlessNeighbor(ctx, "has-neighbor", true, true);
-    }
-
-    private static void validateHasNeighborBefore(ParseContext ctx) {
-        removeUnlessNeighbor(ctx, "has-neighbor-before", true, false);
-    }
-
-    private static void validateHasNeighborAfter(ParseContext ctx) {
-        removeUnlessNeighbor(ctx, "has-neighbor-after", false, true);
-    }
-
-    private static void removeUnlessNeighbor(ParseContext ctx, String tag, boolean checkBefore, boolean checkAfter) {
-        var input = ctx.input;
-        var toRemove = new ArrayList<Match>();
-        var all = ctx.matches.all().filter(m -> !m.isPrivate()).toList();
-        var editions = ctx.matches.named(EDITION).filter(m -> m.tags().contains(tag)).toList();
-        for (var m : editions) {
-            boolean ok = false;
-            if (checkBefore) ok = hasAdjacentBefore(input, m, all, ctx.markers);
-            if (checkAfter) ok = ok || hasAdjacentAfter(input, m, all, ctx.markers);
-            if (!ok) toRemove.add(m);
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
-    }
-
-    private static boolean hasAdjacentBefore(String input, Match m, List<Match> all, List<Marker> markers) {
-        Match prev = null;
-        for (var o : all) if (o != m && o.end() <= m.start() && (prev == null || o.end() > prev.end())) prev = o;
-        Marker prevGroup = null;
-        for (var g : markers) if ("group".equals(g.name()) && g.end() <= m.start() && (prevGroup == null || g.end() > prevGroup.end())) prevGroup = g;
-        int prevEnd = -1;
-        if (prev != null) prevEnd = prev.end();
-        if (prevGroup != null && prevGroup.end() > prevEnd) prevEnd = prevGroup.end();
-        if (prevEnd < 0) return false;
-        return Seps.betweenIsSeps(input, prevEnd, m.start());
-    }
-
-    private static boolean hasAdjacentAfter(String input, Match m, List<Match> all, List<Marker> markers) {
-        Match next = null;
-        for (var o : all) if (o != m && o.start() >= m.end() && (next == null || o.start() < next.start())) next = o;
-        Marker nextGroup = null;
-        for (var g : markers) if ("group".equals(g.name()) && g.start() >= m.end() && (nextGroup == null || g.start() < nextGroup.start())) nextGroup = g;
-        int nextStart = Integer.MAX_VALUE;
-        if (next != null) nextStart = next.start();
-        if (nextGroup != null && nextGroup.start() < nextStart) nextStart = nextGroup.start();
-        if (nextStart == Integer.MAX_VALUE) return false;
-        return Seps.betweenIsSeps(input, m.end(), nextStart);
-    }
-
-
-    private static void dedupSameSpan(ParseContext ctx) {
-        var seen = new HashSet<String>();
-        var toRemove = new ArrayList<Match>();
-        for (var m : ctx.matches.named(EDITION).toList()) {
-            var key = m.start() + ":" + m.end() + ":" + m.value();
-            if (!seen.add(key)) toRemove.add(m);
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
     }
 }
