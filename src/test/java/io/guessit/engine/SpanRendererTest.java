@@ -67,12 +67,11 @@ class SpanRendererTest {
                 List.of(title, season, episode, year, container), List.of());
         String expected =
                 "  Show.S01E02.2024.mkv\n" +
-                "  ----  -- -- ---- ---\n" +
-                "    |    |  |   |   |\n" +
+                "  ----     --\n" +
                 "  title  episode\n" +
-                "         |      |   |\n" +
+                "        --    ----\n" +
                 "      season  year\n" +
-                "                    |\n" +
+                "                   ---\n" +
                 "                container\n";
         assertThat(out).isEqualTo(expected);
     }
@@ -112,13 +111,46 @@ class SpanRendererTest {
         String expected =
                 "  Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
                 "  ------------------------------------------------------\n" +
-                "     |  |   |       |        |      |  ||  |     |    |\n" +
                 "   title  group   path     whole      path  screen_size\n" +
-                "        |   |                       |  |   |          |\n" +
+                "  -------------                    --    -----       ---\n" +
                 "      path                       season source    container\n" +
-                "            |                          |\n" +
+                "          ----                        --\n" +
                 "          year                      episode\n";
         assertThat(out).isEqualTo(expected);
+    }
+
+    @Test
+    void singleCharSpanRendersAsPipe() {
+        String out = SpanRenderer.render("ab.X.cd",
+            List.of(Match.of(MatchName.PART, 1, 3, 4, "X")), List.of());
+        assertThat(out).contains("|");
+        assertThat(out).contains("part");
+        // Underline char for a single-char span must be |, not -
+        assertThat(out).doesNotContain("-");
+    }
+
+    @Test
+    void overlappingSameSpanMatchesEachGetOwnRow() {
+        var year   = Match.of(MatchName.YEAR,   2024, 6, 10, "2024");
+        var season = Match.of(MatchName.SEASON, 20,   6, 10, "2024");
+        String out = SpanRenderer.render("Movie.2024.mkv", List.of(year, season), List.of());
+        assertThat(out).contains("year");
+        assertThat(out).contains("season");
+        // Two underline rows: count occurrences of "----"
+        long underlineRows = out.lines().filter(l -> l.contains("----")).count();
+        assertThat(underlineRows).isEqualTo(2L);
+    }
+
+    @Test
+    void overlappingMarkersDoNotShareUnderline() {
+        var whole = new Marker("whole", 0, 14, "Movie.2020.mkv");
+        var path  = new Marker("path",  0, 14, "Movie.2020.mkv");
+        String out = SpanRenderer.render("Movie.2020.mkv", List.of(), List.of(whole, path));
+        // Two distinct underline rows, one per marker.
+        long underlineRows = out.lines().filter(l -> l.matches("\\s+-+\\s*")).count();
+        assertThat(underlineRows).isEqualTo(2L);
+        assertThat(out).contains("whole");
+        assertThat(out).contains("path");
     }
 
     private static Match match(MatchName name, Object value, int start, int end, String raw) {
