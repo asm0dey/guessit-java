@@ -37,8 +37,7 @@ class SpanRendererTest {
         String out = SpanRenderer.render("[GRP] foo.mkv", List.of(), List.of(marker));
         assertThat(out).contains("group");
         assertThat(out).contains("[GRP] foo.mkv");
-        assertThat(out).contains("┌");
-        assertThat(out).contains("┐");
+        assertThat(out).contains("─");
     }
 
     @Test
@@ -83,9 +82,9 @@ class SpanRendererTest {
         var whole = new Marker("whole", 0, 14, "Movie.2020.mkv");
         var path  = new Marker("path",  0, 14, "Movie.2020.mkv");
         String out = SpanRenderer.render("Movie.2020.mkv", List.of(), List.of(whole, path));
-        // Two distinct underline rows, one per marker (markers use ┌─ ─┐ style)
-        long markerRows = out.lines().filter(l -> l.contains("┌") || l.contains("┐")).count();
-        assertThat(markerRows).isGreaterThanOrEqualTo(2L);
+        // Two distinct underline rows, one per marker (both use ─ style)
+        long underlineRows = out.lines().filter(l -> l.contains("─")).count();
+        assertThat(underlineRows).isGreaterThanOrEqualTo(2L);
         assertThat(out).contains("whole");
         assertThat(out).contains("path");
     }
@@ -100,13 +99,13 @@ class SpanRendererTest {
         String out = SpanRenderer.render("Show.S01E02.2024.mkv",
                 List.of(title, season, episode, year, container), List.of());
         String expected =
-                """
-                        Show.S01E02.2024.mkv
-                        ──┬─  ─┬ ─┬ ──┬─ ─┬─
-                        title  episode│   │
-                            season  year  │
-                                      container
-                        """;
+                "Show.S01E02.2024.mkv\n" +
+                "──┬─     ─┬\n" +
+                "title  episode\n" +
+                "      ─┬    ──┬─\n" +
+                "    season  year\n" +
+                "                 ─┬─\n" +
+                "              container\n";
         assertThat(out).isEqualTo(expected);
     }
 
@@ -144,16 +143,24 @@ class SpanRendererTest {
                 List.of(whole, path1, path2, path3, group));
         String expected =
                 "Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
-                "───┬── ┌─  ─┐ ┌─    ─┐ ┌─                           ─┐\n" +
+                "───┬── ───┬── ────┬─── ───────────────┬───────────────\n" +
                 " title  group   path                path\n" +
-                "┌─         ─┐                    ─┬ ─┬ ──┬── ──┬── ─┬─\n" +
-                "    path                       season│source   │container\n" +
-                "                                  episode screen_size\n" +
-                "┌─                                                  ─┐\n" +
+                "──────┬──────                    ─┬    ──┬──       ─┬─\n" +
+                "    path                       season source    container\n" +
+                "───────────────────────────┬──────────────────────────\n" +
                 "                         whole\n" +
-                "        ──┬─\n" +
-                "        year\n";
+                "        ──┬─                        ─┬       ──┬──\n" +
+                "        year                      episode screen_size\n";
         assertThat(out).isEqualTo(expected);
+    }
+
+    @Test
+    void privateMatchesAreSkipped() {
+        var publicMatch  = Match.of(MatchName.YEAR, 2020, 0, 4, "2020");
+        var privateMatch = new Match(MatchName.SEASON, 1, 5, 7, "01", 1000, java.util.Set.of(), true);
+        String out = SpanRenderer.render("2020 01 mkv", List.of(publicMatch, privateMatch), List.of());
+        assertThat(out).contains("year");
+        assertThat(out).doesNotContain("season");
     }
 
     private static Match match(MatchName name, Object value, int start, int end, String raw) {
