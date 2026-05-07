@@ -65,6 +65,11 @@ public final class SpanRenderer {
             for (int r = 0; r < rows.size(); r++) {
                 boolean fits = true;
                 for (var existing : rows.get(r)) {
+                    // 1. Underline gap: must have at least one column between underlines.
+                    boolean underlineTouchesOrOverlaps = !(existing.end() < s.start() || s.end() < existing.start());
+                    if (underlineTouchesOrOverlaps) { fits = false; break; }
+
+                    // 2. Label gap: existing label-area no-overlap check.
                     int eHalf = existing.label().length() / 2;
                     int eStart = Math.max(0, existing.mid() - eHalf);
                     int eEnd = eStart + existing.label().length();

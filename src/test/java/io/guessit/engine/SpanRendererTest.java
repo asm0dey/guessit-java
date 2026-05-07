@@ -110,12 +110,14 @@ class SpanRendererTest {
                 List.of(whole, path1, path2, path3, group));
         String expected =
                 "  Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
-                "  ------------------------------------------------------\n" +
-                "   title  group   path     whole      path  screen_size\n" +
+                "  ------ ------ -------- -------------------------------\n" +
+                "   title  group   path                path\n" +
                 "  -------------                    --    -----       ---\n" +
                 "      path                       season source    container\n" +
-                "          ----                        --\n" +
-                "          year                      episode\n";
+                "  ------------------------------------------------------\n" +
+                "                           whole\n" +
+                "          ----                        --       -----\n" +
+                "          year                      episode screen_size\n";
         assertThat(out).isEqualTo(expected);
     }
 
