@@ -24,6 +24,8 @@ import java.util.regex.Pattern;
 public final class PatternMatcher {
     private PatternMatcher() {}
 
+    /* No-trace overloads delegate to the trace-aware versions with NOOP. */
+
     /**
      * Scans every non-overlapping match of {@code pattern} in {@code input}.
      *
@@ -34,23 +36,7 @@ public final class PatternMatcher {
      * The {@code validator} sees the constructed match and may veto it.
      */
     public static List<Match> regex(String input, Pattern pattern, MatchName name, RegexOpts opts) {
-        var out = new ArrayList<Match>();
-        var m = pattern.matcher(input);
-        boolean hasValueGroup = HAS_VALUE_GROUP.computeIfAbsent(pattern, PatternMatcher::detectValueGroup);
-        while (m.find()) {
-            String raw = m.group();
-            int start = m.start();
-            int end = m.end();
-            // Prefer the named "value" group when defined so patterns can match
-            // surrounding context (separators, anchors) without bleeding it into
-            // the property value.
-            String valueText = hasValueGroup ? m.group("value") : raw;
-            Object extracted = opts.valueExtractor().apply(valueText);
-            Object formatted = opts.valueFormatter().apply(extracted);
-            var match = new Match(name, formatted, start, end, raw, opts.priority(), opts.tags(), opts.isPrivate());
-            if (opts.validator().test(match)) out.add(match);
-        }
-        return out;
+        return regex(input, pattern, name, opts, Trace.NOOP);
     }
 
     /**
@@ -66,32 +52,82 @@ public final class PatternMatcher {
      */
     @SuppressWarnings("JavadocReference")
     public static List<Match> string(String input, Set<String> needles, MatchName name, StringOpts opts) {
+        return string(input, needles, name, opts, Trace.NOOP);
+    }
+
+    /* Trace-aware overloads emit subStep events for each try / decision. */
+
+    public static List<Match> regex(String input, Pattern pattern, MatchName name, RegexOpts opts, Trace trace) {
+        trace.subStep("Trying regex " + pattern.pattern());
+        var out = new ArrayList<Match>();
+        var m = pattern.matcher(input);
+        boolean hasValueGroup = HAS_VALUE_GROUP.computeIfAbsent(pattern, PatternMatcher::detectValueGroup);
+        while (m.find()) {
+            String raw = m.group();
+            int start = m.start();
+            int end = m.end();
+            // Prefer the named "value" group when defined so patterns can match
+            // surrounding context (separators, anchors) without bleeding it into
+            // the property value.
+            String valueText = hasValueGroup ? m.group("value") : raw;
+            Object extracted = opts.valueExtractor().apply(valueText);
+            Object formatted = opts.valueFormatter().apply(extracted);
+            var match = new Match(name, formatted, start, end, raw, opts.priority(), opts.tags(), opts.isPrivate());
+            if (opts.validator().test(match)) {
+                out.add(match);
+                trace.subStep("Considered '" + raw + "' at " + start + "-" + end + " — accepted");
+            } else {
+                trace.subStep("Considered '" + raw + "' at " + start + "-" + end + " — rejected (validator)");
+            }
+        }
+        return out;
+    }
+
+    public static List<Match> string(String input, Set<String> needles, MatchName name, StringOpts opts, Trace trace) {
+        trace.subStep("Trying needles: " + summariseNeedles(needles));
         var out = new ArrayList<Match>();
         var hay = opts.caseSensitive() ? input : input.toLowerCase(java.util.Locale.ROOT);
         for (var raw : needles) {
             var n = opts.caseSensitive() ? raw : raw.toLowerCase(java.util.Locale.ROOT);
-            scanNeedle(input, hay, raw, n, name, opts, out);
+            scanNeedle(input, hay, raw, n, name, opts, out, trace);
         }
         out.sort(Comparator.comparingInt(Match::start));
         return out;
     }
 
     private static void scanNeedle(String input, String hay, String raw, String n,
-                                   MatchName name, StringOpts opts, List<Match> out) {
+                                   MatchName name, StringOpts opts, List<Match> out, Trace trace) {
         int from = 0;
         while (true) {
             int idx = hay.indexOf(n, from);
             if (idx < 0) break;
             int end = idx + n.length();
-            if (!opts.wholeWord() || isWordBoundary(hay, idx, end)) {
+            boolean wordOk = !opts.wholeWord() || isWordBoundary(hay, idx, end);
+            if (wordOk) {
                 var match = new Match(name, raw, idx, end, input.substring(idx, end),
                     opts.priority(), opts.tags(), opts.isPrivate());
-                if (opts.validator().test(match)) out.add(match);
+                if (opts.validator().test(match)) {
+                    out.add(match);
+                    trace.subStep("Considered '" + raw + "' at " + idx + "-" + end + " — accepted");
+                } else {
+                    trace.subStep("Considered '" + raw + "' at " + idx + "-" + end + " — rejected (validator)");
+                }
+            } else {
+                trace.subStep("Considered '" + raw + "' at " + idx + "-" + end + " — rejected (word boundary)");
             }
             // Step by one rather than n.length() so overlapping needles
             // (e.g. "aa" in "aaa") still both report.
             from = idx + 1;
         }
+    }
+
+    private static String summariseNeedles(Set<String> needles) {
+        if (needles.size() <= 6) {
+            return String.join(", ", new java.util.TreeSet<>(needles));
+        }
+        var sorted = new java.util.TreeSet<>(needles);
+        var first6 = sorted.stream().limit(6).toList();
+        return String.join(", ", first6) + ", … (" + needles.size() + " total)";
     }
 
     private static final ConcurrentMap<Pattern, Boolean> HAS_VALUE_GROUP = new ConcurrentHashMap<>();
