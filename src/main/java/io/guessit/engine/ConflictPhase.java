@@ -13,7 +13,7 @@ public record ConflictPhase() implements Phase {
     public void apply(ParseContext ctx) {
         ctx.trace.phase("conflicts", "resolving overlapping matches");
         var before = ctx.matches.snapshot();
-        ConflictSolver.solve(ctx.matches);
+        ConflictSolver.solve(ctx.matches, ctx.trace);
         TraceDiff.emit(before, ctx.matches.snapshot(), ctx);
     }
 }

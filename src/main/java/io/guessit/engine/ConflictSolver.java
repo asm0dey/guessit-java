@@ -24,8 +24,12 @@ public final class ConflictSolver {
      *   → drop short. If long.initiator.length < short.initiator.length → drop long.
      *   Else (equal lengths) → keep both.
      * - For top-level matches, initiator == match itself, so initiator.length == match span length.
+     *
+     * <p>Backwards-compatible no-trace overload delegates to {@link #solve(MatchSet, Trace)} with {@link Trace#NOOP}.
      */
-    public static void solve(MatchSet matches) {
+    public static void solve(MatchSet matches) { solve(matches, Trace.NOOP); }
+
+    public static void solve(MatchSet matches, Trace trace) {
         var publicMatches = matches.all()
             .filter(m -> !m.isPrivate())
             .sorted(Comparator.comparingInt(Match::length))
@@ -33,29 +37,38 @@ public final class ConflictSolver {
         var toRemove = new HashSet<Match>();
         for (var match : publicMatches) {
             if (toRemove.contains(match)) continue;
-            resolveAgainstConflicts(match, publicMatches, toRemove);
+            resolveAgainstConflicts(match, publicMatches, toRemove, trace);
         }
         matches.removeAll(toRemove);
     }
 
-    private static void resolveAgainstConflicts(Match match, List<Match> publicMatches, Set<Match> toRemove) {
+    private static void resolveAgainstConflicts(Match match, List<Match> publicMatches, Set<Match> toRemove, Trace trace) {
         var conflicting = findConflicting(match, publicMatches, toRemove);
         // Python: conflicting_matches.sort(key=len) — span length ascending
         conflicting.sort(Comparator.comparingInt(Match::length));
         for (var conflictingMatch : conflicting) {
             if (match.tags().contains("coexist") || conflictingMatch.tags().contains("coexist")) continue;
             var removed = defaultConflictSolver(match, conflictingMatch);
-            if (recordRemoval(match, conflictingMatch, removed, toRemove)) break;
+            if (recordRemoval(match, conflictingMatch, removed, toRemove, trace)) break;
         }
     }
 
     /** Records the loser's removal when both keeper and loser are still alive.
      *  Returns true to break the per-match loop after a decision is made. */
-    private static boolean recordRemoval(Match match, Match conflictingMatch, Match removed, Set<Match> toRemove) {
+    private static boolean recordRemoval(Match match, Match conflictingMatch, Match removed,
+                                         Set<Match> toRemove, Trace trace) {
         if (removed == null || toRemove.contains(removed)) return false;
         var toKeep = (removed == match) ? conflictingMatch : match;
-        if (!toRemove.contains(toKeep)) toRemove.add(removed);
+        if (!toRemove.contains(toKeep)) {
+            toRemove.add(removed);
+            String reason = removed.length() < toKeep.length() ? "shorter span" : "lower priority";
+            trace.subStep("Dropping " + summary(removed) + " — overlaps " + summary(toKeep) + " (" + reason + ")");
+        }
         return true;
+    }
+
+    private static String summary(Match m) {
+        return m.name().name().toLowerCase(Locale.ROOT) + " '" + m.raw() + "' at " + m.start() + "-" + m.end();
     }
 
     /**
