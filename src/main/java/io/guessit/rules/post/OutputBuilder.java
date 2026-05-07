@@ -58,7 +58,7 @@ public final class OutputBuilder implements Consumer<ParseContext> {
     public void accept(ParseContext ctx) {
         var state = computeFilterState(ctx);
         var grouped = groupSurvivingMatches(ctx, state);
-        var extras = dispatchToBuilder(ctx.resultBuilder, grouped);
+        var extras = dispatchToBuilder(ctx.resultBuilder, grouped, ctx.trace);
         if (!extras.isEmpty()) ctx.resultBuilder.extras(extras);
         ctx.result = ctx.resultBuilder.build();
     }
@@ -180,10 +180,12 @@ public final class OutputBuilder implements Consumer<ParseContext> {
     }
 
     /** Route grouped matches to typed builder setters; unknown names go to extras. */
-    private static Map<String, Object> dispatchToBuilder(GuessResultBuilder b, Map<MatchName, List<Match>> grouped) {
+    private static Map<String, Object> dispatchToBuilder(GuessResultBuilder b, Map<MatchName, List<Match>> grouped,
+                                                         io.guessit.engine.Trace trace) {
         var extras = new LinkedHashMap<String, Object>();
         for (var e : grouped.entrySet()) {
             var ms = e.getValue();
+            traceAssignment(trace, e.getKey(), ms);
             switch (e.getKey()) {
                 case TITLE -> b.title(asString(ms.getFirst()));
                 case ALTERNATIVE_TITLE -> b.alternativeTitleList(ms.stream().map(OutputBuilder::asString).toList());
@@ -235,6 +237,26 @@ public final class OutputBuilder implements Consumer<ParseContext> {
             }
         }
         return extras;
+    }
+
+    private static void traceAssignment(io.guessit.engine.Trace trace, MatchName name, List<Match> ms) {
+        var key = name.name().toLowerCase();
+        if (ms.size() == 1) {
+            var m = ms.getFirst();
+            var valueDisplay = renderValue(m.value());
+            trace.subStep("Set " + key + " ← " + valueDisplay + " from match at " + m.start() + "-" + m.end());
+        } else {
+            var values = ms.stream().map(m -> renderValue(m.value())).toList();
+            var first = ms.getFirst();
+            var last = ms.getLast();
+            trace.subStep("Set " + key + " ← " + values + " from " + ms.size() + " matches at "
+                + first.start() + "-" + last.end());
+        }
+    }
+
+    private static String renderValue(Object v) {
+        if (v == null) return "null";
+        return String.valueOf(v);
     }
 
     private static String asString(Match m) { return m.value() == null ? null : m.value().toString(); }
