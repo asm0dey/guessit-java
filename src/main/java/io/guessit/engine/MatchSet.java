@@ -86,8 +86,17 @@ public final class MatchSet {
         // Mirror python rebulk's chain_before: walk backward; at each position
         // gather matches at that index, stop when neither a predicate-matching
         // match nor a separator character is present.
+        return chainScan(pos - 1, -1, -1, input, seps, p);
+    }
+
+    public Optional<Match> chainAfter(int pos, String input, String seps, Predicate<Match> p) {
+        return chainScan(pos, input.length(), 1, input, seps, p);
+    }
+
+    private Optional<Match> chainScan(int start, int end, int step, String input, String seps, Predicate<Match> p) {
         Match found = null;
-        for (int i = pos - 1; i >= 0; i--) {
+        int i = start;
+        while (i != end) {
             final int idx = i;
             var matchesAtIdx = matches.stream()
                 .filter(m -> m.start() <= idx && idx < m.end())
@@ -95,27 +104,12 @@ public final class MatchSet {
                 .findFirst();
             if (matchesAtIdx.isPresent()) {
                 if (found == null) found = matchesAtIdx.get();
+                i += step;
                 continue;
             }
             // No match at this index — only continue if separator char.
             if (seps.indexOf(input.charAt(i)) < 0) break;
-        }
-        return Optional.ofNullable(found);
-    }
-
-    public Optional<Match> chainAfter(int pos, String input, String seps, Predicate<Match> p) {
-        Match found = null;
-        for (int i = pos; i < input.length(); i++) {
-            final int idx = i;
-            var matchesAtIdx = matches.stream()
-                .filter(m -> m.start() <= idx && idx < m.end())
-                .filter(p)
-                .findFirst();
-            if (matchesAtIdx.isPresent()) {
-                if (found == null) found = matchesAtIdx.get();
-                continue;
-            }
-            if (seps.indexOf(input.charAt(i)) < 0) break;
+            i += step;
         }
         return Optional.ofNullable(found);
     }

@@ -47,25 +47,42 @@ public final class Numerals {
      */
     public static int parse(String value, boolean intEnabled, boolean romanEnabled, boolean wordEnabled) {
         if (intEnabled) {
-            try {
-                var m = CLEAN.matcher(value);
-                if (m.matches()) return Integer.parseInt(m.group(1));
-                return Integer.parseInt(value);
-            } catch (NumberFormatException _) {}
+            var i = tryParseInt(value);
+            if (i != null) return i;
         }
         if (romanEnabled) {
-            for (var word : WS_SPLIT.split(value)) {
-                try { return parseRoman(word.toUpperCase(java.util.Locale.ROOT)); }
-                catch (IllegalArgumentException _) {}
-            }
+            var r = tryParseRomanWords(value);
+            if (r != null) return r;
         }
         if (wordEnabled) {
-            for (var word : WS_SPLIT.split(value)) {
-                int idx = wordIndex(word);
-                if (idx >= 0) return idx;
-            }
+            var w = tryParseWordNumerals(value);
+            if (w != null) return w;
         }
         throw new IllegalArgumentException("Invalid numeral: " + value);
+    }
+
+    private static Integer tryParseInt(String value) {
+        try {
+            var m = CLEAN.matcher(value);
+            if (m.matches()) return Integer.parseInt(m.group(1));
+            return Integer.parseInt(value);
+        } catch (NumberFormatException _) { return null; }
+    }
+
+    private static Integer tryParseRomanWords(String value) {
+        for (var word : WS_SPLIT.split(value)) {
+            try { return parseRoman(word.toUpperCase(java.util.Locale.ROOT)); }
+            catch (IllegalArgumentException _) {}
+        }
+        return null;
+    }
+
+    private static Integer tryParseWordNumerals(String value) {
+        for (var word : WS_SPLIT.split(value)) {
+            int idx = wordIndex(word);
+            if (idx >= 0) return idx;
+        }
+        return null;
     }
 
     private static int wordIndex(String word) {

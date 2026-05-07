@@ -49,28 +49,32 @@ public final class RangeFiller implements PostProcessor {
         for (int i = 0; i + 1 < matches.size(); i++) {
             var prev = matches.get(i);
             var next = matches.get(i + 1);
+            if (!isFillablePair(ctx, prop, input, prev, next)) continue;
             int prevVal = (Integer) prev.value();
             int nextVal = (Integer) next.value();
-            if (nextVal <= prevVal + 1) continue;
-            if (nextVal - prevVal > MAX_JUMP) continue;
-            if (next.start() < prev.end()) continue;
-            int gapLen = next.start() - prev.end();
-            if (gapLen <= 0 || gapLen > MAX_GAP) continue;
-            var gap = input.substring(prev.end(), next.start());
-            if (!isRangeGap(gap)) continue;
-            // Avoid double-fill: skip if a range-fill match already covers this gap.
-            int prevEnd = prev.end();
-            int nextStart = next.start();
-            boolean alreadyFilled = ctx.matches.named(prop)
-                .anyMatch(m -> m.tags().contains("range-fill")
-                    && m.start() >= prevEnd && m.end() <= nextStart);
-            if (alreadyFilled) continue;
             for (int v = prevVal + 1; v < nextVal; v++) {
                 fills.add(new Match(prop, v, prev.end(), next.start(),
                     String.valueOf(v), 1000, Set.of("range-fill"), false));
             }
         }
         for (var m : fills) ctx.matches.add(m);
+    }
+
+    private static boolean isFillablePair(ParseContext ctx, MatchName prop, String input, Match prev, Match next) {
+        int prevVal = (Integer) prev.value();
+        int nextVal = (Integer) next.value();
+        if (nextVal <= prevVal + 1) return false;
+        if (nextVal - prevVal > MAX_JUMP) return false;
+        if (next.start() < prev.end()) return false;
+        int gapLen = next.start() - prev.end();
+        if (gapLen <= 0 || gapLen > MAX_GAP) return false;
+        if (!isRangeGap(input.substring(prev.end(), next.start()))) return false;
+        // Avoid double-fill: skip if a range-fill match already covers this gap.
+        int prevEnd = prev.end();
+        int nextStart = next.start();
+        return ctx.matches.named(prop)
+            .noneMatch(m -> m.tags().contains("range-fill")
+                && m.start() >= prevEnd && m.end() <= nextStart);
     }
 
     private static boolean isRangeGap(String gap) {

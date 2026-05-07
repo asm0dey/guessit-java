@@ -91,12 +91,18 @@ public final class OtherExtractor implements Extractor {
     private static void emitSpec(ParseContext ctx, String input, String key, Object spec) {
         if (spec instanceof String s) {
             if (key.startsWith("_")) return; // private with no value override skipped
-            if (s.startsWith("re:")) emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags(), null, false);
-            else emitString(ctx, MatchName.OTHER, input, key, s, SENTINEL, defaultTags());
+            emitFromStringSpec(ctx, input, key, s);
             return;
         }
-        if (!(spec instanceof Map<?, ?> m)) return;
+        if (spec instanceof Map<?, ?> m) emitFromMapSpec(ctx, input, key, m);
+    }
 
+    private static void emitFromStringSpec(ParseContext ctx, String input, String key, String s) {
+        if (s.startsWith("re:")) emitRegex(ctx, input, key, s.substring(3), SENTINEL, defaultTags(), null, false);
+        else emitString(ctx, MatchName.OTHER, input, key, s, SENTINEL, defaultTags());
+    }
+
+    private static void emitFromMapSpec(ParseContext ctx, String input, String key, Map<?, ?> m) {
         Object valueOverride = m.get("value");
         String otherValue = key.startsWith("_") ? null : key;
         String anotherValue = null;
@@ -347,19 +353,21 @@ public final class OtherExtractor implements Extractor {
             if (!"path".equals(filepart.name())) continue;
             for (var m : atEnds) {
                 if (!filepart.covers(m.start(), m.end())) continue;
-                // Anything non-other/non-container after the match → remove
-                boolean nonOtherAfter = ctx.matches.all()
-                    .filter(x -> !x.isPrivate())
-                    .filter(x -> x.start() >= m.end() && x.end() <= filepart.end())
-                    .anyMatch(x -> x.name() != MatchName.OTHER && x.name() != MatchName.CONTAINER);
-                if (nonOtherAfter) { toRemove.add(m); continue; }
-                // Holes in [m.end, filepart.end] (gaps not covered by any non-private
-                // match) must contain only separator chars. Mirrors python's
-                // matches.holes(match.end, filepart.end, predicate=value.strip(seps)).
-                if (hasNonSepHole(ctx, input, m.end(), filepart.end())) toRemove.add(m);
+                if (shouldRemoveAtEnd(ctx, input, filepart, m)) toRemove.add(m);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean shouldRemoveAtEnd(ParseContext ctx, String input, io.guessit.engine.Marker filepart, Match m) {
+        boolean nonOtherAfter = ctx.matches.all()
+            .filter(x -> !x.isPrivate())
+            .filter(x -> x.start() >= m.end() && x.end() <= filepart.end())
+            .anyMatch(x -> x.name() != MatchName.OTHER && x.name() != MatchName.CONTAINER);
+        if (nonOtherAfter) return true;
+        // Holes in [m.end, filepart.end] (gaps not covered by any non-private
+        // match) must contain only separator chars.
+        return hasNonSepHole(ctx, input, m.end(), filepart.end());
     }
 
     private static boolean hasNonSepHole(ParseContext ctx, String input, int s, int e) {

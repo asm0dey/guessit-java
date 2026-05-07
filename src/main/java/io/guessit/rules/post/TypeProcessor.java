@@ -20,7 +20,7 @@ public final class TypeProcessor implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        var type = decide(ctx);
+        var type = predictType(ctx);
         var len = ctx.input.length();
         ctx.matches.add(Match.of(MatchName.TYPE, type, len, len, ""));
         if (!EPISODE_TYPE.equals(type)) {
@@ -34,7 +34,7 @@ public final class TypeProcessor implements PostProcessor {
         }
     }
 
-    private static String decide(ParseContext ctx) {
+    public static String predictType(ParseContext ctx) {
         var optType = ctx.options.type();
         if (optType != null) return optType;
         if (anyNamed(ctx, MatchName.EPISODE) || anyNamed(ctx, MatchName.SEASON)

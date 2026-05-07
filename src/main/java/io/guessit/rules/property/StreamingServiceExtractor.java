@@ -144,60 +144,50 @@ public final class StreamingServiceExtractor implements Extractor {
         var input = ctx.input;
         var toRemove = new ArrayList<Match>();
         for (var s : services) {
-            // Mirror python's matches.next/previous(predicate, 0) — find the
-            // closest match position (any match, including private), then
-            // require the predicate (streaming_service.suffix tag) on a match
-            // at that position. Private matches participate in rebulk's
-            // next/previous, so a private source like "VOD" embedded inside
-            // "MBCVOD" qualifies as the suffix neighbor.
-            // Note: walk from s.start()+1 (not s.end()) so a source span that
-            // STARTS inside the streaming_service span (typical for python's
-            // private_parent source on MBCVOD) is found.
-            int sStart = s.start();
-            int sEnd = s.end();
-            int nextPos = ctx.matches.all()
-                .filter(m -> m != s)
-                .mapToInt(Match::start)
-                .filter(p -> p > sStart)
-                .min().orElse(-1);
-            boolean nextOk = false;
-            if (nextPos >= 0) {
-                boolean atPosHasSuffix = ctx.matches.all()
-                    .filter(m -> m != s)
-                    .filter(m -> m.start() == nextPos)
-                    .anyMatch(m -> m.tags().contains("streaming_service.suffix"));
-                // Holes between service.end and next position must contain
-                // only sep chars (or the next span starts inside service).
-                boolean cleanGap = nextPos <= sEnd || betweenIsSeps(input, sEnd, nextPos);
-                if (atPosHasSuffix && cleanGap
-                        && (sStart == 0 || Seps.isSep(input.charAt(sStart - 1)))) {
-                    nextOk = true;
-                }
-            }
-            if (nextOk) continue;
-
-            int prevPos = ctx.matches.all()
-                .filter(m -> m != s)
-                .mapToInt(Match::end)
-                .filter(p -> p < sEnd)
-                .max().orElse(-1);
-            boolean prevOk = false;
-            if (prevPos >= 0) {
-                boolean atPosHasPrefix = ctx.matches.all()
-                    .filter(m -> m != s)
-                    .filter(m -> m.end() == prevPos)
-                    .anyMatch(m -> m.tags().contains("streaming_service.prefix"));
-                boolean cleanGap = prevPos >= sStart || betweenIsSeps(input, prevPos, sStart);
-                if (atPosHasPrefix && cleanGap
-                        && (sEnd >= input.length() || Seps.isSep(input.charAt(sEnd)))) {
-                    prevOk = true;
-                }
-            }
-            if (prevOk) continue;
-
+            if (hasSuffixNeighbor(ctx, input, s)) continue;
+            if (hasPrefixNeighbor(ctx, input, s)) continue;
             toRemove.add(s);
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    /** True when a match at the closest next position carries
+     *  {@code streaming_service.suffix} and the gap is sep-only. Private
+     *  matches participate (e.g. private source "VOD" inside "MBCVOD"). */
+    private static boolean hasSuffixNeighbor(ParseContext ctx, String input, Match s) {
+        int sStart = s.start();
+        int sEnd = s.end();
+        int nextPos = ctx.matches.all()
+            .filter(m -> m != s)
+            .mapToInt(Match::start)
+            .filter(p -> p > sStart)
+            .min().orElse(-1);
+        if (nextPos < 0) return false;
+        boolean atPosHasSuffix = ctx.matches.all()
+            .filter(m -> m != s)
+            .filter(m -> m.start() == nextPos)
+            .anyMatch(m -> m.tags().contains("streaming_service.suffix"));
+        boolean cleanGap = nextPos <= sEnd || betweenIsSeps(input, sEnd, nextPos);
+        return atPosHasSuffix && cleanGap
+                && (sStart == 0 || Seps.isSep(input.charAt(sStart - 1)));
+    }
+
+    private static boolean hasPrefixNeighbor(ParseContext ctx, String input, Match s) {
+        int sStart = s.start();
+        int sEnd = s.end();
+        int prevPos = ctx.matches.all()
+            .filter(m -> m != s)
+            .mapToInt(Match::end)
+            .filter(p -> p < sEnd)
+            .max().orElse(-1);
+        if (prevPos < 0) return false;
+        boolean atPosHasPrefix = ctx.matches.all()
+            .filter(m -> m != s)
+            .filter(m -> m.end() == prevPos)
+            .anyMatch(m -> m.tags().contains("streaming_service.prefix"));
+        boolean cleanGap = prevPos >= sStart || betweenIsSeps(input, prevPos, sStart);
+        return atPosHasPrefix && cleanGap
+                && (sEnd >= input.length() || Seps.isSep(input.charAt(sEnd)));
     }
 
     private static boolean betweenIsSeps(String input, int from, int to) {

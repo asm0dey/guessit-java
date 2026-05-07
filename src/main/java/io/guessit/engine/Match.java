@@ -21,22 +21,33 @@ import java.util.Set;
  *   <li>{@code isPrivate} — match exists only to influence other rules and
  *       is dropped before output by the {@code PrivateRemover} processor.</li>
  * </ul>
+ *
+ * @param name      the property name identifier (e.g., {@code year}, {@code language}, {@code episode})
+ * @param value     the parsed value; type depends on property (e.g., {@code Integer} for year, {@code Language} for language)
+ * @param start     the zero-based inclusive start position of the match in the input string
+ * @param end       the zero-based exclusive end position of the match in the input string
+ * @param raw       the original substring from the input that was matched
+ * @param priority  tie-breaker value used in conflict resolution; higher priority wins when matches overlap and have equal length (default 1000)
+ * @param tags      set of string flags that control behavior in other rules (e.g., "coexist", "SxxExx"); never null
+ * @param isPrivate if true, this match is used only internally and will be removed from final output
  */
 public record Match(
-    MatchName name,
-    Object value,
-    int start,
-    int end,
-    String raw,
-    int priority,
-    Set<String> tags,
-    boolean isPrivate
+        MatchName name,
+        Object value,
+        int start,
+        int end,
+        String raw,
+        int priority,
+        Set<String> tags,
+        boolean isPrivate
 ) {
     public Match {
         tags = tags == null ? Set.of() : Set.copyOf(tags);
     }
 
-    /** Convenience factory: default priority {@code 1000}, no tags, public. */
+    /**
+     * Convenience factory: default priority {@code 1000}, no tags, public.
+     */
     public static Match of(MatchName name, Object value, int start, int end, String raw) {
         return new Match(name, value, start, end, raw, 1000, Set.of(), false);
     }
@@ -61,9 +72,13 @@ public record Match(
         return new Match(n, value, start, end, raw, priority, tags, isPrivate);
     }
 
-    public int length() { return end - start; }
+    public int length() {
+        return end - start;
+    }
 
-    /** True if the spans of this match and {@code other} share at least one position. */
+    /**
+     * True if the spans of this match and {@code other} share at least one position.
+     */
     public boolean overlaps(Match other) {
         return this.start < other.end && other.start < this.end;
     }

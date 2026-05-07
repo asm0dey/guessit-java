@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -150,43 +151,41 @@ public final class SourceExtractor implements Extractor {
         var validator = Validators.sepsBefore(input).or(Validators.sepsAfter(input));
         var matcher = p.matcher(input);
         while (matcher.find()) {
-            int s = matcher.start();
-            int e = matcher.end();
-            var sourceMatch = new Match(MatchName.SOURCE, rule.source(), s, e,
-                    input.substring(s, e), 1000, rule.tags(), false);
-            if (!validator.test(sourceMatch)) continue;
-            if (overlapsExtension(ctx, s, e)) continue;
-            // When the source span sits inside an existing streaming_service
-            // literal (e.g. VOD inside MBCVOD), mark the source PRIVATE so it
-            // doesn't conflict with the longer streaming_service via default
-            // longest-wins. ValidateStreamingService still sees it (private
-            // matches participate in matches.next/previous) and the longer
-            // streaming_service literal can validate against it.
-            // Mirrors python's source private_parent semantics where private
-            // source matches survive overlap with streaming_service.
-            boolean insideStream = ctx.matches.named(MatchName.STREAMING_SERVICE)
-                .anyMatch(ss -> ss.start() <= s && e <= ss.end() && (ss.start() < s || e < ss.end()));
-            var emit = insideStream
-                ? new Match(MatchName.SOURCE, rule.source(), s, e,
-                    input.substring(s, e), 1000, rule.tags(), true)
-                : sourceMatch;
-            ctx.matches.add(emit);
-            if (rule.otherValue() != null) {
-                int os = groupStart(matcher, OTHER);
-                int oe = groupEnd(matcher, OTHER);
-                if (os >= 0 && oe > os) {
-                    ctx.matches.add(new Match(MatchName.OTHER, rule.otherValue(), os, oe,
-                            input.substring(os, oe), 1000, Set.of("coexist", "derivedFrom:source"), false));
-                }
-            }
-            if (rule.anotherValue() != null) {
-                int as = groupStart(matcher, "another");
-                int ae = groupEnd(matcher, "another");
-                if (as >= 0 && ae > as) {
-                    ctx.matches.add(new Match(MatchName.OTHER, rule.anotherValue(), as, ae,
-                            input.substring(as, ae), 1000, Set.of("coexist", "derivedFrom:source"), false));
-                }
-            }
+            applyOneMatch(ctx, input, rule, validator, matcher);
+        }
+    }
+
+    private static void applyOneMatch(ParseContext ctx, String input, Rule rule,
+                                      Predicate<Match> validator, Matcher matcher) {
+        int s = matcher.start();
+        int e = matcher.end();
+        var sourceMatch = new Match(MatchName.SOURCE, rule.source(), s, e,
+                input.substring(s, e), 1000, rule.tags(), false);
+        if (!validator.test(sourceMatch)) return;
+        if (overlapsExtension(ctx, s, e)) return;
+        // When the source span sits inside an existing streaming_service
+        // literal (e.g. VOD inside MBCVOD), mark the source PRIVATE so it
+        // doesn't conflict with the longer streaming_service via default
+        // longest-wins.
+        boolean insideStream = ctx.matches.named(MatchName.STREAMING_SERVICE)
+            .anyMatch(ss -> ss.start() <= s && e <= ss.end() && (ss.start() < s || e < ss.end()));
+        var emit = insideStream
+            ? new Match(MatchName.SOURCE, rule.source(), s, e,
+                input.substring(s, e), 1000, rule.tags(), true)
+            : sourceMatch;
+        ctx.matches.add(emit);
+        addDerivedOther(ctx, input, matcher, OTHER, rule.otherValue());
+        addDerivedOther(ctx, input, matcher, "another", rule.anotherValue());
+    }
+
+    private static void addDerivedOther(ParseContext ctx, String input, Matcher matcher,
+                                        String groupName, String value) {
+        if (value == null) return;
+        int gs = groupStart(matcher, groupName);
+        int ge = groupEnd(matcher, groupName);
+        if (gs >= 0 && ge > gs) {
+            ctx.matches.add(new Match(MatchName.OTHER, value, gs, ge,
+                    input.substring(gs, ge), 1000, Set.of("coexist", "derivedFrom:source"), false));
         }
     }
 
@@ -244,15 +243,19 @@ public final class SourceExtractor implements Extractor {
         for (var filepart : ctx.markers) {
             if (!"path".equals(filepart.name())) continue;
             for (var weak : weaks) {
-                if (!filepart.covers(weak.start(), weak.end())) continue;
-                boolean later = ctx.matches.named(MatchName.SOURCE)
-                        .anyMatch(m -> m != weak && m.start() >= weak.end() && m.end() <= filepart.end());
-                if (!later) continue;
-                var pre = ctx.input.substring(filepart.start(), weak.start());
-                if (!pre.isBlank()) toRemove.add(weak);
+                if (shouldRemoveWeakSource(ctx, filepart, weak)) toRemove.add(weak);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean shouldRemoveWeakSource(ParseContext ctx, Marker filepart, Match weak) {
+        if (!filepart.covers(weak.start(), weak.end())) return false;
+        boolean later = ctx.matches.named(MatchName.SOURCE)
+                .anyMatch(m -> m != weak && m.start() >= weak.end() && m.end() <= filepart.end());
+        if (!later) return false;
+        var pre = ctx.input.substring(filepart.start(), weak.start());
+        return !pre.isBlank();
     }
 
     private void upgradeUltraHdBluray(ParseContext ctx) {
@@ -295,20 +298,20 @@ public final class SourceExtractor implements Extractor {
     private static Match findUltraHd(ParseContext ctx, int start, int end, boolean preferLast) {
         Match best = null;
         for (var m : ctx.matches.named(MatchName.OTHER).toList()) {
-            if (m.isPrivate()) continue;
-            if (!"Ultra HD".equals(m.value())) continue;
-            if (m.start() < start || m.end() > end) continue;
-            if (best == null) {
-                best = m;
-                continue;
-            }
-            if (preferLast) {
-                if (m.end() > best.end()) best = m;
-            } else {
-                if (m.start() < best.start()) best = m;
-            }
+            if (!isUltraHdCandidateInRange(m, start, end)) continue;
+            if (best == null || isBetterUltraHd(m, best, preferLast)) best = m;
         }
         return best;
+    }
+
+    private static boolean isUltraHdCandidateInRange(Match m, int start, int end) {
+        if (m.isPrivate()) return false;
+        if (!"Ultra HD".equals(m.value())) return false;
+        return m.start() >= start && m.end() <= end;
+    }
+
+    private static boolean isBetterUltraHd(Match m, Match best, boolean preferLast) {
+        return preferLast ? m.end() > best.end() : m.start() < best.start();
     }
 
     private static boolean validRange(ParseContext ctx, int s, int e) {

@@ -277,29 +277,26 @@ public final class LanguageExtractor implements Extractor {
         for (var a : affixes) {
             var al = a.toLowerCase(Locale.ROOT);
             if (al.length() >= lower.length()) continue;
-            String rest;
-            if (prefix) {
-                if (!lower.startsWith(al)) continue;
-                rest = lower.substring(al.length());
-            } else {
-                if (!lower.endsWith(al)) continue;
-                rest = lower.substring(0, lower.length() - al.length());
-            }
+            var rest = stripAffix(lower, al, prefix);
+            if (rest == null) continue;
             var lang = reg.find(rest).orElse(null);
-            if (lang != null && isAllowed(lang, allowed)) {
-                // Tag attached-affix subtitle_language matches so OutputBuilder
-                // skips promoting them to language under --includes language;
-                // python's prefix→subtitle conversion is rule-disabled in that
-                // case, but for attached "SubFR"-style tokens the match is
-                // emitted as subtitle_language directly and stays excluded.
-                Set<String> tags = MatchName.SUBTITLE_LANGUAGE.equals(name)
-                        ? Set.of("attached-affix") : Set.of();
-                ctx.matches.add(new Match(name, lang, word.start(), word.end(),
-                        word.value(), 1000, tags, false));
-                return true;
-            }
+            if (lang == null || !isAllowed(lang, allowed)) continue;
+            // Tag attached-affix subtitle_language matches so OutputBuilder
+            // skips promoting them to language under --includes language.
+            Set<String> tags = MatchName.SUBTITLE_LANGUAGE.equals(name)
+                    ? Set.of("attached-affix") : Set.of();
+            ctx.matches.add(new Match(name, lang, word.start(), word.end(),
+                    word.value(), 1000, tags, false));
+            return true;
         }
         return false;
+    }
+
+    private static String stripAffix(String lower, String affix, boolean prefix) {
+        if (prefix) {
+            return lower.startsWith(affix) ? lower.substring(affix.length()) : null;
+        }
+        return lower.endsWith(affix) ? lower.substring(0, lower.length() - affix.length()) : null;
     }
 
     private static List<String> allowedLanguages(ParseContext ctx) {
@@ -372,28 +369,13 @@ public final class LanguageExtractor implements Extractor {
         for (var m : toRemove) ctx.matches.remove(m);
     }
 
-    @SuppressWarnings("unchecked")
     private void dropCommonWordLanguages(ParseContext ctx) {
-        var ac = ctx.config.raw().get("advanced_config");
-        if (!(ac instanceof java.util.Map<?, ?> m)) return;
-        var raw = ((java.util.Map<String, Object>) m).get("common_words");
-        if (!(raw instanceof List<?> l)) return;
-        var lc = new HashSet<String>();
-        for (var s : l) lc.add(s.toString().toLowerCase(Locale.ROOT));
+        var lc = loadCommonWords(ctx);
+        if (lc == null) return;
         // Bracket markers ("[ENG+PT+DE]") that contain 2+ language matches form a
         // language list — exempt their members from common-word filtering so all
         // codes survive even when one happens to be a common word like "de".
-        var langListMarkers = new ArrayList<int[]>();
-        for (var marker : ctx.markers) {
-            if (!GROUP_MARKER.equals(marker.name())) continue;
-            int s = marker.start();
-            int e = marker.end();
-            long count = ctx.matches.all()
-                    .filter(mm -> MatchName.LANGUAGE.equals(mm.name()) || MatchName.SUBTITLE_LANGUAGE.equals(mm.name()))
-                    .filter(mm -> mm.start() >= s && mm.end() <= e)
-                    .count();
-            if (count >= 2) langListMarkers.add(new int[]{s, e});
-        }
+        var langListMarkers = findLangListMarkers(ctx);
         var toRemove = new ArrayList<Match>();
         for (var name : List.of(MatchName.LANGUAGE, MatchName.SUBTITLE_LANGUAGE)) {
             for (var match : ctx.matches.named(name).toList()) {
@@ -404,6 +386,32 @@ public final class LanguageExtractor implements Extractor {
             }
         }
         for (var match : toRemove) ctx.matches.remove(match);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> loadCommonWords(ParseContext ctx) {
+        var ac = ctx.config.raw().get("advanced_config");
+        if (!(ac instanceof java.util.Map<?, ?> m)) return null;
+        var raw = ((java.util.Map<String, Object>) m).get("common_words");
+        if (!(raw instanceof List<?> l)) return null;
+        var lc = new HashSet<String>();
+        for (var s : l) lc.add(s.toString().toLowerCase(Locale.ROOT));
+        return lc;
+    }
+
+    private static List<int[]> findLangListMarkers(ParseContext ctx) {
+        var out = new ArrayList<int[]>();
+        for (var marker : ctx.markers) {
+            if (!GROUP_MARKER.equals(marker.name())) continue;
+            int s = marker.start();
+            int e = marker.end();
+            long count = ctx.matches.all()
+                    .filter(mm -> MatchName.LANGUAGE.equals(mm.name()) || MatchName.SUBTITLE_LANGUAGE.equals(mm.name()))
+                    .filter(mm -> mm.start() >= s && mm.end() <= e)
+                    .count();
+            if (count >= 2) out.add(new int[]{s, e});
+        }
+        return out;
     }
 
     private void renameStandaloneAffixes(ParseContext ctx) {

@@ -9,7 +9,6 @@ import java.util.Set;
 
 public final class EpisodeTitleExtractor implements Extractor {
     public static final String TITLE = "title";
-    public static final String EPISODE = "episode";
     public static final String SEASON = "season";
     private static final Set<MatchName> PREVIOUS_NAMES = Set.of(
             MatchName.EPISODE, MatchName.EPISODE_COUNT, MatchName.SEASON, MatchName.SEASON_COUNT, MatchName.DATE, MatchName.TITLE, MatchName.YEAR);
@@ -70,15 +69,17 @@ public final class EpisodeTitleExtractor implements Extractor {
         for (var m : ctx.matches.all().toList()) {
             if (m.name() != MatchName.LANGUAGE && m.name() != MatchName.SUBTITLE_LANGUAGE) continue;
             if (m.length() > 3) continue;
-            for (var sp : titleSpans) {
-                if (m.start() >= sp[0] && m.end() <= sp[1]
-                        && (m.start() > sp[0] || m.end() < sp[1])) {
-                    toRemove.add(m);
-                    break;
-                }
-            }
+            if (isStrictlyInsideAnySpan(m, titleSpans)) toRemove.add(m);
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean isStrictlyInsideAnySpan(Match m, List<int[]> spans) {
+        for (var sp : spans) {
+            if (m.start() >= sp[0] && m.end() <= sp[1]
+                    && (m.start() > sp[0] || m.end() < sp[1])) return true;
+        }
+        return false;
     }
 
     private void removeConflictsWithEpisodeTitle(ParseContext ctx) {
@@ -86,24 +87,28 @@ public final class EpisodeTitleExtractor implements Extractor {
         for (var fp : Markers.named(ctx.markers, "path").toList()) {
             var inFp = ctx.matches.range(fp.start(), fp.end(), m -> AFFECTED_NAMES.contains(m.name())).toList();
             for (var m : inFp) {
-                var before = ctx.matches.range(fp.start(), m.start(), x -> !x.isPrivate())
-                        .max(java.util.Comparator.comparingInt(Match::end))
-                        .orElse(null);
-                if (before == null || !CONFLICT_PREVIOUS_NAMES.contains(before.name())) continue;
-                var after = ctx.matches.range(m.end(), fp.end(), x -> !x.isPrivate())
-                        .min(java.util.Comparator.comparingInt(Match::start))
-                        .orElse(null);
-                if (after == null || !NEXT_NAMES.contains(after.name())) continue;
-                var holesBefore = Holes.compute(ctx.input, before.end(), m.start(),
-                        ctx.matches.snapshot(), _ -> false, null, Formatters::cleanup);
-                var holesAfter = Holes.compute(ctx.input, m.end(), after.start(),
-                        ctx.matches.snapshot(), _ -> false, null, Formatters::cleanup);
-                if (holesBefore.isEmpty() && holesAfter.isEmpty()) continue;
-                if (AFFECTED_IF_HOLES_AFTER.contains(m.name()) && holesAfter.isEmpty()) continue;
-                toRemove.add(m);
+                if (conflictsWithEpisodeTitle(ctx, fp, m)) toRemove.add(m);
             }
         }
         for (var m : toRemove) ctx.matches.remove(m);
+    }
+
+    private static boolean conflictsWithEpisodeTitle(ParseContext ctx, Marker fp, Match m) {
+        var before = ctx.matches.range(fp.start(), m.start(), x -> !x.isPrivate())
+                .max(java.util.Comparator.comparingInt(Match::end))
+                .orElse(null);
+        if (before == null || !CONFLICT_PREVIOUS_NAMES.contains(before.name())) return false;
+        var after = ctx.matches.range(m.end(), fp.end(), x -> !x.isPrivate())
+                .min(java.util.Comparator.comparingInt(Match::start))
+                .orElse(null);
+        if (after == null || !NEXT_NAMES.contains(after.name())) return false;
+        var holesBefore = Holes.compute(ctx.input, before.end(), m.start(),
+                ctx.matches.snapshot(), _ -> false, null, Formatters::cleanup);
+        var holesAfter = Holes.compute(ctx.input, m.end(), after.start(),
+                ctx.matches.snapshot(), _ -> false, null, Formatters::cleanup);
+        if (holesBefore.isEmpty() && holesAfter.isEmpty()) return false;
+        if (AFFECTED_IF_HOLES_AFTER.contains(m.name()) && holesAfter.isEmpty()) return false;
+        return true;
     }
 
     private void titleToEpisodeTitle(ParseContext ctx) {
@@ -143,34 +148,36 @@ public final class EpisodeTitleExtractor implements Extractor {
         var hasCrc = ctx.matches.named(MatchName.CRC32).findAny().isPresent();
         boolean isMovie = MOVIE_TYPE.equals(predictedType(ctx));
         for (var fp : Markers.markerSorted(paths, ctx.matches)) {
-            var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> m.name() == MatchName.TITLE).findAny().isPresent();
-            if (!hasTitle) continue;
-            var titles = titleExtractor.checkTitlesInFilepart(ctx, fp,
-                    TitleExtractor::isIgnored, MatchName.EPISODE_TITLE, List.of(TITLE), null, true);
-            if (titles == null) continue;
-            boolean addedAny = false;
-            for (var t : titles.titles()) {
-                var prev = ctx.matches.previous(t, m -> PREVIOUS_NAMES.contains(m.name()));
-                if (prev.isEmpty() && !hasCrc) continue;
-                // Movie context: skip holes wedged between two structural
-                // properties (e.g. "...source SPLIT SCENES container..."
-                // → SPLIT SCENES is noise, not an alt-title). Holes that
-                // are still in the "title region" (before any source/codec/
-                // etc. trailing property) survive and reach TypeProcessor's
-                // demote-to-alt path.
-                if (isMovie && wedgedBetweenProperties(ctx, fp, t)) continue;
+            if (extractEpisodeTitlesInFilepart(ctx, fp, titleExtractor, hasCrc, isMovie)) break;
+        }
+    }
+
+    /** Returns true when at least one episode_title was added (callers should stop). */
+    private boolean extractEpisodeTitlesInFilepart(ParseContext ctx, Marker fp,
+                                                   TitleExtractor titleExtractor,
+                                                   boolean hasCrc, boolean isMovie) {
+        var hasTitle = ctx.matches.range(fp.start(), fp.end(), m -> m.name() == MatchName.TITLE).findAny().isPresent();
+        if (!hasTitle) return false;
+        var titles = titleExtractor.checkTitlesInFilepart(ctx, fp,
+                TitleExtractor::isIgnored, MatchName.EPISODE_TITLE, List.of(TITLE), null, true);
+        if (titles == null) return false;
+        boolean addedAny = false;
+        for (var t : titles.titles()) {
+            if (shouldKeepEpisodeTitleCandidate(ctx, fp, t, hasCrc, isMovie)) {
                 ctx.matches.add(t);
                 addedAny = true;
             }
-            for (var r : titles.toRemove()) ctx.matches.remove(r);
-            // Mirror python TitleBaseRule.when: break after the first
-            // filepart that yields titles. Without this, a later filepart's
-            // hole that EquivalentHoles would otherwise upgrade gets
-            // pre-occupied by an episode_title match, preventing case
-            // upgrades like "storming mussolinis island" → "Storming
-            // Mussolinis Island" from the outer-dir titlecase hole.
-            if (addedAny) break;
         }
+        for (var r : titles.toRemove()) ctx.matches.remove(r);
+        return addedAny;
+    }
+
+    private boolean shouldKeepEpisodeTitleCandidate(ParseContext ctx, Marker fp, Match t,
+                                                    boolean hasCrc, boolean isMovie) {
+        var prev = ctx.matches.previous(t, m -> PREVIOUS_NAMES.contains(m.name()));
+        if (prev.isEmpty() && !hasCrc) return false;
+        // Movie context: skip holes wedged between two structural properties.
+        return !(isMovie && wedgedBetweenProperties(ctx, fp, t));
     }
 
     /**
@@ -189,26 +196,9 @@ public final class EpisodeTitleExtractor implements Extractor {
         return propBefore && propAfter;
     }
 
-    /**
-     * Mirror of TypeProcessor.decide for early type prediction inside
-     * EpisodeTitleExtractor.postProcess (TypeProcessor itself runs later in
-     * the PostPhase). Returns "movie" or "episode".
-     */
+    /** Early type prediction; delegates to TypeProcessor (which runs later in PostPhase). */
     private static String predictedType(ParseContext ctx) {
-        var optType = ctx.options.type();
-        if (optType != null) return optType;
-        if (anyNamed(ctx, MatchName.EPISODE) || anyNamed(ctx, MatchName.SEASON)
-                || anyNamed(ctx, MatchName.EPISODE_DETAILS) || anyNamed(ctx, MatchName.ABSOLUTE_EPISODE)) {
-            return EPISODE;
-        }
-        if (anyNamed(ctx, MatchName.FILM)) return MOVIE_TYPE;
-        boolean hasYear = anyNamed(ctx, MatchName.YEAR);
-        if (anyNamed(ctx, MatchName.DATE) && !hasYear) return EPISODE;
-        if (anyNamed(ctx, MatchName.BONUS) && !hasYear) return EPISODE;
-        boolean hasCrc = anyNamed(ctx, MatchName.CRC32);
-        boolean anyAnimeRg = ctx.matches.named(MatchName.RELEASE_GROUP).anyMatch(m -> m.tags().contains("anime"));
-        if (hasCrc && anyAnimeRg) return EPISODE;
-        return MOVIE_TYPE;
+        return io.guessit.rules.post.TypeProcessor.predictType(ctx);
     }
 
     private static java.util.Optional<Match> previousAdjacent(ParseContext ctx, int startPos,
@@ -220,10 +210,6 @@ public final class EpisodeTitleExtractor implements Extractor {
             return ending.stream().filter(predicate).findFirst();
         }
         return java.util.Optional.empty();
-    }
-
-    private static boolean anyNamed(ParseContext ctx, MatchName name) {
-        return ctx.matches.named(name).anyMatch(m -> !m.isPrivate());
     }
 
     private void alternativeTitleReplace(ParseContext ctx) {

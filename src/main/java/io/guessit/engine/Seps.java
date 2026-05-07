@@ -49,4 +49,12 @@ public final class Seps {
         for (int i = start; i < end; i++) if (!Seps.isSep(input.charAt(i))) return false;
         return true;
     }
+
+    /** Strip leading/trailing separator chars. */
+    public static String trim(String s) {
+        int a = 0, b = s.length();
+        while (a < b && isSep(s.charAt(a))) a++;
+        while (b > a && isSep(s.charAt(b - 1))) b--;
+        return s.substring(a, b);
+    }
 }

@@ -40,10 +40,7 @@ public class RemoveAmbiguous implements PostProcessor {
         var sorted = io.guessit.engine.Markers.markerSorted(pathsSorted, ctx.matches);
         var paths = reverseFileparts ? sorted.reversed() : sorted;
 
-        var seenNames = new HashSet<MatchName>();
-        var values = new HashMap<MatchName, Set<Object>>();
-        var toRemove = new ArrayList<Match>();
-
+        var perFilepart = new ArrayList<List<Match>>();
         for (var fp : paths) {
             var inFp = ctx.matches.snapshot().stream()
                 .filter(m -> !m.isPrivate())
@@ -51,6 +48,22 @@ public class RemoveAmbiguous implements PostProcessor {
                 .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
                 .sorted(tieBreak)
                 .toList();
+            perFilepart.add(inFp);
+        }
+        applyBucketDedup(ctx, perFilepart);
+    }
+
+    /**
+     * For each filepart's sorted match list, the first filepart's values per
+     * name win; later fileparts only retain matches whose value was already
+     * seen earlier. Shared between {@link RemoveAmbiguous} and
+     * {@link RemoveLessSpecificSeasonEpisode}.
+     */
+    protected static void applyBucketDedup(ParseContext ctx, List<List<Match>> perFilepart) {
+        var seenNames = new HashSet<MatchName>();
+        var values = new HashMap<MatchName, Set<Object>>();
+        var toRemove = new ArrayList<Match>();
+        for (var inFp : perFilepart) {
             var fpNames = new HashSet<MatchName>();
             for (var m : inFp) {
                 fpNames.add(m.name());

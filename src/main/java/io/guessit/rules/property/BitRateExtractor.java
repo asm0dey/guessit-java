@@ -7,7 +7,10 @@ import io.guessit.engine.ParseContext;
 import io.guessit.engine.Validators;
 import io.guessit.util.BitRate;
 
+import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -44,18 +47,23 @@ public final class BitRateExtractor implements Extractor {
         for (var p : new Pattern[]{P_INT, P_DEC}) {
             var m = p.matcher(input);
             while (m.find()) {
-                int s = m.start(1), e = m.end(1);
-                var head = new Match(MatchName.AUDIO_BIT_RATE, null, s, e, m.group(1), priority(), Set.of(), false);
-                if (!seps.test(head)) continue;
-                boolean overlapsChannels = false;
-                for (var ch : channels) {
-                    if (s < ch.end() && ch.start() < e) { overlapsChannels = true; break; }
-                }
-                if (overlapsChannels) continue;
-                var raw = m.group(1);
-                ctx.matches.add(new Match(MatchName.AUDIO_BIT_RATE, BitRate.fromString(raw), s, e, raw,
-                    priority(), Set.of("release-group-prefix"), false));
+                tryAddBitRate(ctx, m, seps, channels);
             }
         }
+    }
+
+    private void tryAddBitRate(ParseContext ctx, Matcher m, Predicate<Match> seps, List<Match> channels) {
+        int s = m.start(1), e = m.end(1);
+        var raw = m.group(1);
+        var head = new Match(MatchName.AUDIO_BIT_RATE, null, s, e, raw, priority(), Set.of(), false);
+        if (!seps.test(head)) return;
+        if (overlapsAny(s, e, channels)) return;
+        ctx.matches.add(new Match(MatchName.AUDIO_BIT_RATE, BitRate.fromString(raw), s, e, raw,
+            priority(), Set.of("release-group-prefix"), false));
+    }
+
+    private static boolean overlapsAny(int s, int e, List<Match> spans) {
+        for (var sp : spans) if (s < sp.end() && sp.start() < e) return true;
+        return false;
     }
 }

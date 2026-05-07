@@ -63,53 +63,61 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         ctx.result = ctx.resultBuilder.build();
     }
 
+    private record DroppedSet(Set<String> groups, Set<MatchName> names) {}
+
     /** Build excludes (with child cascade), includes, dropped coexist groups,
      *  and the language-promotion flag. */
     private static FilterState computeFilterState(ParseContext ctx) {
-        var excludes = new HashSet<>(ctx.options.excludes());
-        for (var ex : new HashSet<>(excludes)) {
-            var children = CHILD_EXCLUSION.get(ex);
-            if (children != null) excludes.addAll(children);
-        }
+        var excludes = expandExcludesWithChildren(ctx.options.excludes());
         var includes = ctx.options.includes();
 
         // Coupled exclusion via the SxxExx pair tag ("coexist"): excluding one half
-        // of a compact season/episode pattern (e.g. excludes=season on "02x05") must
-        // drop its sibling too, mirroring Python's pattern-level disable. Span-based
-        // coupling does not work because season and episode have distinct spans.
+        // of a compact season/episode pattern must drop its sibling too.
         boolean dropCoexistEpisode = excludes.contains("season");
         boolean dropCoexistSeason = excludes.contains("episode");
 
-        // Collect coexist-group ids whose exclusion must propagate. A "cg:N" tag
-        // groups sibling matches produced by one rule pass (symmetric: dropping any
-        // member drops the whole group). A separate "derivedFrom:<name>" tag is
-        // one-way (asymmetric): dropping the master drops the derivative only.
-        var droppedGroups = new HashSet<String>();
-        var droppedNames = new HashSet<MatchName>();
+        var dropped = collectDropped(ctx, excludes, includes);
+        boolean subFilteredKeepLang = computeSubFilteredKeepLang(excludes, includes);
+
+        return new FilterState(excludes, includes, dropped.groups(), dropped.names(),
+                dropCoexistEpisode, dropCoexistSeason, subFilteredKeepLang);
+    }
+
+    private static Set<String> expandExcludesWithChildren(List<String> raw) {
+        var out = new HashSet<>(raw);
+        for (var ex : new HashSet<>(out)) {
+            var children = CHILD_EXCLUSION.get(ex);
+            if (children != null) out.addAll(children);
+        }
+        return out;
+    }
+
+    /** Collect coexist-group ids and dropped names. */
+    private static DroppedSet collectDropped(ParseContext ctx, Set<String> excludes, List<String> includes) {
+        var groups = new HashSet<String>();
+        var names = new HashSet<MatchName>();
         ctx.matches.all().forEach(m -> {
             var name = m.name();
             var nameStr = name.name().toLowerCase();
             boolean filtered = (!excludes.isEmpty() && excludes.contains(nameStr))
                     || (!includes.isEmpty() && !includes.contains(nameStr));
             if (!filtered) return;
-            droppedNames.add(name);
+            names.add(name);
             for (var t : m.tags()) {
-                if (t.startsWith("cg:")) droppedGroups.add(t);
+                if (t.startsWith("cg:")) groups.add(t);
             }
         });
+        return new DroppedSet(groups, names);
+    }
 
-        // Promote subtitle_language → language when subtitle_language is filtered
-        // out and language survives (mirrors python: with subtitle_language disabled,
-        // SubtitlePrefixLanguageRule no longer renames language→subtitle_language,
-        // so 'ENG.-.sub.FR' / 'ST.FR' / 'ENG.-.FR Sub' all keep FR as language).
+    /** Promote subtitle_language → language when subtitle_language is filtered
+     *  out and language survives. */
+    private static boolean computeSubFilteredKeepLang(Set<String> excludes, List<String> includes) {
         boolean langKept = (includes.isEmpty() || includes.contains(MatchName.LANGUAGE.name().toLowerCase()))
                 && !excludes.contains(MatchName.LANGUAGE.name().toLowerCase());
         boolean subFiltered = excludes.contains(MatchName.SUBTITLE_LANGUAGE.name().toLowerCase())
                 || (!includes.isEmpty() && !includes.contains(MatchName.SUBTITLE_LANGUAGE.name().toLowerCase()));
-        boolean subFilteredKeepLang = subFiltered && langKept;
-
-        return new FilterState(excludes, includes, droppedGroups, droppedNames,
-                dropCoexistEpisode, dropCoexistSeason, subFilteredKeepLang);
+        return subFiltered && langKept;
     }
 
     /** Sort by start, apply filters/promotions, and group surviving matches by name. */

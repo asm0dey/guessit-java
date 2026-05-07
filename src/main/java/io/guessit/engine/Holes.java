@@ -39,10 +39,7 @@ public final class Holes {
         private void applyMarkerToHole(Marker m, Hole h, List<Hole> newRet) {
             if (m.start() <= h.start && m.end() >= h.end) return; // fully covers — drop
             if (m.start() >= h.start && m.end() <= h.end) {
-                var left = new Hole(h.start, m.start(), input, formatter);
-                var right = new Hole(m.end(), h.end, input, formatter);
-                if (left.length() > 0) newRet.add(left);
-                if (right.length() > 0) newRet.add(right);
+                splitHole(m, h, newRet);
                 return;
             }
             if (m.end() >= h.end && m.start() < h.end) {
@@ -56,6 +53,13 @@ public final class Holes {
                 return;
             }
             newRet.add(h);
+        }
+
+        private void splitHole(Marker m, Hole h, List<Hole> newRet) {
+            var left = new Hole(h.start, m.start(), input, formatter);
+            var right = new Hole(m.end(), h.end, input, formatter);
+            if (left.length() > 0) newRet.add(left);
+            if (right.length() > 0) newRet.add(right);
         }
 
         public List<Hole> split(String seps) {

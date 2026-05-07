@@ -70,23 +70,28 @@ public final class PatternMatcher {
         var hay = opts.caseSensitive() ? input : input.toLowerCase(java.util.Locale.ROOT);
         for (var raw : needles) {
             var n = opts.caseSensitive() ? raw : raw.toLowerCase(java.util.Locale.ROOT);
-            int from = 0;
-            while (true) {
-                int idx = hay.indexOf(n, from);
-                if (idx < 0) break;
-                int end = idx + n.length();
-                if (!opts.wholeWord() || isWordBoundary(hay, idx, end)) {
-                    var match = new Match(name, raw, idx, end, input.substring(idx, end),
-                        opts.priority(), opts.tags(), opts.isPrivate());
-                    if (opts.validator().test(match)) out.add(match);
-                }
-                // Step by one rather than n.length() so overlapping needles
-                // (e.g. "aa" in "aaa") still both report.
-                from = idx + 1;
-            }
+            scanNeedle(input, hay, raw, n, name, opts, out);
         }
         out.sort(Comparator.comparingInt(Match::start));
         return out;
+    }
+
+    private static void scanNeedle(String input, String hay, String raw, String n,
+                                   MatchName name, StringOpts opts, List<Match> out) {
+        int from = 0;
+        while (true) {
+            int idx = hay.indexOf(n, from);
+            if (idx < 0) break;
+            int end = idx + n.length();
+            if (!opts.wholeWord() || isWordBoundary(hay, idx, end)) {
+                var match = new Match(name, raw, idx, end, input.substring(idx, end),
+                    opts.priority(), opts.tags(), opts.isPrivate());
+                if (opts.validator().test(match)) out.add(match);
+            }
+            // Step by one rather than n.length() so overlapping needles
+            // (e.g. "aa" in "aaa") still both report.
+            from = idx + 1;
+        }
     }
 
     private static final ConcurrentMap<Pattern, Boolean> HAS_VALUE_GROUP = new ConcurrentHashMap<>();

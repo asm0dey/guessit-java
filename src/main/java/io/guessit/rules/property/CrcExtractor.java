@@ -104,25 +104,23 @@ public final class CrcExtractor implements Extractor {
      * adjacent-letter switches; accept when both ratios exceed 0.4. Mirrors
      * python {@code guess_idnumber}.
      */
+    private static final int CC_DIGIT = 0;
+    private static final int CC_LETTER = 1;
+    private static final int CC_OTHER = 2;
+
     private static boolean isLikelyIdNumber(String s) {
-        final int DIGIT = 0, LETTER = 1, OTHER = 2;
-        int last = LETTER;
+        int last = CC_LETTER;
         int switchCount = 0;
         int switchLetterCount = 0;
         int letterCount = 0;
         char lastLetter = 0;
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            int ci;
-            if (c >= '0' && c <= '9') {
-                ci = DIGIT;
-            } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-                ci = LETTER;
+            int ci = classifyChar(c);
+            if (ci == CC_LETTER) {
                 if (c != lastLetter) switchLetterCount++;
                 lastLetter = c;
                 letterCount++;
-            } else {
-                ci = OTHER;
             }
             if (ci != last) switchCount++;
             last = ci;
@@ -130,5 +128,11 @@ public final class CrcExtractor implements Extractor {
         double switchRatio = (double) switchCount / s.length();
         double lettersRatio = letterCount == 0 ? 1.0 : (double) switchLetterCount / letterCount;
         return switchRatio > 0.4 && lettersRatio > 0.4;
+    }
+
+    private static int classifyChar(char c) {
+        if (c >= '0' && c <= '9') return CC_DIGIT;
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) return CC_LETTER;
+        return CC_OTHER;
     }
 }

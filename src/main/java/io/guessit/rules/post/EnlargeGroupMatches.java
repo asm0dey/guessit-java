@@ -1,5 +1,6 @@
 package io.guessit.rules.post;
 
+import io.guessit.engine.Marker;
 import io.guessit.engine.Match;
 import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase;
@@ -17,17 +18,25 @@ public final class EnlargeGroupMatches implements PostPhase.PostProcessor {
     @Override
     public void process(ParseContext ctx) {
         for (var g : ctx.markers) {
-            if (!"group".equals(g.name())) continue;
-            for (var m : new ArrayList<>(ctx.matches.snapshot())) {
-                Match next = null;
-                if (m.start() == g.start() + 1 && m.end() <= g.end()) {
-                    next = m.withStart(g.start());
-                }
-                if (m.end() == g.end() - 1 && m.start() >= g.start()) {
-                    next = (next != null ? next : m).withEnd(g.end());
-                }
-                if (next != null) ctx.matches.replace(m, next);
-            }
+            if ("group".equals(g.name())) enlargeForGroup(ctx, g);
         }
+    }
+
+    private static void enlargeForGroup(ParseContext ctx, Marker g) {
+        for (var m : new ArrayList<>(ctx.matches.snapshot())) {
+            var next = enlargedMatch(m, g);
+            if (next != null) ctx.matches.replace(m, next);
+        }
+    }
+
+    private static Match enlargedMatch(Match m, Marker g) {
+        Match next = null;
+        if (m.start() == g.start() + 1 && m.end() <= g.end()) {
+            next = m.withStart(g.start());
+        }
+        if (m.end() == g.end() - 1 && m.start() >= g.start()) {
+            next = (next != null ? next : m).withEnd(g.end());
+        }
+        return next;
     }
 }

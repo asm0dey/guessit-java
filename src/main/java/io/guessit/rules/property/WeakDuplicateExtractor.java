@@ -264,6 +264,18 @@ public final class WeakDuplicateExtractor implements Extractor {
      * conflict solver running before WeakConflictSolver/RemoveWeakDuplicate.
      */
     private static void dropOverlappingStrongerProperty(ParseContext ctx) {
+        var groups = collectStrongerGroups(ctx);
+        var preClean = new ArrayList<Match>();
+        for (var name : new MatchName[]{MatchName.SEASON, MatchName.EPISODE}) {
+            for (var m : ctx.matches.named(name).toList()) {
+                if (!m.tags().contains(WEAK_DUPLICATE)) continue;
+                if (overlapsAnyGroup(m, groups)) preClean.add(m);
+            }
+        }
+        for (var m : preClean) ctx.matches.remove(m);
+    }
+
+    private static List<List<Match>> collectStrongerGroups(ParseContext ctx) {
         var years = ctx.matches.named(MatchName.YEAR).toList();
         var dates = ctx.matches.named(MatchName.DATE).toList();
         var codecs = ctx.matches.all()
@@ -279,21 +291,14 @@ public final class WeakDuplicateExtractor implements Extractor {
         var bitRates = ctx.matches.all()
                 .filter(m -> m.name() == MatchName.AUDIO_BIT_RATE || m.name() == MatchName.VIDEO_BIT_RATE)
                 .toList();
-        @SuppressWarnings("unchecked")
-        List<Match>[] groups = new List[]{years, dates, codecs, screens, others, bitRates};
-        var preClean = new ArrayList<Match>();
-        for (var name : new MatchName[]{MatchName.SEASON, MatchName.EPISODE}) {
-            for (var m : ctx.matches.named(name).toList()) {
-                if (!m.tags().contains(WEAK_DUPLICATE)) continue;
-                for (var group : groups) {
-                    if (group.stream().anyMatch(o -> o.overlaps(m))) {
-                        preClean.add(m);
-                        break;
-                    }
-                }
-            }
+        return List.of(years, dates, codecs, screens, others, bitRates);
+    }
+
+    private static boolean overlapsAnyGroup(Match m, List<List<Match>> groups) {
+        for (var group : groups) {
+            if (group.stream().anyMatch(o -> o.overlaps(m))) return true;
         }
-        for (var m : preClean) ctx.matches.remove(m);
+        return false;
     }
 
     /**
@@ -323,22 +328,26 @@ public final class WeakDuplicateExtractor implements Extractor {
      */
     private static void dedupKeepLastPerFilepart(ParseContext ctx, List<Marker> fileparts) {
         for (var fp : fileparts) {
-            boolean seenSeason = false;
-            boolean seenEpisode = false;
-            var localDup = ctx.matches.tagged(WEAK_DUPLICATE)
-                    .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
-                    .sorted(Comparator.comparingInt(Match::start).reversed())
-                    .toList();
-            var dropDup = new ArrayList<Match>();
-            for (var m : localDup) {
-                if (MatchName.SEASON == m.name()) {
-                    if (seenSeason) dropDup.add(m); else seenSeason = true;
-                } else if (MatchName.EPISODE == m.name()) {
-                    if (seenEpisode) dropDup.add(m); else seenEpisode = true;
-                }
-            }
-            for (var m : dropDup) ctx.matches.remove(m);
+            dedupSingleFilepart(ctx, fp);
         }
+    }
+
+    private static void dedupSingleFilepart(ParseContext ctx, Marker fp) {
+        boolean seenSeason = false;
+        boolean seenEpisode = false;
+        var localDup = ctx.matches.tagged(WEAK_DUPLICATE)
+                .filter(m -> m.start() >= fp.start() && m.end() <= fp.end())
+                .sorted(Comparator.comparingInt(Match::start).reversed())
+                .toList();
+        var dropDup = new ArrayList<Match>();
+        for (var m : localDup) {
+            if (MatchName.SEASON == m.name()) {
+                if (seenSeason) dropDup.add(m); else seenSeason = true;
+            } else if (MatchName.EPISODE == m.name()) {
+                if (seenEpisode) dropDup.add(m); else seenEpisode = true;
+            }
+        }
+        for (var m : dropDup) ctx.matches.remove(m);
     }
 
     /**

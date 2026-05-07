@@ -89,19 +89,19 @@ public final class EquivalentHoles implements PostProcessor {
         var hasCased = false;
         var prevCased = false;
         for (var c : s.toCharArray()) {
-            if (Character.isLetter(c)) {
-                hasCased = true;
-                if (!prevCased) {
-                    if (!Character.isUpperCase(c)) return false;
-                } else {
-                    if (!Character.isLowerCase(c)) return false;
-                }
-                prevCased = true;
-            } else {
+            if (!Character.isLetter(c)) {
                 prevCased = false;
+                continue;
             }
+            hasCased = true;
+            if (!isExpectedTitleCase(c, prevCased)) return false;
+            prevCased = true;
         }
         return hasCased;
+    }
+
+    private static boolean isExpectedTitleCase(char c, boolean prevCased) {
+        return prevCased ? Character.isLowerCase(c) : Character.isUpperCase(c);
     }
 
     static int countTitleWords(String s) {

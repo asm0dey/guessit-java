@@ -183,17 +183,20 @@ public final class WeakEpisodeExtractor implements Extractor {
             .map(m -> new int[]{m.start(), m.end()})
             .toList();
 
-        return weak -> {
-            if (anyEpisodeSxxExx) return true;
-            for (var fp : fileparts) {
-                if (weak.start() < fp.start() || weak.end() > fp.end()) continue;
-                for (var sp : seasonStrongSpans) {
-                    if (sp[0] >= fp.start() && sp[1] <= fp.end()) return true;
-                }
-                return false;
+        return weak -> hasStrongAnchor(weak, anyEpisodeSxxExx, seasonStrongSpans, fileparts);
+    }
+
+    private static boolean hasStrongAnchor(Match weak, boolean anyEpisodeSxxExx,
+                                           List<int[]> seasonStrongSpans, List<Marker> fileparts) {
+        if (anyEpisodeSxxExx) return true;
+        for (var fp : fileparts) {
+            if (weak.start() < fp.start() || weak.end() > fp.end()) continue;
+            for (var sp : seasonStrongSpans) {
+                if (sp[0] >= fp.start() && sp[1] <= fp.end()) return true;
             }
-            return !seasonStrongSpans.isEmpty();
-        };
+            return false;
+        }
+        return !seasonStrongSpans.isEmpty();
     }
 
     /**

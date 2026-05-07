@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static io.guessit.engine.MatchName.EPISODE;
 
@@ -45,40 +47,44 @@ public final class TitleExtractor implements Extractor {
         if (expected.isEmpty()) return;
         var input = ctx.input;
         // Mirror python rules/common/expected.py: normalize seps in both input
-        // and search to a single space before substring scanning, so a search
-        // like "An Anime Show 100" matches "An_Anime_Show_100" in the input.
-        // Spans stay valid because replacement is 1:1 by char.
+        // and search to a single space before substring scanning. Spans stay
+        // valid because replacement is 1:1 by char.
         var normalizedInput = normalizeSeps(input);
         var sepsSurround = Validators.sepsSurround(input);
         for (var entry : ExpectedTitleRegex.parse(expected)) {
             if (entry.literalReplacement() != null) {
-                // Literal entry: use original substring-scan behaviour (sep-normalised,
-                // case-insensitive) so "Show Name" still matches "Show.Name".
-                var search = normalizeSeps(entry.literalReplacement());
-                var lcInput = normalizedInput.toLowerCase(java.util.Locale.ROOT);
-                var lcSearch = search.toLowerCase(java.util.Locale.ROOT);
-                int idx = 0;
-                while ((idx = lcInput.indexOf(lcSearch, idx)) >= 0) {
-                    var raw = input.substring(idx, idx + search.length());
-                    var formatted = Formatters.titleText(raw);
-                    var m = new Match(MatchName.TITLE, formatted, idx, idx + search.length(), raw,
-                        1000, Set.of(EXPECTED_TAG, TITLE), false);
-                    if (sepsSurround.test(m)) ctx.matches.add(m);
-                    idx += search.length();
-                }
+                scanLiteralExpectedTitle(ctx, input, normalizedInput, sepsSurround, entry.literalReplacement());
             } else {
-                // Regex entry (re: prefix): match against the sep-normalised input so
-                // word-boundary patterns work consistently, but preserve spans into
-                // the original input.
-                var matcher = entry.pattern().matcher(normalizedInput);
-                while (matcher.find()) {
-                    var raw = input.substring(matcher.start(), matcher.end());
-                    var formatted = Formatters.titleText(raw);
-                    var m = new Match(MatchName.TITLE, formatted, matcher.start(), matcher.end(), raw,
-                        1000, Set.of(EXPECTED_TAG, TITLE), false);
-                    if (sepsSurround.test(m)) ctx.matches.add(m);
-                }
+                scanRegexExpectedTitle(ctx, input, normalizedInput, sepsSurround, entry.pattern());
             }
+        }
+    }
+
+    private static void scanLiteralExpectedTitle(ParseContext ctx, String input, String normalizedInput,
+                                                 Predicate<Match> sepsSurround, String literal) {
+        var search = normalizeSeps(literal);
+        var lcInput = normalizedInput.toLowerCase(java.util.Locale.ROOT);
+        var lcSearch = search.toLowerCase(java.util.Locale.ROOT);
+        int idx = 0;
+        while ((idx = lcInput.indexOf(lcSearch, idx)) >= 0) {
+            var raw = input.substring(idx, idx + search.length());
+            var formatted = Formatters.titleText(raw);
+            var m = new Match(MatchName.TITLE, formatted, idx, idx + search.length(), raw,
+                1000, Set.of(EXPECTED_TAG, TITLE), false);
+            if (sepsSurround.test(m)) ctx.matches.add(m);
+            idx += search.length();
+        }
+    }
+
+    private static void scanRegexExpectedTitle(ParseContext ctx, String input, String normalizedInput,
+                                               Predicate<Match> sepsSurround, Pattern pattern) {
+        var matcher = pattern.matcher(normalizedInput);
+        while (matcher.find()) {
+            var raw = input.substring(matcher.start(), matcher.end());
+            var formatted = Formatters.titleText(raw);
+            var m = new Match(MatchName.TITLE, formatted, matcher.start(), matcher.end(), raw,
+                1000, Set.of(EXPECTED_TAG, TITLE), false);
+            if (sepsSurround.test(m)) ctx.matches.add(m);
         }
     }
 

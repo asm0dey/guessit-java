@@ -245,8 +245,11 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     private CandidateSpan extractCandidateSpan(String input, int start, int end) {
-        int s = start;
-        int e = end;
+        return trimGroupSepsToSpan(input, start, end);
+    }
+
+    /** Strip leading/trailing group-separator chars; return span or null if empty. */
+    private CandidateSpan trimGroupSepsToSpan(String input, int s, int e) {
         while (s < e && isGroupSep(input.charAt(s))) s++;
         while (e > s && isGroupSep(input.charAt(e - 1))) e--;
         return s < e ? new CandidateSpan(s, e) : null;
@@ -502,12 +505,7 @@ public final class ReleaseGroupExtractor implements Extractor {
             return null;
         }
 
-        int innerS = s + 1;
-        int innerE = closeIdx;
-        while (innerS < innerE && isGroupSep(input.charAt(innerS))) innerS++;
-        while (innerE > innerS && isGroupSep(input.charAt(innerE - 1))) innerE--;
-
-        return innerE > innerS ? new CandidateSpan(innerS, innerE) : null;
+        return trimGroupSepsToSpan(input, s + 1, closeIdx);
     }
 
     private int skipSubtitleLanguagePrefix(ParseContext ctx, String input, int s, int e) {
@@ -847,14 +845,14 @@ public final class ReleaseGroupExtractor implements Extractor {
                 continue;
             }
 
-            int afterWebsite = trimTrailingWebsite(ctx, filepart, rangeEnd);
+            int afterWebsite = trimTrailingNamed(ctx, filepart, rangeEnd, MatchName.WEBSITE);
             if (afterWebsite < rangeEnd) {
                 rangeEnd = afterWebsite;
                 changed = true;
                 continue;
             }
 
-            int afterDate = trimTrailingDate(ctx, filepart, rangeEnd);
+            int afterDate = trimTrailingNamed(ctx, filepart, rangeEnd, MatchName.DATE);
             if (afterDate < rangeEnd) {
                 rangeEnd = afterDate;
                 changed = true;
@@ -946,49 +944,23 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     /**
-     * Trim a trailing date match (optionally wrapped in brackets/parens) so
-     * the dash/scene detection sees the real group span. Mirrors
-     * trimTrailingWebsite for `date` instead of `website`.
+     * Trim a trailing match of the given name (optionally wrapped in
+     * brackets/parens) so dash/scene detection sees the real group span.
+     * Used for {@code date} and {@code website} trailers.
      */
-    private static int trimTrailingDate(ParseContext ctx, Marker filepart, int rangeEnd) {
+    private static int trimTrailingNamed(ParseContext ctx, Marker filepart, int rangeEnd, MatchName name) {
         var input = ctx.input;
         int probe = rangeEnd;
         if (probe > filepart.start() && (input.charAt(probe - 1) == ']' || input.charAt(probe - 1) == ')')) {
             probe--;
         }
         final int p = probe;
-        var date = ctx.matches.named(MatchName.DATE)
+        var hit = ctx.matches.named(name)
                 .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
                 .filter(m -> m.end() == p)
                 .findFirst().orElse(null);
-        if (date == null) return rangeEnd;
-        int newEnd = date.start();
-        if (newEnd > filepart.start() && (input.charAt(newEnd - 1) == '[' || input.charAt(newEnd - 1) == '(')) {
-            newEnd--;
-        }
-        return newEnd;
-    }
-
-    /**
-     * Walk back over a trailing website match (with any wrapping group marker
-     * and abutting separators), so detection sees the real group span instead
-     * of treating "[tvu.org.ru]" as the trailing token.
-     */
-    private static int trimTrailingWebsite(ParseContext ctx, Marker filepart, int rangeEnd) {
-        var input = ctx.input;
-        int probe = rangeEnd;
-        // Skip a trailing close-bracket so we can match websites wrapped in [..] or (..).
-        if (probe > filepart.start() && (input.charAt(probe - 1) == ']' || input.charAt(probe - 1) == ')')) {
-            probe--;
-        }
-        final int p = probe;
-        var website = ctx.matches.named(MatchName.WEBSITE)
-                .filter(m -> m.start() >= filepart.start() && m.end() <= filepart.end())
-                .filter(m -> m.end() == p)
-                .findFirst().orElse(null);
-        if (website == null) return rangeEnd;
-        int newEnd = website.start();
-        // Strip an opening bracket immediately preceding the website span.
+        if (hit == null) return rangeEnd;
+        int newEnd = hit.start();
         if (newEnd > filepart.start() && (input.charAt(newEnd - 1) == '[' || input.charAt(newEnd - 1) == '(')) {
             newEnd--;
         }
