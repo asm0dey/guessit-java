@@ -129,8 +129,7 @@ public final class SpanRenderer {
             // Determine the width needed (at least input.length())
             int width = input.length();
             // Also ensure label extents fit
-            for (int i = 0; i < row.size(); i++) {
-                var s = row.get(i);
+            for (Span s : row) {
                 int halfLabel = s.label().length() / 2;
                 int lStart = Math.max(0, s.mid() - halfLabel);
                 int lEnd = lStart + s.label().length();
@@ -151,25 +150,30 @@ public final class SpanRenderer {
                 } else {
                     // Marker underline: ┌─ … ─┐ corners with gap in the middle for len ≥ 5
                     int len = s.len();
-                    if (len == 2) {
-                        uline[s.start()]     = CORNER_LEFT;
-                        uline[s.start() + 1] = CORNER_RIGHT;
-                    } else if (len == 3) {
-                        uline[s.start()]     = CORNER_LEFT;
-                        uline[s.start() + 1] = HORIZ;
-                        uline[s.start() + 2] = CORNER_RIGHT;
-                    } else if (len == 4) {
-                        uline[s.start()]     = CORNER_LEFT;
-                        uline[s.start() + 1] = HORIZ;
-                        uline[s.start() + 2] = HORIZ;
-                        uline[s.start() + 3] = CORNER_RIGHT;
-                    } else {
-                        // len ≥ 5: ┌─ + spaces × (len − 4) + ─┐
-                        uline[s.start()]         = CORNER_LEFT;
-                        uline[s.start() + 1]     = HORIZ;
-                        // interior gap: positions start+2 .. end-3 stay as space (already filled)
-                        uline[s.end() - 2]       = HORIZ;
-                        uline[s.end() - 1]       = CORNER_RIGHT;
+                    switch (len) {
+                        case 2 -> {
+                            uline[s.start()] = CORNER_LEFT;
+                            uline[s.start() + 1] = CORNER_RIGHT;
+                        }
+                        case 3 -> {
+                            uline[s.start()] = CORNER_LEFT;
+                            uline[s.start() + 1] = HORIZ;
+                            uline[s.start() + 2] = CORNER_RIGHT;
+                        }
+                        case 4 -> {
+                            uline[s.start()] = CORNER_LEFT;
+                            uline[s.start() + 1] = HORIZ;
+                            uline[s.start() + 2] = HORIZ;
+                            uline[s.start() + 3] = CORNER_RIGHT;
+                        }
+                        default -> {
+                            // len ≥ 5: ┌─ + spaces × (len − 4) + ─┐
+                            uline[s.start()] = CORNER_LEFT;
+                            uline[s.start() + 1] = HORIZ;
+                            // interior gap: positions start+2 .. end-3 stay as space (already filled)
+                            uline[s.end() - 2] = HORIZ;
+                            uline[s.end() - 1] = CORNER_RIGHT;
+                        }
                     }
                 }
             }
