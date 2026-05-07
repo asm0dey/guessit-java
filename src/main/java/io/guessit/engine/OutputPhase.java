@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 public record OutputPhase(Consumer<ParseContext> assembler) implements Phase {
     @Override
     public void apply(ParseContext ctx) {
-        ctx.trace.phase("output");
+        ctx.trace.phase("output", "assembling result");
         assembler.accept(ctx);
     }
 }

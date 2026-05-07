@@ -24,7 +24,7 @@ public record MarkerPhase(List<MarkerProducer> producers) implements Phase {
 
     @Override
     public void apply(ParseContext ctx) {
-        ctx.trace.phase("markers");
+        ctx.trace.phase("markers", "detecting path/group/container markers");
         var beforeAll = new HashSet<>(ctx.markers);
         for (var p : producers) {
             p.produce(ctx);
@@ -32,7 +32,9 @@ public record MarkerPhase(List<MarkerProducer> producers) implements Phase {
         for (var m : ctx.markers) {
             if (!beforeAll.contains(m)) {
                 ctx.trace.note("marker: " + m.raw() + ":(" + m.start() + "," + m.end() + ")+name=" + m.name());
+                ctx.trace.subStep("Found " + m.name() + " marker '" + m.raw() + "' at " + m.start() + "-" + m.end());
             }
         }
+        ctx.trace.spans(ctx.input, ctx.matches.snapshot(), ctx.markers);
     }
 }

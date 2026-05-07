@@ -16,12 +16,12 @@ public record ExtractorPhase(List<Extractor> extractors) implements Phase {
 
     @Override
     public void apply(ParseContext ctx) {
-        ctx.trace.phase("extractors");
+        ctx.trace.phase("extractors", "scanning input for property patterns");
         for (var e : extractors) {
             var before = ctx.matches.snapshot();
-            ctx.trace.step("extract", e.name());
+            ctx.trace.step("extract", e.name(), e.description());
             e.extract(ctx);
-            TraceDiff.emit(before, ctx.matches.snapshot(), ctx.trace);
+            TraceDiff.emit(before, ctx.matches.snapshot(), ctx);
         }
     }
 }
