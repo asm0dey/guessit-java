@@ -14,8 +14,11 @@ import java.util.List;
 public record PostPhase(List<PostProcessor> processors) implements Phase {
     /** Stateless callback over the final, deconflicted match set. */
     @FunctionalInterface
-    public interface PostProcessor {
+    public interface PostProcessor extends Described {
         void process(ParseContext ctx);
+
+        @Override
+        default String description() { return getClass().getSimpleName(); }
     }
 
     public PostPhase { processors = List.copyOf(processors); }

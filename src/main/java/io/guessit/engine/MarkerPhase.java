@@ -13,8 +13,11 @@ import java.util.List;
 public record MarkerPhase(List<MarkerProducer> producers) implements Phase {
     /** Stateless callback invoked once per parse; appends markers to {@link ParseContext#markers}. */
     @FunctionalInterface
-    public interface MarkerProducer {
+    public interface MarkerProducer extends Described {
         void produce(ParseContext ctx);
+
+        @Override
+        default String description() { return getClass().getSimpleName(); }
     }
 
     public MarkerPhase { producers = List.copyOf(producers); }

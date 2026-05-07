@@ -18,7 +18,7 @@ package io.guessit.engine;
  * leading numerics to {@code absolute_episode} only when an {@code SxxExx}
  * episode also survived in the same filepart).
  */
-public interface Extractor {
+public interface Extractor extends Described {
     /**
      * Property name used as the {@link Match#name()} for matches this extractor
      * adds. Maps to a {@code GuessResult} field via the output builder, or to
@@ -42,4 +42,8 @@ public interface Extractor {
      * match set.
      */
     default void postProcess(ParseContext ctx) {}
+
+    /** Human-readable description for {@code --debug} output. Defaults to {@link #name()}. */
+    @Override
+    default String description() { return name(); }
 }
