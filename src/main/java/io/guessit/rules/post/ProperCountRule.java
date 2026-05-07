@@ -15,6 +15,11 @@ import java.util.LinkedHashMap;
 public final class ProperCountRule implements PostProcessor {
 
     @Override
+    public String description() {
+        return "count proper/repack tokens";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         var distinct = new LinkedHashMap<String, Match>();
         ctx.matches.named(MatchName.OTHER)

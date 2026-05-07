@@ -32,6 +32,11 @@ public final class AudioCodecExtractor implements Extractor {
     @Override public String name() { return AUDIO_CODEC; }
 
     @Override
+    public String description() {
+        return "audio codec (AAC, AC3, DTS, FLAC, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(AUDIO_CODEC);
         loadGroup(ctx, MatchName.AUDIO_CODEC, asMap(section.get(AUDIO_CODEC)));

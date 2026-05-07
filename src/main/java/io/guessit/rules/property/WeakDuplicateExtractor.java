@@ -42,6 +42,11 @@ public final class WeakDuplicateExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "weak NN/NN duplicate (rejected unless year guards it)";
+    }
+
+    @Override
     public int priority() {
         return 700;
     }

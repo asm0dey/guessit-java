@@ -23,6 +23,11 @@ public final class SeasonYearLink implements PostProcessor {
     private static final int MAX_YEAR = 2100;
 
     @Override
+    public String description() {
+        return "link season+year tokens that belong together";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         if (ctx.matches.named(MatchName.YEAR).findAny().isPresent()) return;
         var seasons = ctx.matches.named(MatchName.SEASON).toList();

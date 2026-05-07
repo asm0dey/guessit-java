@@ -60,6 +60,11 @@ public final class EpisodeWordExtractor implements Extractor {
     @Override public String name() { return "episode_word"; }
 
     @Override
+    public String description() {
+        return "weak episode word (E12, EP12, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         if ("movie".equals(ctx.options.type())) return;
 

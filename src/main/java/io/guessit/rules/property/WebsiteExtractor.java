@@ -44,6 +44,11 @@ public final class WebsiteExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "source website (.com, .net, …)";
+    }
+
+    @Override
     public int priority() {
         return 100;
     }

@@ -19,6 +19,11 @@ public final class TypeProcessor implements PostProcessor {
     private static final String MOVIE_TYPE = "movie";
 
     @Override
+    public String description() {
+        return "infer type=movie or episode from surviving matches";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         ctx.trace.subStep("Stage 1: predict type from surviving matches and emit type match");
         var type = predictType(ctx);

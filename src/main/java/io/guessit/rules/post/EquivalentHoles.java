@@ -16,6 +16,11 @@ import java.util.stream.Stream;
  */
 public final class EquivalentHoles implements PostProcessor {
     @Override
+    public String description() {
+        return "merge equivalent leading/trailing holes";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         var paths = ctx.markers.stream().filter(m -> "path".equals(m.name())).toList();
         if (paths.isEmpty()) return;

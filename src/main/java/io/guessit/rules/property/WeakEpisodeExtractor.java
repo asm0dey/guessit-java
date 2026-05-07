@@ -56,6 +56,11 @@ public final class WeakEpisodeExtractor implements Extractor {
     @Override public int priority() { return 800; }
 
     @Override
+    public String description() {
+        return "weak trailing numeric → absolute_episode if SxxExx survives";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         if ("movie".equals(ctx.options.type())) return;
         var input = ctx.input;

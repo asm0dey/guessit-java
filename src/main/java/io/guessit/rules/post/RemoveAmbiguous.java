@@ -30,6 +30,11 @@ public class RemoveAmbiguous implements PostProcessor {
     }
 
     @Override
+    public String description() {
+        return "drop ambiguous low-confidence matches";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         // Mirror python: iterate fileparts in marker_sorted order (most-
         // valuable filepart first), so its values win when later fileparts

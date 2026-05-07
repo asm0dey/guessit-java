@@ -16,6 +16,11 @@ import java.util.ArrayList;
  */
 public final class EnlargeGroupMatches implements PostPhase.PostProcessor {
     @Override
+    public String description() {
+        return "enlarge match span to cover its containing bracket group";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         for (var g : ctx.markers) {
             if ("group".equals(g.name())) enlargeForGroup(ctx, g);

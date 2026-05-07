@@ -15,6 +15,11 @@ public final class EpisodeFormatExtractor implements Extractor {
     @Override public String name() { return MatchName.EPISODE_FORMAT.toString().toLowerCase(); }
 
     @Override
+    public String description() {
+        return "episode format keyword (Episode, Chapter, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var opts = RegexOpts.defaults()

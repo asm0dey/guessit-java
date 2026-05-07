@@ -20,6 +20,11 @@ public final class EpisodeDetailsExtractor implements Extractor {
     @Override public String name() { return MatchName.EPISODE_DETAILS.toString().toLowerCase(); }
 
     @Override
+    public String description() {
+        return "episode details (Special, Pilot, Final, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         for (var detail : DETAILS) {

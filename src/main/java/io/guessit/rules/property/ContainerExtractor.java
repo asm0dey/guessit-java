@@ -35,6 +35,11 @@ public final class ContainerExtractor implements Extractor {
     @Override public String name() { return CONTAINER; }
 
     @Override
+    public String description() {
+        return "container / mimetype (mkv, mp4, avi, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(CONTAINER);
         var subtitles = stringList(section.get("subtitles"));

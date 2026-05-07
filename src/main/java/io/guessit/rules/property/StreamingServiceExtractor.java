@@ -31,6 +31,11 @@ public final class StreamingServiceExtractor implements Extractor {
     @Override public String name() { return STREAMING_SERVICE; }
 
     @Override
+    public String description() {
+        return "streaming service (NF, AMZN, HMAX, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(STREAMING_SERVICE);
         if (section.isEmpty()) return;

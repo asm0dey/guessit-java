@@ -28,6 +28,11 @@ public final class CrcExtractor implements Extractor {
     @Override public int priority() { return 500; }
 
     @Override
+    public String description() {
+        return "CRC32 checksum (8 hex chars)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         extractCrc32(ctx);
         extractUuid(ctx);

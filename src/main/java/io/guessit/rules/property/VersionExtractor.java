@@ -23,6 +23,11 @@ public final class VersionExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "version (v2, v3, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var opts = RegexOpts.defaults()

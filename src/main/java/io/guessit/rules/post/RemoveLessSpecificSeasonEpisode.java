@@ -28,6 +28,11 @@ public final class RemoveLessSpecificSeasonEpisode implements PostProcessor {
     }
 
     @Override
+    public String description() {
+        return "drop generic season/episode when a more specific one survives";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         var paths = ctx.markers.stream()
             .filter(m -> "path".equals(m.name()))

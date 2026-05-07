@@ -14,6 +14,11 @@ import java.util.ArrayList;
  */
 public final class StripSeparators implements PostPhase.PostProcessor {
     @Override
+    public String description() {
+        return "trim leading/trailing separators on raw spans";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         for (var m : new ArrayList<>(ctx.matches.snapshot())) {
             int s = m.start();

@@ -37,6 +37,11 @@ public final class EpisodeTitleExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "episode title (text after season/episode tokens)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) { /* no extraction phase */ }
 
     @Override

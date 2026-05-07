@@ -45,6 +45,11 @@ public final class OtherExtractor implements Extractor {
     @Override public String name() { return OTHER; }
 
     @Override
+    public String description() {
+        return "other release flags (Proper, Repack, Internal, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         emitCompleteWords(ctx, forEachSpec(ctx, OTHER, OtherExtractor::emitSpec));
     }

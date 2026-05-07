@@ -34,6 +34,11 @@ public final class BitRateExtractor implements Extractor {
     @Override public String name() { return "audio_bit_rate"; }
 
     @Override
+    public String description() {
+        return "video / audio bit rate (kbps, Mbps)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

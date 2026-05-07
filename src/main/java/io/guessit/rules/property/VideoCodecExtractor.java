@@ -44,6 +44,11 @@ public final class VideoCodecExtractor implements Extractor {
     @Override public String name() { return VIDEO_CODEC; }
 
     @Override
+    public String description() {
+        return "video codec (x264, x265, h264, h265, xvid, divx, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         // Match with sep on either side so cases like "PDTVx264-JIVE" pick up

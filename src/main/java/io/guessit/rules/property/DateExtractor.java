@@ -24,6 +24,11 @@ public final class DateExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "date (YYYY-MM-DD, DD-MM-YYYY, …)";
+    }
+
+    @Override
     public int priority() {
         return 1100;
     }

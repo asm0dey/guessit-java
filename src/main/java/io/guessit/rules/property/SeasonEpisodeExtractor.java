@@ -71,6 +71,11 @@ public final class SeasonEpisodeExtractor implements Extractor {
 
     @Override public String name() { return SEASON.name().toLowerCase(); }
 
+    @Override
+    public String description() {
+        return "season + episode tokens (SxxExx, 1x01, season+episode)";
+    }
+
     private static final Pattern S_EXTRAS = Pattern.compile(
         "(?i)s(?<season>\\d+)(?<extras>Extras?)");
 

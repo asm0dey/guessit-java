@@ -45,6 +45,11 @@ public final class ScreenSizeExtractor implements Extractor {
     @Override public String name() { return SCREEN_SIZE; }
 
     @Override
+    public String description() {
+        return "resolution (480p / 720p / 1080p / 2160p / 4K, including i variants)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(SCREEN_SIZE);
         var interlaced = stringList(section.get("interlaced"));

@@ -16,6 +16,11 @@ public final class WeekExtractor implements Extractor {
     @Override public String name() { return "week"; }
 
     @Override
+    public String description() {
+        return "week tokens (W12, Week 12, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

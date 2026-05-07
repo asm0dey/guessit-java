@@ -33,6 +33,11 @@ public final class EditionExtractor implements Extractor {
     public String name() { return EDITION; }
 
     @Override
+    public String description() {
+        return "edition (Director's Cut, Extended, Remastered, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         forEachSpec(ctx, EDITION, EditionExtractor::emitSpec);
     }

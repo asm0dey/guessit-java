@@ -17,6 +17,11 @@ public final class SizeExtractor implements Extractor {
     @Override public String name() { return "size"; }
 
     @Override
+    public String description() {
+        return "size (123MB, 4.5GB, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

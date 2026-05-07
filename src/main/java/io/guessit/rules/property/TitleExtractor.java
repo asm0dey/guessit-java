@@ -37,6 +37,11 @@ public final class TitleExtractor implements Extractor {
     public String name() { return TITLE; }
 
     @Override
+    public String description() {
+        return "title (text in the leading hole between markers / matches)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var expected = ctx.options.expectedTitle();
         if (expected.isEmpty()) {

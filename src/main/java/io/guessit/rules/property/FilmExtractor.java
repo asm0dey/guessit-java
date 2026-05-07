@@ -20,6 +20,11 @@ public final class FilmExtractor implements Extractor {
     @Override public String name() { return MatchName.FILM.toString().toLowerCase(); }
 
     @Override
+    public String description() {
+        return "film number (Film 1, Movie 2, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

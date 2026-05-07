@@ -21,6 +21,11 @@ public final class SeasonYear implements PostProcessor {
     private static final int CUR = java.time.Year.now().getValue();
 
     @Override
+    public String description() {
+        return "resolve season vs year ambiguity";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         if (ctx.matches.named(MatchName.YEAR).findAny().isPresent()) return;
         ctx.matches.named(MatchName.SEASON).toList().forEach(season -> {

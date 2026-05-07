@@ -18,6 +18,11 @@ import java.util.Set;
  */
 public final class YearSeason implements PostProcessor {
     @Override
+    public String description() {
+        return "promote leading numeric to season when adjacent to a year";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         if (ctx.matches.named(MatchName.SEASON).findAny().isPresent()) return;
         if (ctx.matches.named(MatchName.EPISODE).findAny().isEmpty()) return;

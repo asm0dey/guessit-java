@@ -18,6 +18,11 @@ public final class PartExtractor implements Extractor {
     @Override public String name() { return "part"; }
 
     @Override
+    public String description() {
+        return "part number (Part 1, Pt II, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

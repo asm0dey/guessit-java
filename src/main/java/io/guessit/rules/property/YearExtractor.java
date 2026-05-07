@@ -23,6 +23,11 @@ public final class YearExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "4-digit year (1920–2029)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var opts = RegexOpts.defaults()

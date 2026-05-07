@@ -18,6 +18,11 @@ import java.util.Map;
  */
 public final class MimetypeProcessor implements PostProcessor {
 
+    @Override
+    public String description() {
+        return "derive mimetype from container";
+    }
+
     private static final Map<String, String> OVERLAY = Map.of(
         "mkv",  "video/x-matroska",
         "flv",  "video/x-flv",

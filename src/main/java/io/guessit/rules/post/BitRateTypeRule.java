@@ -29,6 +29,11 @@ public final class BitRateTypeRule implements PostPhase.PostProcessor {
             MatchName.SOURCE, MatchName.SCREEN_SIZE, MatchName.VIDEO_CODEC);
 
     @Override
+    public String description() {
+        return "split bit_rate into audio_bit_rate / video_bit_rate";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         var bitRates = ctx.matches.named(MatchName.AUDIO_BIT_RATE)
                 .sorted(Comparator.comparingInt(Match::start))

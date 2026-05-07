@@ -31,6 +31,11 @@ import java.util.regex.Pattern;
  */
 public final class EpisodeNumberSeparatorRange implements PostProcessor {
 
+    @Override
+    public String description() {
+        return "detect episode ranges separated by - or to";
+    }
+
     private static final int MAX_JUMP = 20;
 
     /**

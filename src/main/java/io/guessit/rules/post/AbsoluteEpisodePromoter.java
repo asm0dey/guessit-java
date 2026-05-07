@@ -35,6 +35,11 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
     private static final String NOENC_PREFIX = "noenc-";
 
     @Override
+    public String description() {
+        return "promote weak trailing episode → absolute_episode";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         ctx.trace.subStep("Stage 1: fill gaps between adjacent absolute_episode ranges");
         absoluteRangeFill(ctx);

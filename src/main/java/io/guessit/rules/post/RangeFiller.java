@@ -20,6 +20,11 @@ import java.util.Set;
  */
 public final class RangeFiller implements PostProcessor {
 
+    @Override
+    public String description() {
+        return "fill numeric ranges between season/episode endpoints";
+    }
+
     private static final int MAX_GAP = 6;
     /** Wider cap for the "S01E01-S01E21" shape: gap is "-Sxx" plus the "E"
      *  marker right before the next episode digit, easily up to ~6 chars but

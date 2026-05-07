@@ -23,6 +23,11 @@ public final class CountryExtractor implements Extractor {
     @Override public String name() { return "country"; }
 
     @Override
+    public String description() {
+        return "country tags (US, UK, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var allowed = allowedCountries(ctx);
         if (allowed.isEmpty()) return;

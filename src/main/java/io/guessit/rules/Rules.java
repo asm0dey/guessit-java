@@ -59,6 +59,43 @@ public final class Rules {
     }
 
     /**
+     * All default {@link PostPhase.PostProcessor}s in pipeline order.
+     * Extracted here so the coverage test can iterate over every registered
+     * processor without duplicating the list.
+     */
+    public static List<PostPhase.PostProcessor> defaultPostProcessors() {
+        return List.of(
+            new EnlargeGroupMatches(),
+            new BitRateTypeRule(),
+            new EquivalentHoles(),
+            new PreferLastPath(),
+            new RangeFiller(),
+            new EpisodeNumberSeparatorRange(),
+            new AbsoluteEpisodePromoter(),
+            new SeasonYearLink(),
+            new SeasonYear(),
+            new YearSeason(),
+            new RemoveLessSpecificSeasonEpisode(MatchName.SEASON),
+            new RemoveLessSpecificSeasonEpisode(MatchName.EPISODE),
+            new RemoveAmbiguous(),
+            new ProperCountRule(),
+            new TypeProcessor(),
+            new MimetypeProcessor(),
+            new StripSeparators(),
+            new PrivateRemover()
+        );
+    }
+
+    /**
+     * All default {@link MarkerPhase.MarkerProducer}s in pipeline order.
+     * Extracted here so the coverage test can iterate over every registered
+     * marker producer without duplicating the list.
+     */
+    public static List<MarkerPhase.MarkerProducer> defaultMarkerProducers() {
+        return List.of(new PathMarker(), new GroupMarker());
+    }
+
+    /**
      * Canonical extractor registration order. Strong, unambiguous extractors
      * run first so their matches are present when later, weaker ones make
      * scoping decisions; weak fallback rules ({@code WeakEpisode},

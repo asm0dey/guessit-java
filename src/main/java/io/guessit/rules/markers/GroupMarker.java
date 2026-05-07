@@ -14,6 +14,11 @@ import io.guessit.engine.ParseContext;
  */
 public final class GroupMarker implements MarkerProducer {
     @Override
+    public String description() {
+        return "bracketed group markers ([…], (…), {…})";
+    }
+
+    @Override
     public void produce(ParseContext ctx) {
         var input = ctx.input;
         var open = "([{";

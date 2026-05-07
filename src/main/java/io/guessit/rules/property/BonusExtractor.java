@@ -22,6 +22,11 @@ public final class BonusExtractor implements Extractor {
     @Override public String name() { return "bonus"; }
 
     @Override
+    public String description() {
+        return "bonus content (Bonus, Featurette, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

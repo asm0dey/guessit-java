@@ -26,6 +26,11 @@ public final class DiscRule implements Extractor {
     @Override public String name() { return "disc"; }
 
     @Override
+    public String description() {
+        return "disc number (Disc 1, Disc 2, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

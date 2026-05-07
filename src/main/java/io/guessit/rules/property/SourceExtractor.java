@@ -37,6 +37,11 @@ public final class SourceExtractor implements Extractor {
         return SOURCE;
     }
 
+    @Override
+    public String description() {
+        return "source / medium (BluRay, WEB-DL, HDTV, DVD, …)";
+    }
+
     /**
      * One row of the source rule table.
      *

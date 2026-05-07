@@ -48,6 +48,11 @@ public final class LanguageExtractor implements Extractor {
         return LANGUAGE.name().toLowerCase();
     }
 
+    @Override
+    public String description() {
+        return "language tags (ENG, FRENCH, MULTI, …)";
+    }
+
     private static final String UND_NAME = "Undetermined";
     private static final String MUL_NAME = "Multiple languages";
     private static final MatchName MARKER_PREFIX = MatchName.SUBTITLE_LANGUAGE_PREFIX;

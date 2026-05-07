@@ -16,6 +16,11 @@ public final class CdExtractor implements Extractor {
     @Override public String name() { return "cd"; }
 
     @Override
+    public String description() {
+        return "CD / disc number tokens (CD1, CD2, …)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);

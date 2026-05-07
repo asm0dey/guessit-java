@@ -78,6 +78,11 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     @Override
+    public String description() {
+        return "release group (trailing dash token, bracketed group)";
+    }
+
+    @Override
     public void extract(ParseContext ctx) {
         var expected = ctx.options.expectedGroup();
         if (expected.isEmpty()) return;

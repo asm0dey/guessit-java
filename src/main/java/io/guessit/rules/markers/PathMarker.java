@@ -15,6 +15,11 @@ import io.guessit.engine.ParseContext;
  */
 public final class PathMarker implements MarkerProducer {
     @Override
+    public String description() {
+        return "path / whole markers (one per filepart, plus a whole-input marker)";
+    }
+
+    @Override
     public void produce(ParseContext ctx) {
         var input = ctx.input;
         ctx.markers.add(new Marker("whole", 0, input.length(), input));

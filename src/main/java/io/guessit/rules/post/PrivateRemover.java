@@ -14,6 +14,11 @@ import java.util.List;
 @SuppressWarnings("JavadocReference")
 public final class PrivateRemover implements PostProcessor {
     @Override
+    public String description() {
+        return "drop scaffolding / private matches";
+    }
+
+    @Override
     public void process(ParseContext ctx) {
         List<Match> privates = ctx.matches.all().filter(Match::isPrivate).toList();
         for (var m : privates) ctx.matches.remove(m);

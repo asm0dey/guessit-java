@@ -25,6 +25,10 @@ public final class PreferLastPath implements PostProcessor {
     private static final java.util.Set<MatchName> TITLE_FAMILY =
         java.util.Set.of(MatchName.TITLE, MatchName.ALTERNATIVE_TITLE, MatchName.EPISODE_TITLE);
 
+    @Override
+    public String description() {
+        return "prefer matches in the last path segment when names collide";
+    }
 
     @Override
     public void process(ParseContext ctx) {
