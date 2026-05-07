@@ -12,11 +12,14 @@ import java.util.Locale;
  *
  * <p>Layout rules:
  * <ul>
- *   <li>Multi-char span underline: {@code ─} (U+2500) body with {@code ┬}
+ *   <li>Match span underline: {@code ─} (U+2500) body with {@code ┬}
  *       (U+252C) at the midpoint.</li>
- *   <li>Single-char span: {@code │} (U+2502) at that column.</li>
- *   <li>Vertical connector descending from {@code ┬}/{@code │} to label
- *       depth: {@code │} on every intermediate row.</li>
+ *   <li>Marker span underline: {@code ┌} corner, {@code ─} short horizontals,
+ *       gap in the middle for length &ge; 5, {@code ┐} corner. Length 1: {@code │};
+ *       length 2: {@code ┌┐}; length 3: {@code ┌─┐}; length 4: {@code ┌──┐}.</li>
+ *   <li>Single-char span (both kinds): {@code │} (U+2502) at that column.</li>
+ *   <li>Vertical connector descending from midpoint to label depth:
+ *       {@code │} on every intermediate row.</li>
  *   <li>Spans share an underline row when there is at least one column gap
  *       between them; touching ({@code end_i == start_j}) or overlapping
  *       forces a new underline row.</li>
@@ -30,14 +33,16 @@ import java.util.Locale;
 public final class SpanRenderer {
 
     // Box-drawing constants
-    private static final char HORIZ = '─'; // U+2500
-    private static final char TEE   = '┬'; // U+252C
-    private static final char VERT  = '│'; // U+2502
+    private static final char HORIZ        = '─'; // U+2500
+    private static final char TEE          = '┬'; // U+252C
+    private static final char VERT         = '│'; // U+2502
+    private static final char CORNER_LEFT  = '┌'; // U+250C
+    private static final char CORNER_RIGHT = '┐'; // U+2510
 
     private SpanRenderer() {}
 
     public static String render(String input, List<Match> matches, List<Marker> markers) {
-        record Span(int start, int end, String label) {
+        record Span(int start, int end, String label, boolean isMarker) {
             int mid() { return start + (end - start) / 2; }
             int len() { return end - start; }
         }
@@ -45,10 +50,10 @@ public final class SpanRenderer {
         var spans = new ArrayList<Span>();
         for (var m : matches) {
             if (m.isPrivate()) continue;
-            spans.add(new Span(m.start(), m.end(), m.name().name().toLowerCase(Locale.ROOT)));
+            spans.add(new Span(m.start(), m.end(), m.name().name().toLowerCase(Locale.ROOT), false));
         }
         for (var mk : markers) {
-            spans.add(new Span(mk.start(), mk.end(), mk.name()));
+            spans.add(new Span(mk.start(), mk.end(), mk.name(), true));
         }
 
         if (spans.isEmpty()) {
@@ -137,11 +142,35 @@ public final class SpanRenderer {
             for (var s : row) {
                 if (s.len() == 1) {
                     uline[s.start()] = VERT;
-                } else {
+                } else if (!s.isMarker()) {
+                    // Match underline: ─ body with ┬ at midpoint
                     for (int c = s.start(); c < s.end() && c < width; c++) {
                         uline[c] = HORIZ;
                     }
                     uline[s.mid()] = TEE;
+                } else {
+                    // Marker underline: ┌─ … ─┐ corners with gap in the middle for len ≥ 5
+                    int len = s.len();
+                    if (len == 2) {
+                        uline[s.start()]     = CORNER_LEFT;
+                        uline[s.start() + 1] = CORNER_RIGHT;
+                    } else if (len == 3) {
+                        uline[s.start()]     = CORNER_LEFT;
+                        uline[s.start() + 1] = HORIZ;
+                        uline[s.start() + 2] = CORNER_RIGHT;
+                    } else if (len == 4) {
+                        uline[s.start()]     = CORNER_LEFT;
+                        uline[s.start() + 1] = HORIZ;
+                        uline[s.start() + 2] = HORIZ;
+                        uline[s.start() + 3] = CORNER_RIGHT;
+                    } else {
+                        // len ≥ 5: ┌─ + spaces × (len − 4) + ─┐
+                        uline[s.start()]         = CORNER_LEFT;
+                        uline[s.start() + 1]     = HORIZ;
+                        // interior gap: positions start+2 .. end-3 stay as space (already filled)
+                        uline[s.end() - 2]       = HORIZ;
+                        uline[s.end() - 1]       = CORNER_RIGHT;
+                    }
                 }
             }
             sb.append(new String(uline).stripTrailing()).append('\n');

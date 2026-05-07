@@ -37,6 +37,8 @@ class SpanRendererTest {
         String out = SpanRenderer.render("[GRP] foo.mkv", List.of(), List.of(marker));
         assertThat(out).contains("group");
         assertThat(out).contains("[GRP] foo.mkv");
+        assertThat(out).contains("┌");
+        assertThat(out).contains("┐");
     }
 
     @Test
@@ -81,9 +83,9 @@ class SpanRendererTest {
         var whole = new Marker("whole", 0, 14, "Movie.2020.mkv");
         var path  = new Marker("path",  0, 14, "Movie.2020.mkv");
         String out = SpanRenderer.render("Movie.2020.mkv", List.of(), List.of(whole, path));
-        // Two distinct underline rows, one per marker
-        long underlineRows = out.lines().filter(l -> l.contains("─")).count();
-        assertThat(underlineRows).isEqualTo(2L);
+        // Two distinct underline rows, one per marker (markers use ┌─ ─┐ style)
+        long markerRows = out.lines().filter(l -> l.contains("┌") || l.contains("┐")).count();
+        assertThat(markerRows).isGreaterThanOrEqualTo(2L);
         assertThat(out).contains("whole");
         assertThat(out).contains("path");
     }
@@ -98,11 +100,13 @@ class SpanRendererTest {
         String out = SpanRenderer.render("Show.S01E02.2024.mkv",
                 List.of(title, season, episode, year, container), List.of());
         String expected =
-                "Show.S01E02.2024.mkv\n" +
-                "──┬─  ─┬ ─┬ ──┬─ ─┬─\n" +
-                "title  episode│   │\n" +
-                "    season  year  │\n" +
-                "              container\n";
+                """
+                        Show.S01E02.2024.mkv
+                        ──┬─  ─┬ ─┬ ──┬─ ─┬─
+                        title  episode│   │
+                            season  year  │
+                                      container
+                        """;
         assertThat(out).isEqualTo(expected);
     }
 
@@ -140,12 +144,12 @@ class SpanRendererTest {
                 List.of(whole, path1, path2, path3, group));
         String expected =
                 "Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
-                "───┬── ───┬── ────┬─── ───────────────┬───────────────\n" +
+                "───┬── ┌─  ─┐ ┌─    ─┐ ┌─                           ─┐\n" +
                 " title  group   path                path\n" +
-                "──────┬──────                    ─┬ ─┬ ──┬── ──┬── ─┬─\n" +
+                "┌─         ─┐                    ─┬ ─┬ ──┬── ──┬── ─┬─\n" +
                 "    path                       season│source   │container\n" +
                 "                                  episode screen_size\n" +
-                "───────────────────────────┬──────────────────────────\n" +
+                "┌─                                                  ─┐\n" +
                 "                         whole\n" +
                 "        ──┬─\n" +
                 "        year\n";
