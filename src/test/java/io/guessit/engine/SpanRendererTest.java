@@ -56,6 +56,27 @@ class SpanRendererTest {
         assertThat(out).isEqualTo("  foo\n");
     }
 
+    @Test
+    void rendersComplexLayoutVerbatim() {
+        var title     = match(MatchName.TITLE,     "Show", 0,  4,  "Show");
+        var season    = match(MatchName.SEASON,    1,      6,  8,  "01");
+        var episode   = match(MatchName.EPISODE,   2,      9,  11, "02");
+        var year      = match(MatchName.YEAR,      2024,   12, 16, "2024");
+        var container = match(MatchName.CONTAINER, "mkv",  17, 20, "mkv");
+        String out = SpanRenderer.render("Show.S01E02.2024.mkv",
+                List.of(title, season, episode, year, container), List.of());
+        String expected =
+                "  Show.S01E02.2024.mkv\n" +
+                "  ----  -- -- ---- ---\n" +
+                "    |    |  |   |   |\n" +
+                "  title  episode\n" +
+                "         |      |   |\n" +
+                "      season  year\n" +
+                "                    |\n" +
+                "                container\n";
+        assertThat(out).isEqualTo(expected);
+    }
+
     private static Match match(MatchName name, Object value, int start, int end, String raw) {
         return Match.of(name, value, start, end, raw);
     }
