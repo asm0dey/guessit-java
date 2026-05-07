@@ -11,27 +11,41 @@ import java.util.List;
  * {@code max(0, N-M)} removals and {@code max(0, M-N)} additions are emitted.
  *
  * <p>Removals are emitted before additions; additions preserve {@code after}
- * order; removals preserve {@code before} order.
+ * order; removals preserve {@code before} order. When the {@link ParseContext}
+ * overload is used, a {@link Trace#spans} event fires after the diff if anything
+ * changed, so DebugTrace can paint an updated span view.
  */
-final class TraceDiff {
+public final class TraceDiff {
     private TraceDiff() {}
 
-    static void emit(List<Match> before, List<Match> after, Trace trace) {
+    /** Diff-only emit. Fires {@code noChanges} when sets are identical. */
+    public static void emit(List<Match> before, List<Match> after, Trace trace) {
         if (before.equals(after)) {
             trace.noChanges();
             return;
         }
+        emitDiff(before, after, trace);
+    }
+
+    /** Diff emit that also fires {@link Trace#spans} with the post-change snapshot. */
+    public static void emit(List<Match> before, List<Match> after, ParseContext ctx) {
+        if (before.equals(after)) {
+            ctx.trace.noChanges();
+            return;
+        }
+        emitDiff(before, after, ctx.trace);
+        ctx.trace.spans(ctx.input, ctx.matches.snapshot(), ctx.markers);
+    }
+
+    private static void emitDiff(List<Match> before, List<Match> after, Trace trace) {
         var afterCounts = new HashMap<Match, Integer>();
         for (var m : after) afterCounts.merge(m, 1, Integer::sum);
 
         var removals = new ArrayList<Match>();
         for (var m : before) {
             var c = afterCounts.getOrDefault(m, 0);
-            if (c == 0) {
-                removals.add(m);
-            } else {
-                afterCounts.put(m, c - 1);
-            }
+            if (c == 0) removals.add(m);
+            else afterCounts.put(m, c - 1);
         }
         for (var m : removals) trace.removed(m);
 
@@ -39,11 +53,8 @@ final class TraceDiff {
         for (var m : before) beforeCounts.merge(m, 1, Integer::sum);
         for (var m : after) {
             var c = beforeCounts.getOrDefault(m, 0);
-            if (c == 0) {
-                trace.added(m);
-            } else {
-                beforeCounts.put(m, c - 1);
-            }
+            if (c == 0) trace.added(m);
+            else beforeCounts.put(m, c - 1);
         }
     }
 }
