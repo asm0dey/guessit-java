@@ -4,12 +4,20 @@ import io.guessit.GuessResult;
 import io.guessit.Guessit;
 import io.guessit.OptionsBuilder;
 import io.guessit.Options;
+import io.guessit.engine.CompositeTrace;
+import io.guessit.engine.DebugTrace;
 import io.guessit.engine.PrintTrace;
+import io.guessit.engine.Trace;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,6 +82,16 @@ public final class GuessitCli implements Callable<Integer> {
     @Option(names = {"-y", "--yaml"}) boolean yaml;
     @Option(names = {"-v", "--verbose"}) boolean verbose;
 
+    @Option(names = "--debug",         description = "Emit human-readable narration of every parse step.")
+    boolean debug;
+
+    @Option(names = "--debug-out",     paramLabel = "PATH",
+            description = "Write --debug output to PATH (default: stderr).")
+    Path debugOut;
+
+    @Option(names = "--debug-markers", description = "Render an ASCII span view whenever the match set changes (requires --debug).")
+    boolean debugMarkers;
+
     @Option(names = {"-P", "--show-property"})
     String showProperty;
 
@@ -85,13 +103,66 @@ public final class GuessitCli implements Callable<Integer> {
             System.err.println("No input filename provided. See --help.");
             return 2;
         }
-        var guessit = Guessit.withOptions(buildOptions());
-        if (verbose) {
-            runVerbose(guessit);
-            return 0;
+        if (debugMarkers && !debug) {
+            System.err.println("error: --debug-markers requires --debug");
+            return 2;
         }
-        runNormal(guessit);
-        return 0;
+        var guessit = Guessit.withOptions(buildOptions());
+        return runWithTraces(guessit);
+    }
+
+    private Integer runWithTraces(Guessit guessit) {
+        Writer debugSink = null;
+        boolean closeDebugSink = false;
+        try {
+            DebugTrace debugTrace = null;
+            if (debug) {
+                if (debugOut != null) {
+                    debugSink = Files.newBufferedWriter(debugOut, StandardCharsets.UTF_8);
+                    closeDebugSink = true;
+                } else {
+                    debugSink = new OutputStreamWriter(System.err, StandardCharsets.UTF_8);
+                }
+                debugTrace = new DebugTrace(debugSink, debugMarkers);
+            }
+            PrintTrace verboseTrace = verbose ? new PrintTrace(System.out) : null;
+
+            if (verbose && (json || yaml || showProperty != null)) {
+                System.err.println("warning: --json/--yaml/--show-property ignored when --verbose is set");
+            }
+
+            Trace trace;
+            if (verboseTrace != null && debugTrace != null) {
+                trace = new CompositeTrace(verboseTrace, debugTrace);
+            } else if (verboseTrace != null) {
+                trace = verboseTrace;
+            } else if (debugTrace != null) {
+                trace = debugTrace;
+            } else {
+                trace = Trace.NOOP;
+            }
+
+            for (int i = 0; i < filenames.size(); i++) {
+                if (i > 0) {
+                    if (verbose) System.out.println();
+                    if (debug && debugSink != null) debugSink.append("\n");
+                }
+                var fn = filenames.get(i);
+                var result = guessit.guess(fn, trace);
+                if (!verbose) {
+                    System.out.println(formatResult(result));
+                }
+            }
+            if (debugSink != null) debugSink.flush();
+            return 0;
+        } catch (IOException e) {
+            System.err.println("error: " + e.getMessage());
+            return 1;
+        } finally {
+            if (closeDebugSink && debugSink != null) {
+                try { debugSink.close(); } catch (IOException ignored) {}
+            }
+        }
     }
 
     private Options buildOptions() {
@@ -111,23 +182,6 @@ public final class GuessitCli implements Callable<Integer> {
             .noUserConfig(noUserConfig)
             .noDefaultConfig(noDefaultConfig)
             .build();
-    }
-
-    private void runVerbose(Guessit guessit) {
-        if (json || yaml || showProperty != null) {
-            System.err.println("warning: --json/--yaml/--show-property ignored when --verbose is set");
-        }
-        var trace = new PrintTrace(System.out);
-        for (int i = 0; i < filenames.size(); i++) {
-            if (i > 0) System.out.println();
-            guessit.guess(filenames.get(i), trace);
-        }
-    }
-
-    private void runNormal(Guessit guessit) {
-        for (var fn : filenames) {
-            System.out.println(formatResult(guessit.guess(fn)));
-        }
     }
 
     private String formatResult(GuessResult result) {
