@@ -77,6 +77,50 @@ class SpanRendererTest {
         assertThat(out).isEqualTo(expected);
     }
 
+    @Test
+    void rendersOverlappingMarkersVerbatim() {
+        String input = "Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv";
+        int yearStart      = input.indexOf("2024");
+        int seasonNumStart = input.indexOf("Season 1") + 7;
+        int seasonTokStart = input.indexOf("S01E07");
+        int episodeTokStart = seasonTokStart + 3;
+        int sourceStart    = input.indexOf("WEBDL");
+        int screenStart    = input.indexOf("2160p");
+        int containerStart = input.indexOf("mkv");
+        int firstSlash     = input.indexOf('/');
+        int secondSlash    = input.indexOf('/', firstSlash + 1);
+        int parenOpen      = input.indexOf('(');
+        int parenClose     = input.indexOf(')');
+
+        var title     = match(MatchName.TITLE,       "Shōgun", 0,              6,                    "Shōgun");
+        var year      = match(MatchName.YEAR,        2024,     yearStart,      yearStart + 4,        "2024");
+        var season    = match(MatchName.SEASON,      1,        seasonTokStart + 1, seasonTokStart + 3, "01");
+        var episode   = match(MatchName.EPISODE,     7,        episodeTokStart + 1, episodeTokStart + 3, "07");
+        var source    = match(MatchName.SOURCE,      "WEBDL",  sourceStart,    sourceStart + 5,      "WEBDL");
+        var screen    = match(MatchName.SCREEN_SIZE, "2160p",  screenStart,    screenStart + 5,      "2160p");
+        var container = match(MatchName.CONTAINER,   "mkv",    containerStart, containerStart + 3,   "mkv");
+
+        var whole     = new Marker("whole", 0, input.length(), input);
+        var path1     = new Marker("path", 0, firstSlash,  input.substring(0, firstSlash));
+        var path2     = new Marker("path", firstSlash + 1, secondSlash, input.substring(firstSlash + 1, secondSlash));
+        var path3     = new Marker("path", secondSlash + 1, input.length(), input.substring(secondSlash + 1));
+        var group     = new Marker("group", parenOpen, parenClose + 1, input.substring(parenOpen, parenClose + 1));
+
+        String out = SpanRenderer.render(input,
+                List.of(title, year, season, episode, source, screen, container),
+                List.of(whole, path1, path2, path3, group));
+        String expected =
+                "  Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
+                "  ------------------------------------------------------\n" +
+                "     |  |   |       |        |      |  ||  |     |    |\n" +
+                "   title  group   path     whole      path  screen_size\n" +
+                "        |   |                       |  |   |          |\n" +
+                "      path                       season source    container\n" +
+                "            |                          |\n" +
+                "          year                      episode\n";
+        assertThat(out).isEqualTo(expected);
+    }
+
     private static Match match(MatchName name, Object value, int start, int end, String raw) {
         return Match.of(name, value, start, end, raw);
     }
