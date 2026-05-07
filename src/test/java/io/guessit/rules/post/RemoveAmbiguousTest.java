@@ -1,7 +1,6 @@
 package io.guessit.rules.post;
 
 import io.guessit.Guessit;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static io.guessit.Guessit.parse;

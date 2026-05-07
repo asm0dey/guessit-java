@@ -234,14 +234,7 @@ public final class ReleaseGroupExtractor implements Extractor {
         return dash > start && dash < end - 1;
     }
 
-    private static class CandidateSpan {
-        final int start;
-        final int end;
-
-        CandidateSpan(int start, int end) {
-            this.start = start;
-            this.end = end;
-        }
+    private record CandidateSpan(int start, int end) {
     }
 
     private CandidateSpan extractCandidateSpan(String input, int start, int end) {
@@ -606,7 +599,7 @@ public final class ReleaseGroupExtractor implements Extractor {
                 && !candidateIsLikelyTitle(ctx, filepart, prev, span.end);
     }
 
-    private boolean detectAnimeBrackets(ParseContext ctx) {
+    private void detectAnimeBrackets(ParseContext ctx) {
         // Mirror python AnimeReleaseGroup: emit the FIRST empty group marker
         // (in input order) whose contents are not all-digits and contain no
         // recognized properties. This handles both `[Fansub] One Piece 603`
@@ -615,9 +608,8 @@ public final class ReleaseGroupExtractor implements Extractor {
         var groups = new java.util.ArrayList<io.guessit.engine.Marker>();
         for (var marker : ctx.markers) if ("group".equals(marker.name())) groups.add(marker);
         for (var marker : groups) {
-            if (tryEmitAnimeBracket(ctx, marker)) return true;
+            if (tryEmitAnimeBracket(ctx, marker)) return;
         }
-        return false;
     }
 
     private boolean tryEmitAnimeBracket(ParseContext ctx, io.guessit.engine.Marker marker) {
@@ -1047,14 +1039,16 @@ public final class ReleaseGroupExtractor implements Extractor {
     }
 
     private static String stripGroupSeps(String s) {
-        int i = 0, j = s.length();
+        int i = 0;
+        int j = s.length();
         while (i < j && isGroupSep(s.charAt(i))) i++;
         while (j > i && isGroupSep(s.charAt(j - 1))) j--;
         return s.substring(i, j);
     }
 
     private static String stripIgnoredSeps(String s) {
-        int i = 0, j = s.length();
+        int i = 0;
+        int j = s.length();
         while (i < j && IGNORED_SEPS.indexOf(s.charAt(i)) >= 0) i++;
         while (j > i && IGNORED_SEPS.indexOf(s.charAt(j - 1)) >= 0) j--;
         return s.substring(i, j);

@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.*;
 
@@ -47,8 +46,7 @@ public final class OtherExtractor implements Extractor {
 
     @Override
     public void extract(ParseContext ctx) {
-        var entries = forEachSpec(ctx, OTHER, OtherExtractor::emitSpec);
-        if (entries != null) emitCompleteWords(ctx, entries);
+        emitCompleteWords(ctx, forEachSpec(ctx, OTHER, OtherExtractor::emitSpec));
     }
 
     /**

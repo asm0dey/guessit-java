@@ -103,7 +103,8 @@ public final class Numerals {
         if (!ROMAN_FULL.matcher(value).matches()) throw new IllegalArgumentException("Not roman: " + value);
         String[] tokens = {"M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"};
         int[] values = {1000,900,500,400,100,90,50,40,10,9,5,4,1};
-        int result = 0, i = 0;
+        int result = 0;
+        int i = 0;
         for (int k = 0; k < tokens.length; k++) {
             while (value.startsWith(tokens[k], i)) {
                 result += values[k];

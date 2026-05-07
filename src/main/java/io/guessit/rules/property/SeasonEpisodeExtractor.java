@@ -183,24 +183,9 @@ public final class SeasonEpisodeExtractor implements Extractor {
         return isWeakEChain && overlapsAny(run.start(), run.end(), existingSxxExx);
     }
 
-    private static class TrimmedRunData {
-        List<String> seasonValues;
-        List<String> episodeValues;
-        List<int[]> seasonSpans;
-        List<int[]> episodeSpans;
-        List<String> episodeSeparators;
-        List<String> episodeMarkers;
-
-        TrimmedRunData(List<String> seasonValues, List<String> episodeValues,
-                       List<int[]> seasonSpans, List<int[]> episodeSpans,
-                       List<String> episodeSeparators, List<String> episodeMarkers) {
-            this.seasonValues = seasonValues;
-            this.episodeValues = episodeValues;
-            this.seasonSpans = seasonSpans;
-            this.episodeSpans = episodeSpans;
-            this.episodeSeparators = episodeSeparators;
-            this.episodeMarkers = episodeMarkers;
-        }
+    private record TrimmedRunData(List<String> seasonValues, List<String> episodeValues, List<int[]> seasonSpans,
+                                  List<int[]> episodeSpans, List<String> episodeSeparators,
+                                  List<String> episodeMarkers) {
     }
 
     private TrimmedRunData trimRunToValidTails(Chain.Run run) {

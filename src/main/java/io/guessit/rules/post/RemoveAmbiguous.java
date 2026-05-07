@@ -61,7 +61,7 @@ public class RemoveAmbiguous implements PostProcessor {
      */
     protected static void applyBucketDedup(ParseContext ctx, List<List<Match>> perFilepart) {
         var seenNames = new HashSet<MatchName>();
-        var values = new HashMap<MatchName, Set<Object>>();
+        var values = new EnumMap<MatchName, Set<Object>>(MatchName.class);
         var toRemove = new ArrayList<Match>();
         for (var inFp : perFilepart) {
             var fpNames = new HashSet<MatchName>();

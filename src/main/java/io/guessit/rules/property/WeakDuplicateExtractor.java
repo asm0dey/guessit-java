@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.Comparator;

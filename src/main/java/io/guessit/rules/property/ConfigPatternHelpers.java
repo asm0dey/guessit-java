@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -78,7 +77,7 @@ final class ConfigPatternHelpers {
     static Map<Object, Object> forEachSpec(ParseContext ctx, String sectionName, SpecEmitter emitter) {
         var section = ctx.config.section(sectionName);
         var inner = section.get(sectionName);
-        if (!(inner instanceof Map<?, ?> entries)) return null;
+        if (!(inner instanceof Map<?, ?> entries)) return Map.of();
         var input = ctx.input;
         for (var e : entries.entrySet()) {
             var key = String.valueOf(e.getKey());
@@ -193,10 +192,10 @@ final class ConfigPatternHelpers {
     }
 
     /** Drop later matches that share start, end, and value with an earlier one. */
-    static void dedupSameSpan(ParseContext ctx, MatchName propName) {
+    static void dedupSameSpan(ParseContext ctx) {
         var seen = new HashSet<String>();
         var toRemove = new ArrayList<Match>();
-        for (var m : ctx.matches.named(propName).toList()) {
+        for (var m : ctx.matches.named(MatchName.EDITION).toList()) {
             var key = m.start() + ":" + m.end() + ":" + m.value();
             if (!seen.add(key)) toRemove.add(m);
         }

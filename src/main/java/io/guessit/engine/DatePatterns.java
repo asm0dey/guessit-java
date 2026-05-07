@@ -187,12 +187,12 @@ public final class DatePatterns {
     private static Optional<LocalDate> tryParseNumeric(int a, int b, int c, Boolean yearFirst, Boolean dayFirst) {
         if (Boolean.TRUE.equals(yearFirst)) {
             int y = a >= 100 ? a : 2000 + a;
-            try { return Optional.of(LocalDate.of(y, b, c)); } catch (Exception _) {}
+            try { return Optional.of(LocalDate.of(y, b, c)); } catch (Exception _) { /* invalid date — fall through */ }
         }
         int y = c >= 100 ? c : 2000 + c;
-        if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception _) {}
-        try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception _) {}
-        if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception _) {}
+        if (Boolean.TRUE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception _) { /* invalid — fall through */ }
+        try { return Optional.of(LocalDate.of(y, a, b)); } catch (Exception _) { /* invalid — fall through */ }
+        if (Boolean.FALSE.equals(dayFirst)) try { return Optional.of(LocalDate.of(y, b, a)); } catch (Exception _) { /* invalid — fall through */ }
         return Optional.empty();
     }
 

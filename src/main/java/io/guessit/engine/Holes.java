@@ -22,7 +22,7 @@ public final class Holes {
 
         public String raw() { return input.substring(start, end); }
         public String value() { return formatter == null ? raw() : formatter.apply(raw()); }
-        public boolean isEmpty() { var v = value(); return v == null || v.isEmpty(); }
+        public boolean isEmpty() { var v = value(); return v != null && !v.isEmpty(); }
         public int length() { return end - start; }
 
         public List<Hole> crop(List<Marker> markers) {
@@ -72,7 +72,7 @@ public final class Holes {
                 while (i < raw.length() && seps.indexOf(raw.charAt(i)) < 0) i++;
                 if (s < i) {
                     var sub = new Hole(start + s, start + i, input, formatter);
-                    if (!sub.isEmpty()) ret.add(sub);
+                    if (sub.isEmpty()) ret.add(sub);
                 }
             }
             return ret;
@@ -92,7 +92,7 @@ public final class Holes {
         }
         if (current != null) {
             current.end = end;
-            if (!current.isEmpty()) ret.add(current);
+            if (current.isEmpty()) ret.add(current);
         }
         ret.removeIf(h -> { var v = h.value(); return v == null || v.isEmpty(); });
         return ret;
@@ -135,7 +135,7 @@ public final class Holes {
 
     private static Hole closeHole(Hole current, int pos, ArrayList<Hole> ret) {
         current.end = pos;
-        if (!current.isEmpty()) ret.add(current);
+        if (current.isEmpty()) ret.add(current);
         return null;
     }
 }

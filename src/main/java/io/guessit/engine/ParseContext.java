@@ -30,7 +30,7 @@ public final class ParseContext {
     public final MatchSet matches = new MatchSet();
     public final List<Marker> markers = new ArrayList<>();
     public final Trace trace;
-    public GuessResultBuilder resultBuilder = GuessResultBuilder.result();
+    public final GuessResultBuilder resultBuilder = GuessResultBuilder.result();
     /** Final assembled result; written by {@link OutputPhase}. */
     public GuessResult result;
     /**

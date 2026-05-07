@@ -69,7 +69,15 @@
       "mcp__mcp-steroid__steroid_list_projects",
       "mcp__mcp-steroid__steroid_fetch_resource",
       "mcp__mcp-steroid__steroid_execute_code",
-      "mcp__mcp-steroid__steroid_apply_patch"
+      "mcp__mcp-steroid__steroid_apply_patch",
+      "Bash(awk 'NR==47' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/BitRateExtractor.java)",
+      "Bash(awk 'NR==80' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/post/RangeFiller.java)",
+      "Bash(awk 'NR==108' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/CrcExtractor.java)",
+      "Bash(awk 'NR==13' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/ScreenSizeExtractor.java)",
+      "Bash(awk 'NR==15' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/SourceExtractor.java)",
+      "Bash(awk 'NR==7' /home/finkel/work_self/guessit-java/src/test/java/io/guessit/lang/LanguageRegistryTest.java)",
+      "Bash(awk 'NR==168' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/lang/LanguageRegistry.java)",
+      "Bash(awk NR>=59 && NR<=85 {print NR\": \"$0} *)"
     ]
   },
   "skillOverrides": {

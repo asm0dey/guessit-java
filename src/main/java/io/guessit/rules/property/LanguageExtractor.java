@@ -95,6 +95,7 @@ public final class LanguageExtractor implements Extractor {
                                          LanguageRegistry registry) {
         var input = ctx.input;
         for (int i = 0; i + 1 < words.size(); i++) {
+            if (pairConsumed.contains(i)) continue;
             var w1 = words.get(i);
             var w2 = words.get(i + 1);
             var combined = (w1.value() + " " + w2.value()).toLowerCase(Locale.ROOT);
@@ -104,7 +105,6 @@ public final class LanguageExtractor implements Extractor {
                     input.substring(w1.start(), w2.end()), 1000, Set.of(), false));
             pairConsumed.add(i);
             pairConsumed.add(i + 1);
-            i++;
         }
     }
 

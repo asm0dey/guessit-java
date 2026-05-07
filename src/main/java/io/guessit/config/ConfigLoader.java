@@ -25,20 +25,17 @@ public final class ConfigLoader {
         Map<String, Object> merged = new LinkedHashMap<>();
 
         if (!options.noDefaultConfig()) {
-            var bundled = readBundled();
-            if (bundled != null) merged = deepMerge(merged, bundled);
+            merged = deepMerge(merged, readBundled());
         }
 
         if (!options.noUserConfig()) {
             for (var p : userConfigPaths()) {
-                var loaded = readFile(p);
-                if (loaded != null) merged = deepMerge(merged, loaded);
+                merged = deepMerge(merged, readFile(p));
             }
         }
 
         for (var p : options.configPaths()) {
-            var loaded = readFile(p);
-            if (loaded != null) merged = deepMerge(merged, loaded);
+            merged = deepMerge(merged, readFile(p));
         }
 
         if (!options.raw().isEmpty()) {
@@ -51,7 +48,7 @@ public final class ConfigLoader {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> readBundled() {
         try (InputStream in = ConfigLoader.class.getResourceAsStream("/io/guessit/config/options.json")) {
-            if (in == null) return null;
+            if (in == null) return Map.of();
             return JSON.readValue(in, Map.class);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read bundled options.json", e);
@@ -60,7 +57,7 @@ public final class ConfigLoader {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> readFile(Path p) {
-        if (!Files.isReadable(p)) return null;
+        if (!Files.isReadable(p)) return Map.of();
         var name = p.getFileName().toString().toLowerCase(Locale.ROOT);
         try {
             if (name.endsWith(EXT_JSON)) {
@@ -71,7 +68,7 @@ public final class ConfigLoader {
             if (name.endsWith(EXT_YML) || name.endsWith(EXT_YAML)) {
                 try (var r = Files.newBufferedReader(p, StandardCharsets.UTF_8)) {
                     Object v = new Yaml().load(r);
-                    return v instanceof Map<?, ?> m ? (Map<String, Object>) m : null;
+                    return v instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
                 }
             }
             // Unknown extension — read once, sniff JSON-then-YAML.

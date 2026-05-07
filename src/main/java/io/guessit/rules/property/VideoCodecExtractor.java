@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,8 +68,12 @@ public final class VideoCodecExtractor implements Extractor {
         // Validated with sepsBefore only (right side is '10', not a separator)
         var m = HEVC10.matcher(input);
         while (m.find()) {
-            int g1s = m.start(1), g1e = m.end(1), g2s = m.start(2), g2e = m.end(2);
-            String raw1 = m.group(1), raw2 = m.group(2);
+            int g1s = m.start(1);
+            int g1e = m.end(1);
+            int g2s = m.start(2);
+            int g2e = m.end(2);
+            String raw1 = m.group(1);
+            String raw2 = m.group(2);
             if (!Validators.sepsBefore(input).test(
                     new Match(MatchName.DUMMY, "", g1s, g1e, raw1, 0, Set.of(), false)))
                 continue;

@@ -1,7 +1,6 @@
 package io.guessit.rules.post;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 import io.guessit.engine.PostPhase.PostProcessor;
 
 import java.util.Objects;

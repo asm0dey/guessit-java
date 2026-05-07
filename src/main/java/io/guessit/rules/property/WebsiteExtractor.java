@@ -225,7 +225,7 @@ public final class WebsiteExtractor implements Extractor {
         try {
             return Pattern.compile(src, Pattern.CASE_INSENSITIVE);
         } catch (Exception e) {
-            throw new RuntimeException("Bad pattern: " + src, e);
+            throw new IllegalStateException("Bad pattern: " + src, e);
         }
     }
 
@@ -245,7 +245,7 @@ public final class WebsiteExtractor implements Extractor {
                 tlds.add(line.toLowerCase(java.util.Locale.ROOT));
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load TLD list from " + TLD_PATH, e);
+            throw new IllegalStateException("Failed to load TLD list from " + TLD_PATH, e);
         }
         return tlds;
     }

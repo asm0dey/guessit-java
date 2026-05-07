@@ -16,7 +16,7 @@ class TitleExtractorTest {
         var r = parse("Main Title - Alt Title.2020.mkv");
         Assertions.assertThat(r.title()).isEqualTo("Main Title");
         Assertions.assertThat(r.alternativeTitleList() != null && !r.alternativeTitleList().isEmpty()
-                ? r.alternativeTitleList().get(0)
+                ? r.alternativeTitleList().getFirst()
                 : null).isEqualTo("Alt Title");
     }
     @Test void serieNameFilepartRoutesInnerToEpisodeTitle() {

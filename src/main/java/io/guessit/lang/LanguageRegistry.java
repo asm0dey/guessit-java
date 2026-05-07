@@ -165,7 +165,7 @@ public final class LanguageRegistry {
                         .setIgnoreEmptyLines(true)
                         .setIgnoreSurroundingSpaces(true)
                         .get())) {
-                for (var record : parser) consumer.accept(record);
+                for (var row : parser) consumer.accept(row);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

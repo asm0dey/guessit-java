@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.compileDashedCi;
 import static io.guessit.rules.property.ConfigPatternHelpers.forEachString;

@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.*;
 
@@ -116,7 +115,7 @@ public final class EditionExtractor implements Extractor {
         removeUnlessNeighbor(ctx, MatchName.EDITION, "has-neighbor-before", true, false);
         removeUnlessNeighbor(ctx, MatchName.EDITION, "has-neighbor-after", false, true);
         dropOverlappingStreamingService(ctx);
-        dedupSameSpan(ctx, MatchName.EDITION);
+        dedupSameSpan(ctx);
     }
 
     private static void dropOverlappingStreamingService(ParseContext ctx) {

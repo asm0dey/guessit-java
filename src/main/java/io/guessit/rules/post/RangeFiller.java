@@ -81,7 +81,8 @@ public final class RangeFiller implements PostProcessor {
         // gap chars must be only separators and at most one range keyword
         var lc = gap.toLowerCase(java.util.Locale.ROOT);
         // strip leading/trailing separators
-        int s = 0, e = lc.length();
+        int s = 0;
+        int e = lc.length();
         while (s < e && isSep(lc.charAt(s))) s++;
         while (e > s && isSep(lc.charAt(e - 1))) e--;
         if (s == e) return false; // only separators, no keyword - not a range

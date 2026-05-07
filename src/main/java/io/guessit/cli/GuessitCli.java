@@ -24,6 +24,7 @@ import java.util.concurrent.Callable;
 public final class GuessitCli implements Callable<Integer> {
 
     @Parameters(arity = "0..*", description = "Filenames to parse.")
+    final
     List<String> filenames = new ArrayList<>();
 
     @Option(names = {"-t", "--type"}, description = "movie or episode hint.")
@@ -36,27 +37,34 @@ public final class GuessitCli implements Callable<Integer> {
     @Option(names = {"-D", "--date-day-first"})  boolean dateDayFirst;
 
     @Option(names = {"-L", "--allowed-language"}, arity = "1..*")
+    final
     List<String> allowedLanguages = new ArrayList<>();
 
     @Option(names = {"-C", "--allowed-country"}, arity = "1..*")
+    final
     List<String> allowedCountries = new ArrayList<>();
 
     @Option(names = {"-E", "--episode-prefer-number"})
     boolean episodePreferNumber;
 
     @Option(names = {"-T", "--expected-title"}, arity = "1..*")
+    final
     List<String> expectedTitles = new ArrayList<>();
 
     @Option(names = {"-G", "--expected-group"}, arity = "1..*")
+    final
     List<String> expectedGroups = new ArrayList<>();
 
     @Option(names = "--excludes", arity = "1..*")
+    final
     List<String> excludes = new ArrayList<>();
 
     @Option(names = "--includes", arity = "1..*")
+    final
     List<String> includes = new ArrayList<>();
 
     @Option(names = {"-c", "--config"}, arity = "1..*")
+    final
     List<Path> configs = new ArrayList<>();
 
     @Option(names = "--no-user-config")    boolean noUserConfig;

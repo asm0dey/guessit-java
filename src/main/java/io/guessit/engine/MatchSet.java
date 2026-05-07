@@ -23,16 +23,18 @@ public final class MatchSet {
 
     public void add(Match m) { matches.add(m); }
 
-    public boolean remove(Match m) { return matches.remove(m); }
+    public void remove(Match m) {
+        matches.remove(m);
+    }
 
     /**
      * Bulk remove. O(n) total instead of O(n*k) for n elements, k removals.
      * Membership is tested by {@link Match#equals}, identical to {@link #remove}.
      */
-    public boolean removeAll(Collection<Match> toRemove) {
-        if (toRemove.isEmpty()) return false;
+    public void removeAll(Collection<Match> toRemove) {
+        if (toRemove.isEmpty()) return;
         var set = (toRemove instanceof HashSet<Match> hs) ? hs : new HashSet<>(toRemove);
-        return matches.removeIf(set::contains);
+        matches.removeIf(set::contains);
     }
 
     /**

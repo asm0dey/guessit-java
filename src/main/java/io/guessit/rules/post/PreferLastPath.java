@@ -7,6 +7,7 @@ import io.guessit.engine.ParseContext;
 import io.guessit.engine.PostPhase.PostProcessor;
 
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +54,7 @@ public final class PreferLastPath implements PostProcessor {
 
     /** Map name -> set of values present in the last filepart. */
     private static Map<MatchName, Set<Object>> collectLastFilepartValues(ParseContext ctx, Marker last) {
-        var values = new java.util.HashMap<MatchName, Set<Object>>();
+        var values = new EnumMap<MatchName, Set<Object>>(MatchName.class);
         ctx.matches.all()
             .filter(m -> !m.isPrivate())
             .filter(m -> m.start() >= last.start() && m.end() <= last.end())

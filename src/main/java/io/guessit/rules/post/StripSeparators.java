@@ -16,7 +16,8 @@ public final class StripSeparators implements PostPhase.PostProcessor {
     @Override
     public void process(ParseContext ctx) {
         for (var m : new ArrayList<>(ctx.matches.snapshot())) {
-            int s = m.start(), e = m.end();
+            int s = m.start();
+            int e = m.end();
             // Single-char matches are acronym components — don't touch them
             if (e - s <= 1) continue;
             while (s < e - 1 && Seps.isSep(ctx.input.charAt(s))) s++;

@@ -1,7 +1,6 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
-import io.guessit.engine.MatchName;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,8 +106,7 @@ public final class EpisodeTitleExtractor implements Extractor {
         var holesAfter = Holes.compute(ctx.input, m.end(), after.start(),
                 ctx.matches.snapshot(), _ -> false, null, Formatters::cleanup);
         if (holesBefore.isEmpty() && holesAfter.isEmpty()) return false;
-        if (AFFECTED_IF_HOLES_AFTER.contains(m.name()) && holesAfter.isEmpty()) return false;
-        return true;
+        return !AFFECTED_IF_HOLES_AFTER.contains(m.name()) || !holesAfter.isEmpty();
     }
 
     private void titleToEpisodeTitle(ParseContext ctx) {

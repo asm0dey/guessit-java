@@ -13,8 +13,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import static io.guessit.engine.MatchName.*;
-
 /**
  * Extracts {@code source} (BluRay, WEB-DL, HDTV, DVD, …).
  *
@@ -117,12 +115,10 @@ public final class SourceExtractor implements Extractor {
         rules.add(new Rule(List.of("Blu-?ray", "BD25", "BD50", "BD[59]", "BD"),
                 "", optRipSuffix, BLU_RAY, "Rip", null, common, false));
         // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
-        // the lookahead form fails validatePrefixSuffix when 'S'/'M' isn't a sep.
-        // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
         // a lookahead-only form would fail validatePrefixSuffix when 'S'/'M'
-        // isn't a separator.
-        // Lookahead lets the Screener/Mux Other match keep its own span; the
-        // single named group avoids Java's duplicate-name compile error.
+        // isn't a separator. Lookahead lets the Screener/Mux Other match keep
+        // its own span; the single named group avoids Java's duplicate-name
+        // compile error.
         rules.add(new Rule(List.of("(?<another>BR)-?(?=Scr(?:eener)?|Mux)"),
                 "", "", BLU_RAY, null, "Reencoded", common, false));
         rules.add(new Rule(List.of("(?<another>BR)"), "", ripSuffix, BLU_RAY, "Rip", "Reencoded", common, false));

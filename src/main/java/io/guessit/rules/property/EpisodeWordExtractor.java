@@ -163,14 +163,7 @@ public final class EpisodeWordExtractor implements Extractor {
                 || name == MatchName.FRAME_RATE;
     }
 
-    private static class TailResult {
-        final boolean isValid;
-        final int value;
-
-        TailResult(boolean isValid, int value) {
-            this.isValid = isValid;
-            this.value = value;
-        }
+    private record TailResult(boolean isValid, int value) {
     }
 
     private TailResult processSeasonTailMatch(ParseContext ctx, Matcher tail,

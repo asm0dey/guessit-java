@@ -264,7 +264,7 @@ public final class TitleExtractor implements Extractor {
         holes = holesProcess(ctx, holes);
         int n = 0;
         for (var h : holes) {
-            if (h != null && !h.isEmpty() && !h.value().isEmpty()) n++;
+            if (h != null && h.isEmpty() && !h.value().isEmpty()) n++;
         }
         return n;
     }
@@ -336,7 +336,7 @@ public final class TitleExtractor implements Extractor {
             if (adjustedHole.hole().length() <= 0 || adjustedHole.hole().value().isEmpty()) continue;
 
             var titles = createTitleMatches(ctx, adjustedHole.hole(), matchName, matchTags, alternativeMatchName);
-            if (titles == null) continue;
+            if (titles.isEmpty()) continue;
 
             return new TitlesInFilepart(titles, adjustedHole.toRemove());
         }
@@ -403,7 +403,7 @@ public final class TitleExtractor implements Extractor {
 
     private List<Match> createTitleMatches(ParseContext ctx, Holes.Hole hole, MatchName matchName,
                                            List<String> matchTags, MatchName alternativeMatchName) {
-        if (isRedundantSeasonWord(hole.value(), ctx)) return null;
+        if (isRedundantSeasonWord(hole.value(), ctx)) return List.of();
 
         var titles = new ArrayList<Match>();
         titles.add(new Match(matchName, hole.value(), hole.start, hole.end, hole.raw(),
@@ -467,11 +467,10 @@ public final class TitleExtractor implements Extractor {
         titles.add(new Match(matchName, first.value(), first.start, first.end,
                 first.raw(), 1000, Set.copyOf(matchTags), false));
 
-        var altMatchNameEnum = alternativeMatchName;
         for (var i = 1; i < split.size(); i++) {
             var s = split.get(i);
             if (isRedundantSeasonWord(s.value(), ctx)) continue;
-            titles.add(new Match(altMatchNameEnum, s.value(), s.start, s.end, s.raw(),
+            titles.add(new Match(alternativeMatchName, s.value(), s.start, s.end, s.raw(),
                 1000, Set.of(TITLE), false));
         }
         return titles;

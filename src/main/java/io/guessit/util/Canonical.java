@@ -79,6 +79,7 @@ public final class Canonical {
                 if (country != null) return country.toString();
             }
             default -> {
+                // unhandled value type — fall back to toString below.
             }
         }
         return o.toString();

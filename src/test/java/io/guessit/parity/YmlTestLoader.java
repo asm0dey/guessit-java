@@ -159,6 +159,7 @@ public final class YmlTestLoader {
                 for (var item : l) applyArgString(acc, item.toString());
             }
             default -> {
+                // unsupported arg shape — ignore silently.
             }
         }
         return acc.build();

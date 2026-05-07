@@ -10,8 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
-import static io.guessit.engine.MatchName.*;
-
 /**
  * Extracts {@code screen_size} (e.g. {@code 1080p}, {@code 2160p}, {@code 720x576})
  * and the related {@code aspect_ratio} and {@code frame_rate} properties.
@@ -213,6 +211,7 @@ public final class ScreenSizeExtractor implements Extractor {
                             ws.raw(), 800, Set.of("weak-episode"), false));
                 }
             } catch (NumberFormatException _) {
+                // weak-episode candidate had non-integer raw — skip silently.
             }
         }
     }
