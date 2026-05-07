@@ -46,11 +46,11 @@ public final class ContainerExtractor implements Extractor {
         var input = ctx.input;
 
         // 1. Extension matches: trailing `.<ext>` only; tagged "extension" + kind.
-        addExtensionRegex(ctx, input, subtitles, "subtitle");
-        addExtensionRegex(ctx, input, info,      "info");
-        addExtensionRegex(ctx, input, videos,    "video");
-        addExtensionRegex(ctx, input, torrent,   "torrent");
-        addExtensionRegex(ctx, input, nzb,       "nzb");
+        addExtensionRegex(ctx, input, subtitles, "subtitle", ctx.trace);
+        addExtensionRegex(ctx, input, info,      "info",     ctx.trace);
+        addExtensionRegex(ctx, input, videos,    "video",    ctx.trace);
+        addExtensionRegex(ctx, input, torrent,   "torrent",  ctx.trace);
+        addExtensionRegex(ctx, input, nzb,       "nzb",      ctx.trace);
 
         // 2. Body matches: same words but anywhere, requires seps_surround.
         var body = new HashSet<>(subtitles);
@@ -59,7 +59,7 @@ public final class ContainerExtractor implements Extractor {
         var opts = StringOpts.defaults()
             .withValidator(Validators.sepsSurround(input))
             .withTags(Set.of("body"));
-        for (var m : PatternMatcher.string(input, body, MatchName.CONTAINER, opts)) {
+        for (var m : PatternMatcher.string(input, body, MatchName.CONTAINER, opts, ctx.trace)) {
             // Skip body matches that overlap an extension match — extension wins.
             boolean overlapsExt = ctx.matches.named(MatchName.CONTAINER)
                 .anyMatch(other -> other.tags().contains("extension")
@@ -74,7 +74,7 @@ public final class ContainerExtractor implements Extractor {
         }
     }
 
-    private static void addExtensionRegex(ParseContext ctx, String input, List<String> exts, String kindTag) {
+    private static void addExtensionRegex(ParseContext ctx, String input, List<String> exts, String kindTag, Trace trace) {
         if (exts.isEmpty()) return;
         var or = String.join("|", exts.stream().map(Pattern::quote).toList());
         var src = "\\.(?:" + or + ")$";
@@ -82,7 +82,7 @@ public final class ContainerExtractor implements Extractor {
         var opts = RegexOpts.defaults()
             .withValue(s -> s.startsWith(".") ? s.substring(1).toLowerCase(Locale.ROOT) : s.toLowerCase(Locale.ROOT))
             .withTags(Set.of("extension", kindTag));
-        for (var m : PatternMatcher.regex(input, p, MatchName.CONTAINER, opts)) {
+        for (var m : PatternMatcher.regex(input, p, MatchName.CONTAINER, opts, trace)) {
             ctx.matches.add(m);
         }
     }

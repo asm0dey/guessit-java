@@ -33,7 +33,7 @@ public final class VersionExtractor implements Extractor {
                     char prev = input.charAt(s - 1);
                     return Seps.isSep(prev) || Character.isDigit(prev);
                 });
-        for (var m : PatternMatcher.regex(input, PATTERN, MatchName.VERSION, opts)) {
+        for (var m : PatternMatcher.regex(input, PATTERN, MatchName.VERSION, opts, ctx.trace)) {
             ctx.matches.add(m);
         }
     }

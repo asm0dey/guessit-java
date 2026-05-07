@@ -148,7 +148,7 @@ public final class VideoCodecExtractor implements Extractor {
         // Tag video_codec matches with source-suffix so adjacent source matches
         // (e.g. PDTV in "PDTVx264") pass ValidateSourcePrefixSuffix when the
         // codec abuts the source without a separator.
-        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_CODEC_NAME, opts)) {
+        for (var m : PatternMatcher.regex(ctx.input, p, VIDEO_CODEC_NAME, opts, ctx.trace)) {
             ctx.matches.add(new Match(VIDEO_CODEC_NAME, m.value(), m.start(), m.end(), m.raw(),
                 m.priority(), Set.of("source-suffix", "streaming_service.suffix"), false));
         }
@@ -159,12 +159,12 @@ public final class VideoCodecExtractor implements Extractor {
     private void addRegexNamed(ParseContext ctx, MatchName name, String src, String value, java.util.function.Predicate<Match> v) {
         var p = compileDashed(src);
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> value);
-        for (var m : PatternMatcher.regex(ctx.input, p, name, opts)) ctx.matches.add(m);
+        for (var m : PatternMatcher.regex(ctx.input, p, name, opts, ctx.trace)) ctx.matches.add(m);
     }
     private void addStr(ParseContext ctx, Set<String> needles,
                         Predicate<Match> v) {
         var opts = StringOpts.defaults().withValidator(v);
-        for (var m : PatternMatcher.string(ctx.input, needles, VIDEO_API_NAME, opts)) {
+        for (var m : PatternMatcher.string(ctx.input, needles, VIDEO_API_NAME, opts, ctx.trace)) {
             ctx.matches.add(new Match(VIDEO_API_NAME, "DXVA", m.start(), m.end(), m.raw(),
                 m.priority(), m.tags(), m.isPrivate()));
         }
@@ -172,7 +172,7 @@ public final class VideoCodecExtractor implements Extractor {
     private void addStrTagged(ParseContext ctx, String value, Set<String> needles,
                               Predicate<Match> v) {
         var opts = StringOpts.defaults().withValidator(v);
-        for (var m : PatternMatcher.string(ctx.input, needles, VIDEO_PROFILE_NAME, opts)) {
+        for (var m : PatternMatcher.string(ctx.input, needles, VIDEO_PROFILE_NAME, opts, ctx.trace)) {
             ctx.matches.add(new Match(VIDEO_PROFILE_NAME,value, m.start(), m.end(), m.raw(),
                 m.priority(), Set.of(VIDEO_PROFILE_RULE_TAG), m.isPrivate()));
         }
@@ -180,7 +180,7 @@ public final class VideoCodecExtractor implements Extractor {
     private void addRegexProfileTagged(ParseContext ctx,
                                        Predicate<Match> v) {
         var opts = RegexOpts.defaults().withValidator(v).withValue(_ -> "Advanced Video Codec High Definition");
-        for (var m : PatternMatcher.regex(ctx.input, AVC_HD, VIDEO_PROFILE_NAME, opts)) {
+        for (var m : PatternMatcher.regex(ctx.input, AVC_HD, VIDEO_PROFILE_NAME, opts, ctx.trace)) {
             ctx.matches.add(new Match(VIDEO_PROFILE_NAME,"Advanced Video Codec High Definition", m.start(), m.end(), m.raw(),
                 m.priority(), Set.of(VIDEO_PROFILE_RULE_TAG), m.isPrivate()));
         }

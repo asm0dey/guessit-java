@@ -192,7 +192,7 @@ public final class AudioCodecExtractor implements Extractor {
         if (p == null) return;
         var opts = RegexOpts.defaults().withValue(_ -> value).withPriority(priority);
         if (!tags.isEmpty()) opts = opts.withTags(tags);
-        for (var m : PatternMatcher.regex(ctx.input, p, propName, opts)) ctx.matches.add(m);
+        for (var m : PatternMatcher.regex(ctx.input, p, propName, opts, ctx.trace)) ctx.matches.add(m);
     }
 
     /** Disable whole-word boundary; AudioValidatorRule checks edges later
@@ -200,7 +200,7 @@ public final class AudioCodecExtractor implements Extractor {
     private void addStringMatches(ParseContext ctx, MatchName propName, String value,
                                   int priority, PatternEntry pattern, Set<String> tags) {
         var opts = StringOpts.defaults().wholeWord(false).withPriority(priority);
-        for (var m : PatternMatcher.string(ctx.input, Set.of(pattern.source()), propName, opts)) {
+        for (var m : PatternMatcher.string(ctx.input, Set.of(pattern.source()), propName, opts, ctx.trace)) {
             ctx.matches.add(new Match(propName, value, m.start(), m.end(), m.raw(),
                 m.priority(), mergeTags(m.tags(), tags), m.isPrivate()));
         }

@@ -32,7 +32,7 @@ public final class YearExtractor implements Extractor {
                     int v = (Integer) m.value();
                     return 1920 <= v && v < 2030;
                 });
-        for (var match : PatternMatcher.regex(input, PATTERN, MatchName.YEAR, opts)) {
+        for (var match : PatternMatcher.regex(input, PATTERN, MatchName.YEAR, opts, ctx.trace)) {
             ctx.matches.add(match);
         }
     }

@@ -62,7 +62,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // width-x-height fallback for non-standard sizes — extract before height+scan
         // so WxH matches are last in MatchSet (ScreenSizeOnlyOne sorts by start DESC).
-        for (var m : PatternMatcher.regex(input, WH_P, MatchName.SCREEN_SIZE, opts)) {
+        for (var m : PatternMatcher.regex(input, WH_P, MatchName.SCREEN_SIZE, opts, ctx.trace)) {
             ctx.matches.add(m);
         }
 
@@ -80,7 +80,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
         // 4k literal → 2160p
         var fourK = StringOpts.defaults().withValidator(validator);
-        for (var m : PatternMatcher.string(input, Set.of("4k"), MatchName.SCREEN_SIZE, fourK)) {
+        for (var m : PatternMatcher.string(input, Set.of("4k"), MatchName.SCREEN_SIZE, fourK, ctx.trace)) {
             ctx.matches.add(new Match(MatchName.SCREEN_SIZE, "2160p", m.start(), m.end(), m.raw(),
                 m.priority(), Set.of(NORMALIZED), false));
         }
@@ -91,7 +91,7 @@ public final class ScreenSizeExtractor implements Extractor {
             .withValue(s -> Integer.valueOf(s.replaceAll("\\..*$", "")))
             .withTags(Set.of("coexist"))
             .withValidator(validator);
-        for (var m : PatternMatcher.regex(input, frP, MatchName.FRAME_RATE, frOpts)) {
+        for (var m : PatternMatcher.regex(input, frP, MatchName.FRAME_RATE, frOpts, ctx.trace)) {
             ctx.matches.add(m);
         }
     }
@@ -102,7 +102,7 @@ public final class ScreenSizeExtractor implements Extractor {
 
     private void addRegex(ParseContext ctx, String src, RegexOpts opts) {
         var p = compileCi(src);
-        for (var m : PatternMatcher.regex(ctx.input, p, MatchName.SCREEN_SIZE, opts)) {
+        for (var m : PatternMatcher.regex(ctx.input, p, MatchName.SCREEN_SIZE, opts, ctx.trace)) {
             ctx.matches.add(m);
         }
     }

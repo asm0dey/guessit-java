@@ -24,7 +24,7 @@ public final class EpisodeDetailsExtractor implements Extractor {
         var input = ctx.input;
         for (var detail : DETAILS) {
             var opts = StringOpts.defaults().withValidator(m -> Validators.sepsSurround(input).test(m));
-            var matches = PatternMatcher.string(input, Set.of(detail), MatchName.EPISODE_DETAILS, opts);
+            var matches = PatternMatcher.string(input, Set.of(detail), MatchName.EPISODE_DETAILS, opts, ctx.trace);
             for (var m : matches) ctx.matches.add(m);
         }
     }

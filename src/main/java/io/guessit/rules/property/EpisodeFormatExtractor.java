@@ -20,7 +20,7 @@ public final class EpisodeFormatExtractor implements Extractor {
         var opts = RegexOpts.defaults()
             .withValue(_ -> "Minisode")
             .withValidator(m -> Validators.sepsSurround(input).test(m));
-        for (var m : PatternMatcher.regex(input, PATTERN, MatchName.EPISODE_FORMAT, opts)) {
+        for (var m : PatternMatcher.regex(input, PATTERN, MatchName.EPISODE_FORMAT, opts, ctx.trace)) {
             ctx.matches.add(m);
         }
     }
