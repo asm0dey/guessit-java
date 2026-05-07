@@ -51,6 +51,24 @@ Produces:
 
     java -jar target/guessit-java-<ver>-cli.jar "Movie.Name.2020.1080p.mkv"
 
+### Debug narration
+
+`--debug` prints a human-readable narration of every parse step (phases,
+extractors, processors, markers, and internal sub-steps) to **stderr**, so
+JSON/YAML output on stdout still pipes cleanly:
+
+    guessit-java --debug --json Movie.2020.1080p.mkv 2>trace.log
+
+Combine with `--debug-markers` to render an ASCII span view whenever the match
+set changes:
+
+    guessit-java --debug --debug-markers XxX.2020.mkv
+
+Use `--debug-out=PATH` to redirect the narration to a file instead of stderr.
+
+`--debug` is independent of `-v/--verbose` — `-v` keeps emitting the existing
+machine-readable trace on stdout. Combine the flags to get both.
+
 ## Library
 
     GuessResult r = Guessit.parse("Movie.Name.2020.1080p.mkv");
