@@ -65,7 +65,9 @@ public final class DebugTrace implements Trace {
     }
 
     @Override public void note(String msg) {
-        write("  " + msg + "\n");
+        // Legacy machine-format channel (used by PrintTrace for marker lines).
+        // DebugTrace uses subStep for prose narration; ignore note() to avoid
+        // duplicating the marker line in --debug output.
     }
 
     @Override public void spans(String input, List<Match> matches, List<Marker> markers) {
@@ -82,7 +84,9 @@ public final class DebugTrace implements Trace {
     }
 
     @Override public void result(GuessResult r) {
-        write("\nGuessIt found:\n" + io.guessit.cli.PlainFormatter.format(r) + "\n");
+        // Result content goes to stdout via the formatter; DebugTrace just emits
+        // a closing marker so the narration block is visually terminated.
+        write("\nGuessIt parsed.\n");
     }
 
     private static String capitalise(String s) {

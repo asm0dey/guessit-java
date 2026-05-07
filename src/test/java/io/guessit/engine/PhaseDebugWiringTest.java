@@ -46,4 +46,17 @@ class PhaseDebugWiringTest {
         // Per-row underline must appear under at least one step.
         assertThat(sw.toString()).contains("─");
     }
+
+    @Test
+    void debugTraceDoesNotDuplicateMarkerLines() {
+        var sw = new StringWriter();
+        var trace = new DebugTrace(sw);
+        Guessit.withOptions(Options.defaults()).guess("Movie.2020.mkv", trace);
+        var out = sw.toString();
+        // Each marker should appear exactly once in the prose narration.
+        long wholeMarkerLines = out.lines()
+            .filter(l -> l.contains("whole marker") || l.matches(".*marker:.*name=whole.*"))
+            .count();
+        assertThat(wholeMarkerLines).as("debug output should not duplicate marker lines").isEqualTo(1L);
+    }
 }

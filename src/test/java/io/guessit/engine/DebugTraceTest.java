@@ -73,13 +73,12 @@ class DebugTraceTest {
     }
 
     @Test
-    void resultPrintsFooter() {
+    void resultPrintsClosingMarker() {
         var sb = new StringBuilder();
         var t = new DebugTrace(sb);
         var r = io.guessit.GuessResultBuilder.result().title("Foo").build();
         t.result(r);
-        assertThat(sb.toString()).startsWith("\nGuessIt found:\n");
-        assertThat(sb.toString()).contains("title: Foo");
+        assertThat(sb.toString()).isEqualTo("\nGuessIt parsed.\n");
     }
 
     @Test
