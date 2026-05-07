@@ -13,9 +13,8 @@ class SpanRendererTest {
         var year      = match(MatchName.YEAR,        2020, 4, 8,  "2020");
         var container = match(MatchName.CONTAINER,   "mkv", 9, 12, "mkv");
         String out = SpanRenderer.render("XxX.2020.mkv", List.of(year, container), List.of());
-        // Output starts with input line indented by 2 spaces, then underline row.
-        assertThat(out).startsWith("  XxX.2020.mkv\n");
-        assertThat(out).contains("----");
+        assertThat(out).startsWith("XxX.2020.mkv\n");
+        assertThat(out).contains("─"); // ─
         assertThat(out).contains("year");
         assertThat(out).contains("container");
     }
@@ -26,7 +25,7 @@ class SpanRendererTest {
         var screen    = match(MatchName.SCREEN_SIZE, "1080p", 9, 14, "1080p");
         var src       = match(MatchName.SOURCE,      "WEB-DL", 15, 21, "WEB-DL");
         String out = SpanRenderer.render("XxX.2024.1080p.WEB-DL", List.of(year, screen, src), List.of());
-        assertThat(out).startsWith("  XxX.2024.1080p.WEB-DL\n");
+        assertThat(out).startsWith("XxX.2024.1080p.WEB-DL\n");
         assertThat(out).contains("year");
         assertThat(out).contains("screen_size");
         assertThat(out).contains("source");
@@ -45,7 +44,6 @@ class SpanRendererTest {
         var visible = new Match(MatchName.YEAR, 2020, 0, 4, "2020", 1000, java.util.Set.of(), false);
         var hidden  = new Match(MatchName.YEAR, 2020, 0, 4, "2020", 1000, java.util.Set.of(), true);
         String out = SpanRenderer.render("2020", List.of(visible, hidden), List.of());
-        // Only one underline run; only one label row containing "year".
         long yearLines = out.lines().filter(l -> l.contains("year")).count();
         assertThat(yearLines).isEqualTo(1L);
     }
@@ -53,7 +51,41 @@ class SpanRendererTest {
     @Test
     void handlesEmptyInput() {
         String out = SpanRenderer.render("foo", List.of(), List.of());
-        assertThat(out).isEqualTo("  foo\n");
+        assertThat(out).isEqualTo("foo\n");
+    }
+
+    @Test
+    void singleCharSpanRendersAsPipe() {
+        String out = SpanRenderer.render("ab.X.cd",
+            List.of(Match.of(MatchName.PART, 1, 3, 4, "X")), List.of());
+        assertThat(out).contains("│"); // │
+        assertThat(out).contains("part");
+        // Box-drawing horizontal (─ U+2500) must not appear for single-char span
+        assertThat(out).doesNotContain("─"); // ─
+    }
+
+    @Test
+    void overlappingSameSpanMatchesEachGetOwnRow() {
+        var year   = Match.of(MatchName.YEAR,   2024, 6, 10, "2024");
+        var season = Match.of(MatchName.SEASON, 20,   6, 10, "2024");
+        String out = SpanRenderer.render("Movie.2024.mkv", List.of(year, season), List.of());
+        assertThat(out).contains("year");
+        assertThat(out).contains("season");
+        // Two separate underline rows, each containing ─
+        long underlineRows = out.lines().filter(l -> l.contains("─")).count();
+        assertThat(underlineRows).isGreaterThanOrEqualTo(2L);
+    }
+
+    @Test
+    void overlappingMarkersDoNotShareUnderline() {
+        var whole = new Marker("whole", 0, 14, "Movie.2020.mkv");
+        var path  = new Marker("path",  0, 14, "Movie.2020.mkv");
+        String out = SpanRenderer.render("Movie.2020.mkv", List.of(), List.of(whole, path));
+        // Two distinct underline rows, one per marker
+        long underlineRows = out.lines().filter(l -> l.contains("─")).count();
+        assertThat(underlineRows).isEqualTo(2L);
+        assertThat(out).contains("whole");
+        assertThat(out).contains("path");
     }
 
     @Test
@@ -66,13 +98,11 @@ class SpanRendererTest {
         String out = SpanRenderer.render("Show.S01E02.2024.mkv",
                 List.of(title, season, episode, year, container), List.of());
         String expected =
-                "  Show.S01E02.2024.mkv\n" +
-                "  ----     --\n" +
-                "  title  episode\n" +
-                "        --    ----\n" +
-                "      season  year\n" +
-                "                   ---\n" +
-                "                container\n";
+                "Show.S01E02.2024.mkv\n" +
+                "──┬─  ─┬ ─┬ ──┬─ ─┬─\n" +
+                "title  episode│   │\n" +
+                "    season  year  │\n" +
+                "              container\n";
         assertThat(out).isEqualTo(expected);
     }
 
@@ -109,50 +139,17 @@ class SpanRendererTest {
                 List.of(title, year, season, episode, source, screen, container),
                 List.of(whole, path1, path2, path3, group));
         String expected =
-                "  Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
-                "  ------ ------ -------- -------------------------------\n" +
-                "   title  group   path                path\n" +
-                "  -------------                    --    -----       ---\n" +
-                "      path                       season source    container\n" +
-                "  ------------------------------------------------------\n" +
-                "                           whole\n" +
-                "          ----                        --       -----\n" +
-                "          year                      episode screen_size\n";
+                "Shōgun (2024)/Season 1/Shōgun - S01E07 WEBDL-2160p.mkv\n" +
+                "───┬── ───┬── ────┬─── ───────────────┬───────────────\n" +
+                " title  group   path                path\n" +
+                "──────┬──────                    ─┬ ─┬ ──┬── ──┬── ─┬─\n" +
+                "    path                       season│source   │container\n" +
+                "                                  episode screen_size\n" +
+                "───────────────────────────┬──────────────────────────\n" +
+                "                         whole\n" +
+                "        ──┬─\n" +
+                "        year\n";
         assertThat(out).isEqualTo(expected);
-    }
-
-    @Test
-    void singleCharSpanRendersAsPipe() {
-        String out = SpanRenderer.render("ab.X.cd",
-            List.of(Match.of(MatchName.PART, 1, 3, 4, "X")), List.of());
-        assertThat(out).contains("|");
-        assertThat(out).contains("part");
-        // Underline char for a single-char span must be |, not -
-        assertThat(out).doesNotContain("-");
-    }
-
-    @Test
-    void overlappingSameSpanMatchesEachGetOwnRow() {
-        var year   = Match.of(MatchName.YEAR,   2024, 6, 10, "2024");
-        var season = Match.of(MatchName.SEASON, 20,   6, 10, "2024");
-        String out = SpanRenderer.render("Movie.2024.mkv", List.of(year, season), List.of());
-        assertThat(out).contains("year");
-        assertThat(out).contains("season");
-        // Two underline rows: count occurrences of "----"
-        long underlineRows = out.lines().filter(l -> l.contains("----")).count();
-        assertThat(underlineRows).isEqualTo(2L);
-    }
-
-    @Test
-    void overlappingMarkersDoNotShareUnderline() {
-        var whole = new Marker("whole", 0, 14, "Movie.2020.mkv");
-        var path  = new Marker("path",  0, 14, "Movie.2020.mkv");
-        String out = SpanRenderer.render("Movie.2020.mkv", List.of(), List.of(whole, path));
-        // Two distinct underline rows, one per marker.
-        long underlineRows = out.lines().filter(l -> l.matches("\\s+-+\\s*")).count();
-        assertThat(underlineRows).isEqualTo(2L);
-        assertThat(out).contains("whole");
-        assertThat(out).contains("path");
     }
 
     private static Match match(MatchName name, Object value, int start, int end, String raw) {

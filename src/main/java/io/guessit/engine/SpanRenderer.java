@@ -1,43 +1,45 @@
 package io.guessit.engine;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Renders an input string with per-row underline + label lines for every span.
+ * Renders an input string with per-underline-row underline + staggered label
+ * lines for every span, using box-drawing characters.
  *
- * <p>Layout:
- * <pre>
- *   XxX.2020.mkv
- *       ----
- *       year
- *            ---
- *            container
- * </pre>
- *
- * <p>Each row is fully self-contained: an underline row showing only that
- * row's spans, immediately followed by a label row. No connector {@code |}
- * lines link rows together.
- *
- * <p>Underline character: {@code -} for multi-char spans (length &ge; 2),
- * {@code |} for single-char spans (length == 1).
- *
- * <p>Spans are assigned greedily to rows: a span goes to the lowest row
- * that has no horizontal label-area overlap with already-placed spans in
- * that row. Overlapping spans (same start/end) each get their own row.
- *
- * <p>All output lines are indented by two spaces and have trailing whitespace
- * stripped.
+ * <p>Layout rules:
+ * <ul>
+ *   <li>Multi-char span underline: {@code ─} (U+2500) body with {@code ┬}
+ *       (U+252C) at the midpoint.</li>
+ *   <li>Single-char span: {@code │} (U+2502) at that column.</li>
+ *   <li>Vertical connector descending from {@code ┬}/{@code │} to label
+ *       depth: {@code │} on every intermediate row.</li>
+ *   <li>Spans share an underline row when there is at least one column gap
+ *       between them; touching ({@code end_i == start_j}) or overlapping
+ *       forces a new underline row.</li>
+ *   <li>Per-underline-row greedy label depth: lowest depth where the label's
+ *       horizontal extent does not collide with any already-placed label at
+ *       that depth for the same underline row.</li>
+ *   <li>No leading indent — output starts at column 0.</li>
+ *   <li>Trailing whitespace stripped per line.</li>
+ * </ul>
  */
 public final class SpanRenderer {
+
+    // Box-drawing constants
+    private static final char HORIZ = '─'; // U+2500
+    private static final char TEE   = '┬'; // U+252C
+    private static final char VERT  = '│'; // U+2502
 
     private SpanRenderer() {}
 
     public static String render(String input, List<Match> matches, List<Marker> markers) {
         record Span(int start, int end, String label) {
             int mid() { return start + (end - start) / 2; }
+            int len() { return end - start; }
         }
 
         var spans = new ArrayList<Span>();
@@ -48,65 +50,134 @@ public final class SpanRenderer {
         for (var mk : markers) {
             spans.add(new Span(mk.start(), mk.end(), mk.name()));
         }
+
         if (spans.isEmpty()) {
-            return "  " + input + "\n";
+            return input + "\n";
         }
+
         spans.sort(Comparator.<Span>comparingInt(Span::start).thenComparingInt(Span::end));
 
-        int width = input.length();
-
-        // Greedy label-row assignment.
-        var rows = new ArrayList<List<Span>>();
+        // ── Step 1: assign each span to an underline row ─────────────────────
+        // Two spans share a row iff there is at least one column gap between
+        // them (existing.end < s.start, i.e. strictly less than).
+        var underlineRows = new ArrayList<List<Span>>();
         for (var s : spans) {
-            int halfLabel = s.label().length() / 2;
-            int labelStart = Math.max(0, s.mid() - halfLabel);
-            int labelEnd = labelStart + s.label().length();
-            int placedRow = -1;
-            for (int r = 0; r < rows.size(); r++) {
+            int placed = -1;
+            for (int r = 0; r < underlineRows.size(); r++) {
                 boolean fits = true;
-                for (var existing : rows.get(r)) {
-                    // 1. Underline gap: must have at least one column between underlines.
-                    boolean underlineTouchesOrOverlaps = !(existing.end() < s.start() || s.end() < existing.start());
-                    if (underlineTouchesOrOverlaps) { fits = false; break; }
-
-                    // 2. Label gap: existing label-area no-overlap check.
-                    int eHalf = existing.label().length() / 2;
-                    int eStart = Math.max(0, existing.mid() - eHalf);
-                    int eEnd = eStart + existing.label().length();
-                    if (labelStart < eEnd + 1 && eStart < labelEnd + 1) { fits = false; break; }
+                for (var ex : underlineRows.get(r)) {
+                    // touching (ex.end == s.start) or overlapping → new row
+                    if (!(ex.end() < s.start() || s.end() < ex.start())) {
+                        fits = false;
+                        break;
+                    }
                 }
-                if (fits) { placedRow = r; break; }
+                if (fits) { placed = r; break; }
             }
-            if (placedRow < 0) { rows.add(new ArrayList<>()); placedRow = rows.size() - 1; }
-            rows.get(placedRow).add(s);
+            if (placed < 0) {
+                underlineRows.add(new ArrayList<>());
+                placed = underlineRows.size() - 1;
+            }
+            underlineRows.get(placed).add(s);
         }
 
         var sb = new StringBuilder();
-        sb.append("  ").append(input).append('\n');
+        sb.append(input).append('\n');
 
-        for (var row : rows) {
-            // Underline line: '-' for spans with length >= 2, '|' for length == 1.
-            var underline = new char[width];
-            java.util.Arrays.fill(underline, ' ');
-            for (var s : row) {
-                char ch = (s.end() - s.start() == 1) ? '|' : '-';
-                for (int i = s.start(); i < s.end() && i < width; i++) underline[i] = ch;
-            }
-            sb.append("  ").append(new String(underline).stripTrailing()).append('\n');
+        for (var row : underlineRows) {
+            // ── Step 2: compute label depths for this underline row ───────────
+            // labelDepth[i] = depth assigned to row.get(i)
+            int[] labelDepth = new int[row.size()];
+            // For each depth, track [labelStart, labelEnd) intervals already placed
+            var depthIntervals = new ArrayList<List<int[]>>();
 
-            // Label line: each label centered on the span's midpoint.
-            var labelLine = new StringBuilder();
-            while (labelLine.length() < width) labelLine.append(' ');
-            for (var s : row) {
+            for (int i = 0; i < row.size(); i++) {
+                var s = row.get(i);
                 int halfLabel = s.label().length() / 2;
-                int start = Math.max(0, s.mid() - halfLabel);
-                while (labelLine.length() < start + s.label().length()) labelLine.append(' ');
-                for (int i = 0; i < s.label().length(); i++) {
-                    labelLine.setCharAt(start + i, s.label().charAt(i));
+                int lStart = Math.max(0, s.mid() - halfLabel);
+                int lEnd   = lStart + s.label().length();
+
+                int d = 0;
+                outer:
+                for (;; d++) {
+                    if (d >= depthIntervals.size()) {
+                        // No intervals at this depth yet → fits
+                        break;
+                    }
+                    for (var iv : depthIntervals.get(d)) {
+                        // overlap: lStart < iv[1]+1 && iv[0] < lEnd+1
+                        if (lStart < iv[1] + 1 && iv[0] < lEnd + 1) {
+                            continue outer; // try next depth
+                        }
+                    }
+                    break; // fits at depth d
+                }
+                labelDepth[i] = d;
+                while (depthIntervals.size() <= d) depthIntervals.add(new ArrayList<>());
+                depthIntervals.get(d).add(new int[]{lStart, lEnd});
+            }
+
+            int maxDepth = 0;
+            for (int d : labelDepth) maxDepth = Math.max(maxDepth, d);
+
+            // ── Step 3: render underline row ─────────────────────────────────
+            // Determine the width needed (at least input.length())
+            int width = input.length();
+            // Also ensure label extents fit
+            for (int i = 0; i < row.size(); i++) {
+                var s = row.get(i);
+                int halfLabel = s.label().length() / 2;
+                int lStart = Math.max(0, s.mid() - halfLabel);
+                int lEnd = lStart + s.label().length();
+                if (lEnd > width) width = lEnd;
+            }
+
+            char[] uline = new char[width];
+            Arrays.fill(uline, ' ');
+            for (var s : row) {
+                if (s.len() == 1) {
+                    uline[s.start()] = VERT;
+                } else {
+                    for (int c = s.start(); c < s.end() && c < width; c++) {
+                        uline[c] = HORIZ;
+                    }
+                    uline[s.mid()] = TEE;
                 }
             }
-            sb.append("  ").append(labelLine.toString().stripTrailing()).append('\n');
+            sb.append(new String(uline).stripTrailing()).append('\n');
+
+            // ── Step 4: render connector + label lines ────────────────────────
+            // For depths 0..maxDepth, produce one line per depth.
+            // On each line d: for every span s at labelDepth d → write label;
+            //                  for every span s at labelDepth > d → write │ at mid.
+            for (int d = 0; d <= maxDepth; d++) {
+                char[] line = new char[width];
+                Arrays.fill(line, ' ');
+                for (int i = 0; i < row.size(); i++) {
+                    var s = row.get(i);
+                    int mid = s.mid();
+                    if (labelDepth[i] > d) {
+                        // connector
+                        if (mid < width) line[mid] = VERT;
+                    } else if (labelDepth[i] == d) {
+                        // write label centered on mid
+                        int halfLabel = s.label().length() / 2;
+                        int lStart = Math.max(0, mid - halfLabel);
+                        while (lStart + s.label().length() > line.length) {
+                            // expand line array
+                            line = Arrays.copyOf(line, line.length + s.label().length());
+                            Arrays.fill(line, line.length - s.label().length(), line.length, ' ');
+                        }
+                        for (int k = 0; k < s.label().length(); k++) {
+                            line[lStart + k] = s.label().charAt(k);
+                        }
+                    }
+                    // else: label was placed at a lower depth, nothing here
+                }
+                sb.append(new String(line).stripTrailing()).append('\n');
+            }
         }
+
         return sb.toString();
     }
 }

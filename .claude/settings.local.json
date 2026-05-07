@@ -77,7 +77,8 @@
       "Bash(awk 'NR==15' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/rules/property/SourceExtractor.java)",
       "Bash(awk 'NR==7' /home/finkel/work_self/guessit-java/src/test/java/io/guessit/lang/LanguageRegistryTest.java)",
       "Bash(awk 'NR==168' /home/finkel/work_self/guessit-java/src/main/java/io/guessit/lang/LanguageRegistry.java)",
-      "Bash(awk NR>=59 && NR<=85 {print NR\": \"$0} *)"
+      "Bash(awk NR>=59 && NR<=85 {print NR\": \"$0} *)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   },
   "skillOverrides": {

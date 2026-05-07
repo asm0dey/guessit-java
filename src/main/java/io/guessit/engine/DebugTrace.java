@@ -70,7 +70,15 @@ public final class DebugTrace implements Trace {
 
     @Override public void spans(String input, List<Match> matches, List<Marker> markers) {
         if (!renderSpans) return;
-        write(SpanRenderer.render(input, matches, markers));
+        var rendered = SpanRenderer.render(input, matches, markers);
+        // Sub-step indent (4 spaces) on every non-empty line.
+        for (var line : rendered.split("\n", -1)) {
+            if (line.isEmpty()) {
+                write("\n");
+            } else {
+                write("    " + line + "\n");
+            }
+        }
     }
 
     @Override public void result(GuessResult r) {
