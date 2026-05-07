@@ -107,6 +107,10 @@ public final class GuessitCli implements Callable<Integer> {
             System.err.println("error: --debug-markers requires --debug");
             return 2;
         }
+        if (verbose && debug) {
+            System.err.println("error: -v/--verbose and --debug are mutually exclusive");
+            return 2;
+        }
         var guessit = Guessit.withOptions(buildOptions());
         return runWithTraces(guessit);
     }
