@@ -34,7 +34,9 @@ public final class RangeFiller implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
+        ctx.trace.subStep("Stage 1: fill missing values in episode ranges");
         fillProp(ctx, MatchName.EPISODE);
+        ctx.trace.subStep("Stage 2: fill missing values in season ranges");
         fillProp(ctx, MatchName.SEASON);
     }
 

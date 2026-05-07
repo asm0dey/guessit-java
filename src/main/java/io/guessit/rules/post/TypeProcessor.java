@@ -20,9 +20,11 @@ public final class TypeProcessor implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
+        ctx.trace.subStep("Stage 1: predict type from surviving matches and emit type match");
         var type = predictType(ctx);
         var len = ctx.input.length();
         ctx.matches.add(Match.of(MatchName.TYPE, type, len, len, ""));
+        ctx.trace.subStep("Stage 2: demote episode_title to alternative_title when type is not episode");
         if (!EPISODE_TYPE.equals(type)) {
             var toRename = ctx.matches.named(MatchName.EPISODE_TITLE)
                 .filter(m -> !m.tags().contains("alternative-replaced"))

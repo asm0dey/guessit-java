@@ -36,7 +36,9 @@ public final class AbsoluteEpisodePromoter implements PostPhase.PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
+        ctx.trace.subStep("Stage 1: fill gaps between adjacent absolute_episode ranges");
         absoluteRangeFill(ctx);
+        ctx.trace.subStep("Stage 2: promote bracketed episode group to absolute_episode");
         groupMarkerAbsolute(ctx);
     }
 
