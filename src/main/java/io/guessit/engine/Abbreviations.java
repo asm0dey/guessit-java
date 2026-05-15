@@ -1,5 +1,14 @@
 package io.guessit.engine;
 
+import com.mirkoddd.sift.core.dsl.Fragment;
+import com.mirkoddd.sift.core.dsl.SiftPattern;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.mirkoddd.sift.core.SiftPatterns.anyOf;
+import static com.mirkoddd.sift.core.SiftPatterns.literal;
+
 /**
  * Mirrors Python rebulk's pattern-source rewriting helpers.
  *
@@ -14,22 +23,22 @@ public final class Abbreviations {
     private Abbreviations() {}
 
     /** Python `seps_no_fs` (seps with '/' and '\\' removed) escaped for a regex char class. */
-    public static final String SEPS_NO_FS_CLASS = sepsNoFsClass();
+    public static final SiftPattern<Fragment> SEPS_NO_FS_PATTERN = buildSepsPattern();
 
-    private static String sepsNoFsClass() {
-        var sb = new StringBuilder();
+    private static SiftPattern<Fragment> buildSepsPattern() {
+        List<SiftPattern<Fragment>> chars = new ArrayList<>();
         for (char c : Seps.CHARS.toCharArray()) {
-            if (c == '/' || c == '\\') continue;
-            if (c == ']' || c == '^' || c == '-' || c == '[') sb.append('\\');
-            sb.append(c);
+            if (c != '/' && c != '\\') {
+                chars.add(literal(String.valueOf(c)));
+            }
         }
-        return sb.toString();
+        return anyOf(chars);
     }
 
     /** Replace every unescaped, non-class `-` in the source with `[<seps_no_fs>]`.
      *  Mirrors Python rebulk's dash abbreviation: a single separator character (not zero-or-more). */
     public static String dash(String src) {
-        return rewriteLiteral(src, "[" + SEPS_NO_FS_CLASS + "]");
+        return rewriteLiteral(src, SEPS_NO_FS_PATTERN.shake());
     }
 
     private static String rewriteLiteral(String src, String replacement) {

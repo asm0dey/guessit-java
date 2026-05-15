@@ -45,6 +45,7 @@
     <properties>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <sift.version>6.10.1</sift.version>
         <picocli.version>4.7.7</picocli.version>
         <jackson.version>2.21.3</jackson.version>
         <snakeyaml.version>2.6</snakeyaml.version>
@@ -55,6 +56,11 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.mirkoddd</groupId>
+            <artifactId>sift-core</artifactId>
+            <version>${sift.version}</version>
+        </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>

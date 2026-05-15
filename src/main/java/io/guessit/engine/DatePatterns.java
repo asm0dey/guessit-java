@@ -1,10 +1,26 @@
 package io.guessit.engine;
 
+import com.mirkoddd.sift.core.NamedCapture;
+import com.mirkoddd.sift.core.Sift;
+import com.mirkoddd.sift.core.SiftGlobalFlag;
+import com.mirkoddd.sift.core.dsl.Assertion;
+import com.mirkoddd.sift.core.dsl.Fragment;
+import com.mirkoddd.sift.core.dsl.SiftPattern;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
+
+import static com.mirkoddd.sift.core.Sift.*;
+import static com.mirkoddd.sift.core.SiftPatterns.anyOf;
+import static com.mirkoddd.sift.core.SiftPatterns.capture;
+import static com.mirkoddd.sift.core.SiftPatterns.literal;
+import static com.mirkoddd.sift.core.SiftPatterns.negativeLookahead;
+import static com.mirkoddd.sift.core.SiftPatterns.negativeLookbehind;
+import static com.mirkoddd.sift.core.SiftPatterns.withFlags;
 
 /**
  * Port of guessit/rules/common/date.py — date detection and parsing.
@@ -24,26 +40,113 @@ public final class DatePatterns {
 
     public record Result(int start, int end, LocalDate date) {}
 
-    private static final String DSEP = "[-/ .]";
-    private static final String DSEP_BIS = "[-/ .x]";
-    private static final String D12 = "(\\d{1,2})";
+    private static final SiftPattern<Fragment> DSEP = anyOf(literal("-"), literal("/"), literal("."), literal(" "));
+    private static final SiftPattern<Fragment> DSEP_BIS = anyOf(literal("-"), literal("/"), literal("."), literal(" "), literal("x"));
+    private static final SiftPattern<Fragment> ORDINAL = optional().of(anyOf(literal("st"), literal("nd"), literal("rd"), literal("th")));
 
-    private static final Pattern NORMALIZE_SEP = Pattern.compile("[/ .x]");
-    private static final Pattern EIGHT_DIGITS = Pattern.compile("\\d{8}");
-    private static final Pattern SIX_DIGITS = Pattern.compile("\\d{6}");
-    private static final Pattern MONTH_NAME_PATTERN = Pattern.compile(
-        "^(\\d{1,2})(?:st|nd|rd|th)?-([A-Z]{3,10})-(\\d{4})$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern NUM_PATTERN = Pattern.compile("^(\\d{1,4})-(\\d{1,2})-(\\d{1,4})$");
+    private static final SiftPattern<Assertion> BOUND_START = negativeLookbehind(exactly(1).digits());
+    private static final SiftPattern<Assertion> BOUND_END = negativeLookahead(exactly(1).digits());
 
-    /** Each regex captures group 1 = the date span. */
+    private static final NamedCapture P1_D12 = capture("p1", between(1, 2).digits());
+    private static final NamedCapture P2_D12 = capture("p2", between(1, 2).digits());
+    private static final NamedCapture P3_D12 = capture("p3", between(1, 2).digits());
+
+    private static final NamedCapture P1_D2 = capture("p1", exactly(2).digits());
+    private static final NamedCapture P3_D2 = capture("p3", exactly(2).digits());
+
+    private static final NamedCapture P1_D4 = capture("p1", exactly(4).digits());
+    private static final NamedCapture P3_D4 = capture("p3", exactly(4).digits());
+
+    private static final NamedCapture DATE_8 = capture("date", exactly(8).digits());
+    private static final SiftPattern<Fragment> PAT_1 = Sift.fromAnywhere()
+            .of(DSEP).then().namedCapture(DATE_8).then().of(DSEP);
+
+    private static final NamedCapture DATE_6 = capture("date", exactly(6).digits());
+    private static final SiftPattern<Fragment> PAT_2 = Sift.fromAnywhere()
+            .of(DSEP).then().namedCapture(DATE_6).then().of(DSEP);
+
+    private static final NamedCapture DATE_3 = capture("date", Sift.fromAnywhere()
+            .namedCapture(P1_D2).then().of(DSEP).then().namedCapture(P2_D12).then().of(DSEP).then().namedCapture(P3_D12));
+    private static final SiftPattern<Fragment> PAT_3 = Sift.fromAnywhere()
+            .namedCapture(DATE_3)
+            .precededByAssertion(BOUND_START)
+            .followedByAssertion(BOUND_END);
+
+    private static final NamedCapture DATE_4 = capture("date", Sift.fromAnywhere()
+            .namedCapture(P1_D12).then().of(DSEP).then().namedCapture(P2_D12).then().of(DSEP).then().namedCapture(P3_D2));
+    private static final SiftPattern<Fragment> PAT_4 = Sift.fromAnywhere()
+            .namedCapture(DATE_4)
+            .precededByAssertion(BOUND_START)
+            .followedByAssertion(BOUND_END);
+
+    private static final NamedCapture DATE_5 = capture("date", Sift.fromAnywhere()
+            .namedCapture(P1_D4).then().of(DSEP_BIS).then().namedCapture(P2_D12).then().of(DSEP).then().namedCapture(P3_D12));
+    private static final SiftPattern<Fragment> PAT_5 = Sift.fromAnywhere()
+            .namedCapture(DATE_5)
+            .precededByAssertion(BOUND_START)
+            .followedByAssertion(BOUND_END);
+
+    private static final NamedCapture DATE_6_P = capture("date", Sift.fromAnywhere()
+            .namedCapture(P1_D12).then().of(DSEP).then().namedCapture(P2_D12).then().of(DSEP_BIS).then().namedCapture(P3_D4));
+    private static final SiftPattern<Fragment> PAT_6 = Sift.fromAnywhere()
+            .namedCapture(DATE_6_P)
+            .precededByAssertion(BOUND_START)
+            .followedByAssertion(BOUND_END);
+
+    private static final NamedCapture DATE_7 = capture("date", Sift.fromAnywhere()
+            .between(1, 2).digits().then().of(ORDINAL).then().of(DSEP).then().between(3, 10).letters().then().of(DSEP).then().exactly(4).digits());
+    private static final SiftPattern<Fragment> PAT_7 = Sift.fromAnywhere()
+            .namedCapture(DATE_7)
+            .precededByAssertion(BOUND_START)
+            .followedByAssertion(BOUND_END);
+
+    /** Each regex captures group "date" = the date span. */
     public static final List<Pattern> REGEXPS = List.of(
-        Pattern.compile("[-/ .](\\d{8})[-/ .]", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("[-/ .](\\d{6})[-/ .]", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)((\\d{2})" + DSEP + D12 + DSEP + D12 + ")(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)(" + D12 + DSEP + D12 + DSEP + "(\\d{2}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)((\\d{4})" + DSEP_BIS + D12 + DSEP + D12 + ")(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)(" + D12 + DSEP + D12 + DSEP_BIS + "(\\d{4}))(?:$|\\D)", Pattern.CASE_INSENSITIVE),
-        Pattern.compile("(?:^|\\D)(\\d{1,2}(?:st|nd|rd|th)?[-/ .][a-z]{3,10}[-/ .]\\d{4})(?:$|\\D)", Pattern.CASE_INSENSITIVE)
+            Pattern.compile(withFlags(PAT_1, SiftGlobalFlag.CASE_INSENSITIVE).shake()),
+            Pattern.compile(withFlags(PAT_2, SiftGlobalFlag.CASE_INSENSITIVE).shake()),
+            Pattern.compile(withFlags(PAT_3, SiftGlobalFlag.CASE_INSENSITIVE).shake()),
+            Pattern.compile(withFlags(PAT_4, SiftGlobalFlag.CASE_INSENSITIVE).shake()),
+            Pattern.compile(withFlags(PAT_5, SiftGlobalFlag.CASE_INSENSITIVE).shake()),
+            Pattern.compile(withFlags(PAT_6, SiftGlobalFlag.CASE_INSENSITIVE).shake()),
+            Pattern.compile(withFlags(PAT_7, SiftGlobalFlag.CASE_INSENSITIVE).shake())
+    );
+
+    private static final Pattern NORMALIZE_SEP = Pattern.compile(
+            Sift.fromAnywhere().of(anyOf(literal("/"), literal(" "), literal("."), literal("x"))).shake()
+    );
+
+    private static final Pattern EIGHT_DIGITS = Pattern.compile(
+            Sift.fromStart().exactly(8).digits().andNothingElse().shake()
+    );
+
+    private static final Pattern SIX_DIGITS = Pattern.compile(
+            Sift.fromStart().exactly(6).digits().andNothingElse().shake()
+    );
+
+    private static final NamedCapture MN_DAY = capture("day", between(1, 2).digits());
+    private static final NamedCapture MN_MONTH = capture("month", between(3, 10).letters());
+    private static final NamedCapture MN_YEAR = capture("year", exactly(4).digits());
+
+    private static final Pattern MONTH_NAME_PATTERN = Pattern.compile(
+            Sift.filteringWith(SiftGlobalFlag.CASE_INSENSITIVE)
+                    .fromStart()
+                    .namedCapture(MN_DAY).then().of(ORDINAL).followedBy('-')
+                    .then().namedCapture(MN_MONTH).followedBy('-')
+                    .then().namedCapture(MN_YEAR)
+                    .andNothingElse()
+                    .shake()
+    );
+
+    private static final NamedCapture NUM_P1 = capture("p1", between(1, 4).digits());
+    private static final NamedCapture NUM_P2 = capture("p2", between(1, 2).digits());
+    private static final NamedCapture NUM_P3 = capture("p3", between(1, 4).digits());
+
+    private static final Pattern NUM_PATTERN = Pattern.compile(
+            Sift.fromStart()
+                    .namedCapture(NUM_P1).followedBy('-')
+                    .then().namedCapture(NUM_P2).followedBy('-')
+                    .then().namedCapture(NUM_P3).andNothingElse()
+                    .shake()
     );
 
     public static boolean validYear(int year) { return 1920 <= year && year < 2030; }
@@ -59,19 +162,24 @@ public final class DatePatterns {
         for (var p : REGEXPS) {
             var matcher = p.matcher(input);
             if (!matcher.find()) continue;
-            int s = matcher.start(1);
-            int e = matcher.end(1);
+
+            int s = matcher.start("date");
+            int e = matcher.end("date");
             if (!sepsSurround(input, s, e)) continue;
 
-            int gc = matcher.groupCount();
-            String[] parts = new String[gc - 1];
-            for (int i = 0; i < parts.length; i++) parts[i] = matcher.group(2 + i);
+            List<String> partsList = new ArrayList<>();
+            try {
+                if (matcher.group("p1") != null) partsList.add(matcher.group("p1"));
+                if (matcher.group("p2") != null) partsList.add(matcher.group("p2"));
+                if (matcher.group("p3") != null) partsList.add(matcher.group("p3"));
+            } catch (IllegalArgumentException _) {}
+            String[] parts = partsList.toArray(new String[0]);
 
             Boolean df = dayFirst;
-            if (Boolean.TRUE.equals(yearFirst) && df == null) df = false;
+            if (Boolean.TRUE.equals(yearFirst) && df == null) df = (Boolean) false;
             if (df == null) df = guessDayFirst(parts).orElse(null);
 
-            var date = parseAllValid(matcher.group(1), yearFirst, df);
+            var date = parseAllValid(matcher.group("date"), yearFirst, df);
             if (date.isPresent()) {
                 return Optional.of(new Result(s, e, date.get()));
             }
@@ -90,14 +198,14 @@ public final class DatePatterns {
      *
      * <p>Order of evidence:
      * <ol>
-     *   <li>If the first component looks like a 4-digit year → year-first
-     *       (so the second component is the month, not the day).</li>
-     *   <li>If the last component looks like a 4-digit year → day-first is
-     *       likely (matches European DD-MM-YYYY convention).</li>
-     *   <li>If the first component {@code > 31} → it can't be a day, so
-     *       it must be the year (year-first).</li>
-     *   <li>If the last component {@code > 31} → it must be the year, and
-     *       the first component is most often a day (day-first).</li>
+     * <li>If the first component looks like a 4-digit year → year-first
+     * (so the second component is the month, not the day).</li>
+     * <li>If the last component looks like a 4-digit year → day-first is
+     * likely (matches European DD-MM-YYYY convention).</li>
+     * <li>If the first component {@code > 31} → it can't be a day, so
+     * it must be the year (year-first).</li>
+     * <li>If the last component {@code > 31} → it must be the year, and
+     * the first component is most often a day (day-first).</li>
      * </ol>
      * Returns {@code null} when none of the heuristics fires; callers then
      * fall back to dateutil's combinatorial try-everything approach.
@@ -155,9 +263,9 @@ public final class DatePatterns {
     private static Optional<LocalDate> parseMonthName(String raw) {
         var mm = MONTH_NAME_PATTERN.matcher(raw);
         if (!mm.matches()) return Optional.empty();
-        int d = Integer.parseInt(mm.group(1));
-        int mo = monthIndex(mm.group(2));
-        int y = Integer.parseInt(mm.group(3));
+        int d = Integer.parseInt(mm.group("day"));
+        int mo = monthIndex(mm.group("month"));
+        int y = Integer.parseInt(mm.group("year"));
         if (mo <= 0) return Optional.empty();
         try { return Optional.of(LocalDate.of(y, mo, d)); }
         catch (Exception _) { return Optional.empty(); }
@@ -167,11 +275,11 @@ public final class DatePatterns {
     private static Optional<LocalDate> parseNumericSeparated(String raw, Boolean yearFirst, Boolean dayFirst) {
         var nm = NUM_PATTERN.matcher(raw);
         if (!nm.matches()) return Optional.empty();
-        int a = Integer.parseInt(nm.group(1));
-        int b = Integer.parseInt(nm.group(2));
-        int c = Integer.parseInt(nm.group(3));
-        var dOpts = dayFirst != null ? new Boolean[]{dayFirst} : new Boolean[]{true, false};
-        var yOpts = yearFirst != null ? new Boolean[]{yearFirst} : new Boolean[]{false, true};
+        int a = Integer.parseInt(nm.group("p1"));
+        int b = Integer.parseInt(nm.group("p2"));
+        int c = Integer.parseInt(nm.group("p3"));
+        var dOpts = dayFirst != null ? new Boolean[]{dayFirst} : new Boolean[]{(Boolean) true, (Boolean) false};
+        var yOpts = yearFirst != null ? new Boolean[]{yearFirst} : new Boolean[]{(Boolean) false, (Boolean) true};
         Optional<LocalDate> first = Optional.empty();
         for (var df : dOpts) {
             for (var yf : yOpts) {
@@ -198,7 +306,7 @@ public final class DatePatterns {
 
     private static int monthIndex(String name) {
         var months = List.of("january","february","march","april","may","june",
-            "july","august","september","october","november","december");
+                "july","august","september","october","november","december");
         var lc = name.toLowerCase(java.util.Locale.ROOT);
         for (int i = 0; i < months.size(); i++) {
             if (months.get(i).startsWith(lc)) return i + 1;
