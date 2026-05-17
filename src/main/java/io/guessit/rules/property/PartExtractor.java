@@ -1,9 +1,17 @@
 package io.guessit.rules.property;
 
+import com.mirkoddd.sift.core.NamedCapture;
+import com.mirkoddd.sift.core.Sift;
+import com.mirkoddd.sift.core.SiftGlobalFlag;
+import com.mirkoddd.sift.core.dsl.Fragment;
+import com.mirkoddd.sift.core.dsl.SiftPattern;
 import io.guessit.engine.*;
+import io.guessit.engine.numerals.Numerals;
 
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static com.mirkoddd.sift.core.SiftPatterns.*;
 
 /**
  * Detects part numbers from {@code (pt|part)-?\d+} or {@code (pt|part)-?[Roman numeral]}
@@ -12,8 +20,17 @@ import java.util.regex.Pattern;
  * <p>Value range: 0 &lt; value &lt; 100. Matches must be surrounded by separators.
  */
 public final class PartExtractor implements Extractor {
-    private static final Pattern P = Pattern.compile(
-        "(?i)(?:pt|part)[" + Abbreviations.SEPS_NO_FS_CLASS + "]?(?<n>" + Numerals.NUMERAL + ")");
+
+    private static final NamedCapture N_GROUP = capture("n", Numerals.NUMERAL_PATTERN);
+
+    private static final SiftPattern<Fragment> PART_BASE_PATTERN = Sift.fromAnywhere()
+            .of(anyOf(literal("pt"), literal("part")))
+            .then().optional().of(Abbreviations.SEPS_NO_FS_PATTERN)
+            .then().namedCapture(N_GROUP);
+
+    private static final SiftPattern<Fragment> SIFT_RULE = withFlags(PART_BASE_PATTERN, SiftGlobalFlag.CASE_INSENSITIVE);
+
+    private static final Pattern P = Pattern.compile(SIFT_RULE.shake());
 
     @Override public String name() { return "part"; }
 
@@ -34,7 +51,7 @@ public final class PartExtractor implements Extractor {
             var raw = m.group("n");
             int v;
             try {
-                v = Numerals.parse(raw, true, true, true);
+                v = Numerals.parse(raw);
             } catch (IllegalArgumentException _) {
                 continue;
             }

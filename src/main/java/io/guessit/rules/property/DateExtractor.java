@@ -1,6 +1,6 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.DatePatterns;
+import io.guessit.engine.date.DatePatterns;
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
 import io.guessit.engine.MatchName;

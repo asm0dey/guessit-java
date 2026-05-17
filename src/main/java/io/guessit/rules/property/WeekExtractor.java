@@ -1,6 +1,7 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.date.DatePatterns;
 
 import java.util.Set;
 import java.util.regex.Pattern;

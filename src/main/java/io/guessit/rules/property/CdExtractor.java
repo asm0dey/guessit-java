@@ -1,17 +1,56 @@
 package io.guessit.rules.property;
 
+import com.mirkoddd.sift.core.NamedCapture;
+import com.mirkoddd.sift.core.Sift;
+import com.mirkoddd.sift.core.SiftGlobalFlag;
+import com.mirkoddd.sift.core.dsl.Fragment;
+import com.mirkoddd.sift.core.dsl.SiftPattern;
 import io.guessit.engine.*;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static com.mirkoddd.sift.core.Sift.oneOrMore;
+import static com.mirkoddd.sift.core.SiftPatterns.*;
+
 public final class CdExtractor implements Extractor {
-    private static final String SEP = "[" + Abbreviations.SEPS_NO_FS_CLASS + "]?";
-    private static final Pattern CD_OF = Pattern.compile(
-        "(?i)cd" + SEP + "(?<cd>\\d+)(?:" + SEP + "of" + SEP + "(?<count>\\d+))?");
-    private static final Pattern CD_COUNT = Pattern.compile(
-        "(?i)(?<count>\\d+)" + SEP + "cds?");
     public static final String COUNT = "count";
+    private static final String CD = "cd";
+
+    private static final NamedCapture CD_GROUP = capture(CD, oneOrMore().digits());
+    private static final NamedCapture COUNT_GROUP = capture(COUNT, oneOrMore().digits());
+
+    private static final SiftPattern<Fragment> SEP = Sift.fromAnywhere()
+            .optional().of(Abbreviations.SEPS_NO_FS_PATTERN);
+
+    private static final SiftPattern<Fragment> OF_BLOCK = Sift.fromAnywhere()
+            .of(SEP)
+            .then().of(literal("of"))
+            .then().of(SEP)
+            .then().namedCapture(COUNT_GROUP);
+
+    private static final SiftPattern<Fragment> CD_OF_BASE = Sift.fromAnywhere()
+            .of(literal("cd"))
+            .then().of(SEP)
+            .then().namedCapture(CD_GROUP)
+            .then().optional().of(OF_BLOCK);
+
+    private static final Pattern CD_OF = Pattern.compile(
+            withFlags(CD_OF_BASE, SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
+
+    private static final SiftPattern<Fragment> CDS_LITERAL = Sift.fromAnywhere()
+            .of(literal("cd"))
+            .then().optional().character('s');
+
+    private static final SiftPattern<Fragment> CD_COUNT_BASE = Sift.fromAnywhere()
+            .namedCapture(COUNT_GROUP)
+            .then().of(SEP)
+            .then().of(CDS_LITERAL);
+
+    private static final Pattern CD_COUNT = Pattern.compile(
+            withFlags(CD_COUNT_BASE, SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
 
     @Override public String name() { return "cd"; }
 
