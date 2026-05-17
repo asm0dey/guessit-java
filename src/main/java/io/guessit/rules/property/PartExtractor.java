@@ -6,6 +6,7 @@ import com.mirkoddd.sift.core.SiftGlobalFlag;
 import com.mirkoddd.sift.core.dsl.Fragment;
 import com.mirkoddd.sift.core.dsl.SiftPattern;
 import io.guessit.engine.*;
+import io.guessit.engine.numerals.Numerals;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -50,7 +51,7 @@ public final class PartExtractor implements Extractor {
             var raw = m.group("n");
             int v;
             try {
-                v = Numerals.parse(raw, true, true, true);
+                v = Numerals.parse(raw);
             } catch (IllegalArgumentException _) {
                 continue;
             }
