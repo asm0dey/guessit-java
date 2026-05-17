@@ -1,5 +1,7 @@
 package io.guessit.engine.date;
 
+import java.util.List;
+
 enum DateShape {
     COMPACT_8_DIGIT,
     COMPACT_6_DIGIT,
@@ -7,4 +9,4 @@ enum DateShape {
     NUMERIC_SEPARATED
 }
 
-record RawDateMatch(int start, int end, String rawDate, String[] parts, DateShape shape) {}
+record RawDateMatch(int start, int end, String rawDate, List<String> parts, DateShape shape) {}

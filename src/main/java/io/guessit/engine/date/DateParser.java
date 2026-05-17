@@ -59,13 +59,13 @@ final class DateParser {
         }
     }
 
-    private static Optional<LocalDate> parseMonthName(String[] parts) {
-        if (parts.length < REQUIRED_PARTS_COUNT) return Optional.empty();
+    private static Optional<LocalDate> parseMonthName(List<String> parts) {
+        if (parts.size() < REQUIRED_PARTS_COUNT) return Optional.empty();
 
         try {
-            int day = Integer.parseInt(parts[PART_1]);
-            int month = monthIndex(parts[PART_2]);
-            int year = resolveYear(Integer.parseInt(parts[PART_3]));
+            int day = Integer.parseInt(parts.get(PART_1));
+            int month = monthIndex(parts.get(PART_2));
+            int year = resolveYear(Integer.parseInt(parts.get(PART_3)));
 
             if (month <= 0) return Optional.empty();
 
@@ -75,14 +75,17 @@ final class DateParser {
         }
     }
 
-    private static Optional<LocalDate> parseNumericSeparated(String[] parts, Boolean yearFirst, Boolean dayFirst) {
-        if (parts.length < REQUIRED_PARTS_COUNT) return Optional.empty();
+    private static Optional<LocalDate> parseNumericSeparated(List<String> parts, Boolean yearFirst, Boolean dayFirst) {
+        if (parts.size() < REQUIRED_PARTS_COUNT) return Optional.empty();
 
-        int part1, part2, part3;
+        int part1;
+        int part2;
+        int part3;
+
         try {
-            part1 = Integer.parseInt(parts[PART_1]);
-            part2 = Integer.parseInt(parts[PART_2]);
-            part3 = Integer.parseInt(parts[PART_3]);
+            part1 = Integer.parseInt(parts.get(PART_1));
+            part2 = Integer.parseInt(parts.get(PART_2));
+            part3 = Integer.parseInt(parts.get(PART_3));
         } catch (NumberFormatException _) {
             return Optional.empty();
         }

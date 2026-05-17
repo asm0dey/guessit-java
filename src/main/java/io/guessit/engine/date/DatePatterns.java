@@ -1,6 +1,7 @@
 package io.guessit.engine.date;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -34,7 +35,7 @@ public final class DatePatterns {
                 .map(parsedDate -> new Result(candidate.start(), candidate.end(), parsedDate));
     }
 
-    private static Boolean resolveDayFirst(Boolean yearFirst, Boolean dayFirst, String[] parts) {
+    private static Boolean resolveDayFirst(Boolean yearFirst, Boolean dayFirst, List<String> parts) {
         if (dayFirst != null) return dayFirst;
         if (Boolean.TRUE.equals(yearFirst)) return false;
 

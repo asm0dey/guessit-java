@@ -4,9 +4,10 @@ import com.mirkoddd.sift.core.dsl.Fragment;
 import com.mirkoddd.sift.core.dsl.SiftPattern;
 import com.mirkoddd.sift.core.engine.SiftCompiledPattern;
 
-import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static com.mirkoddd.sift.core.Sift.oneOrMore;
 import static com.mirkoddd.sift.core.SiftPatterns.anyOf;
@@ -26,6 +27,10 @@ public final class Numerals {
 
     private Numerals() {
     }
+
+    private static final DigitNumerals DIGIT_PARSER = new DigitNumerals();
+    private static final RomanNumerals ROMAN_PARSER = new RomanNumerals();
+    private static final WordNumerals WORD_PARSER = new WordNumerals();
 
     public static final SiftPattern<Fragment> NUMERAL_PATTERN = anyOf(
             DigitNumerals.PATTERN,
@@ -47,24 +52,23 @@ public final class Numerals {
      * decimal digits → Roman → number words. Throws {@link IllegalArgumentException}
      * when no enabled form matches.
      */
-    public static int parse(String value, EnumSet<Type> enabledTypes) {
+    public static int parse(String value, Set<Type> enabledTypes) {
 
         if (enabledTypes.contains(Type.DIGIT)) {
-            Integer result = DigitNumerals.INSTANCE.tryParse(value);
+            Integer result = DIGIT_PARSER.tryParse(value);
             if (result != null) return result;
         }
 
-        List<TokenNumeralParser> tokenParsers = new ArrayList<>();
-        if (enabledTypes.contains(Type.ROMAN)) tokenParsers.add(RomanNumerals.INSTANCE);
-        if (enabledTypes.contains(Type.WORD)) tokenParsers.add(WordNumerals.INSTANCE);
-
-        if (!tokenParsers.isEmpty()) {
+        if (enabledTypes.contains(Type.ROMAN) || enabledTypes.contains(Type.WORD)) {
             var words = WS_SPLIT_PATTERN.splitBy(value);
 
-            for (TokenNumeralParser parser : tokenParsers) {
-                Integer result = parser.tryParse(words);
-                if (result != null) return result;
-            }
+            return Stream.of(Type.ROMAN, Type.WORD)
+                    .filter(enabledTypes::contains)
+                    .map(type -> type == Type.ROMAN ? ROMAN_PARSER : WORD_PARSER)
+                    .map(parser -> parser.tryParse(words))
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid numeral: " + value));
         }
 
         throw new IllegalArgumentException("Invalid numeral: " + value);

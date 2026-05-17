@@ -8,6 +8,7 @@ import com.mirkoddd.sift.core.engine.SiftCompiledPattern;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static com.mirkoddd.sift.core.Sift.*;
 import static com.mirkoddd.sift.core.SiftPatterns.anyOf;
@@ -15,12 +16,11 @@ import static com.mirkoddd.sift.core.SiftPatterns.literal;
 
 /**
  * Handles Roman Numbers using Sift.
+ * Pure stateless parser without enforced Singleton pattern.
  */
 final class RomanNumerals implements TokenNumeralParser {
 
-    static final RomanNumerals INSTANCE = new RomanNumerals();
-
-    private RomanNumerals() {
+    RomanNumerals() {
     }
 
     private enum RomanSymbol {
@@ -88,32 +88,15 @@ final class RomanNumerals implements TokenNumeralParser {
 
     @Override
     public Integer tryParse(List<String> words) {
-        for (var word : words) {
-            try {
-                return parse(word.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException _) {
-                // Ignore and try the next word
-            }
-        }
-        return null;
+        return words.stream()
+                .map(word -> parse(word.toUpperCase(Locale.ROOT)))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
-    /**
-     * Parses a valid Roman numeral string into an integer.
-     *
-     * <p>The parsing is a two-step process:
-     * <ol>
-     * <li>Validates the input against the strict Roman numeral pattern.</li>
-     * <li>Evaluates from right to left: a value is subtracted if it's smaller
-     * than the value on its right, otherwise it is added.</li>
-     * </ol>
-     *
-     * @param value the Roman numeral string to parse
-     * @return the integer value of the numeral
-     * @throws IllegalArgumentException if the input does not match the Roman numeral pattern
-     */
-    static int parse(String value) {
-        if (!FULL_PATTERN.matchesEntire(value)) throw new IllegalArgumentException("Not roman: " + value);
+    static Integer parse(String value) {
+        if (!FULL_PATTERN.matchesEntire(value)) return null;
 
         int total = 0;
         int rightValue = 0;

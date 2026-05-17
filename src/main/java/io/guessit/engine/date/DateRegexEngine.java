@@ -33,8 +33,6 @@ final class DateRegexEngine {
     private static final String GROUP_PART_2 = "p2";
     private static final String GROUP_PART_3 = "p3";
 
-    private static final String[] NUMERIC_GROUPS = {GROUP_PART_1, GROUP_PART_2, GROUP_PART_3};
-
     private static final SiftPattern<Fragment> DATE_SEPARATOR = anyOf(literal("-"), literal("/"), literal("."), literal(" "));
     private static final SiftPattern<Fragment> EXTENDED_SEPARATOR = anyOf(literal("-"), literal("/"), literal("."), literal(" "), literal("x"));
     private static final SiftPattern<Fragment> ORDINAL_SUFFIX = optional().of(anyOf(literal("st"), literal("nd"), literal("rd"), literal("th")));
@@ -101,7 +99,7 @@ final class DateRegexEngine {
                 int endIndex = matcher.end(GROUP_FULL_DATE);
 
                 if (areSeparatorsSurrounding(input, startIndex, endIndex)) {
-                    String[] parts = extractNumericParts(matcher);
+                    List<String> parts = extractParts(matcher, route.shape());
                     String rawDateMatch = matcher.group(GROUP_FULL_DATE);
 
                     candidates.add(new RawDateMatch(startIndex, endIndex, rawDateMatch, parts, route.shape()));
@@ -123,17 +121,16 @@ final class DateRegexEngine {
         return Pattern.compile(withFlags(pattern, SiftGlobalFlag.CASE_INSENSITIVE).shake());
     }
 
-    private static String[] extractNumericParts(Matcher matcher) {
-        List<String> extractedParts = new ArrayList<>();
-        for (String groupName : NUMERIC_GROUPS) {
-            try {
-                String value = matcher.group(groupName);
-                if (value != null) {
-                    extractedParts.add(value);
-                }
-            } catch (IllegalArgumentException _) {}
+    private static List<String> extractParts(Matcher matcher, DateShape shape) {
+        if (shape == DateShape.COMPACT_8_DIGIT || shape == DateShape.COMPACT_6_DIGIT) {
+            return List.of();
         }
-        return extractedParts.toArray(new String[0]);
+
+        return List.of(
+                matcher.group(GROUP_PART_1),
+                matcher.group(GROUP_PART_2),
+                matcher.group(GROUP_PART_3)
+        );
     }
 
     private static boolean areSeparatorsSurrounding(String input, int startIndex, int endIndex) {

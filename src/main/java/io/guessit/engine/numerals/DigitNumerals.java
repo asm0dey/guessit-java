@@ -14,9 +14,7 @@ import static com.mirkoddd.sift.core.SiftPatterns.capture;
  */
 final class DigitNumerals implements RawNumeralParser {
 
-    static final DigitNumerals INSTANCE = new DigitNumerals();
-
-    private DigitNumerals() {
+    DigitNumerals() {
     }
 
     static final SiftPattern<Fragment> PATTERN = between(1, 4).digits();

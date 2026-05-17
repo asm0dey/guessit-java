@@ -1,5 +1,6 @@
 package io.guessit.engine.date;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -32,11 +33,11 @@ final class DateHeuristics {
      * the first component is most often a day (day-first).</li>
      * </ol>
      */
-    static Optional<Boolean> guessDayFirst(String[] parts) {
-        if (parts.length == 0) return Optional.empty();
+    static Optional<Boolean> guessDayFirst(List<String> parts) {
+        if (parts.isEmpty()) return Optional.empty();
 
-        var first = parts[0];
-        var last = parts[parts.length - 1];
+        var first = parts.getFirst();
+        var last = parts.getLast();
 
         if (isInt(first) && first.length() >= 4 && validYear(Integer.parseInt(first.substring(0, 4)))) {
             return Optional.of(false);

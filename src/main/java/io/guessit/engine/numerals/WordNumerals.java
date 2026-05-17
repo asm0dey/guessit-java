@@ -20,9 +20,7 @@ import static com.mirkoddd.sift.core.SiftPatterns.anyOf;
  */
 final class WordNumerals implements TokenNumeralParser {
 
-    static final WordNumerals INSTANCE = new WordNumerals();
-
-    private WordNumerals() {
+    WordNumerals() {
     }
 
     private static final Map<String, Integer> WORD_VALUES = buildWordMap();
