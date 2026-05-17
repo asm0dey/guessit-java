@@ -29,7 +29,6 @@ import static com.mirkoddd.sift.core.SiftPatterns.withFlags;
  */
 public final class EpisodeWordExtractor implements Extractor {
 
-    // --- Constants ---
     public static final String EPISODE = "episode";
     public static final String SEASON = "season";
 
@@ -37,7 +36,6 @@ public final class EpisodeWordExtractor implements Extractor {
     private static final String TAG_SEASON_WORD = "season-word";
     private static final String TAG_EPISODE_WORD = "episode-word";
 
-    // Regex Group Names
     private static final String GRP_COUNT = "count";
     private static final String GRP_SEASON_WORD = "seasonWord";
     private static final String GRP_SEASON_VAL = "seasonVal";
@@ -284,7 +282,6 @@ public final class EpisodeWordExtractor implements Extractor {
 
         String sepToken = tail.group(GRP_OP).strip().toLowerCase(java.util.Locale.ROOT);
 
-        // 1. Trim velocissimo senza Regex
         String op = trimOpJunk(sepToken);
 
         boolean strong = STRONG_OPS.contains(op);
