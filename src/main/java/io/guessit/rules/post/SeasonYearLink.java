@@ -21,6 +21,7 @@ import java.util.Set;
 public final class SeasonYearLink implements PostProcessor {
     private static final int MIN_YEAR = 1900;
     private static final int MAX_YEAR = 2100;
+    private static final String TAG_SEASON_DERIVED = "season-derived";
 
     @Override
     public String description() {
@@ -29,14 +30,33 @@ public final class SeasonYearLink implements PostProcessor {
 
     @Override
     public void process(ParseContext ctx) {
-        if (ctx.matches.named(MatchName.YEAR).findAny().isPresent()) return;
-        var seasons = ctx.matches.named(MatchName.SEASON).toList();
-        for (var s : seasons) {
-            if (!(s.value() instanceof Integer i)) continue;
-            if (i < MIN_YEAR || i > MAX_YEAR) continue;
-            ctx.matches.add(new Match(MatchName.YEAR, i, s.start(), s.end(), s.raw(),
-                s.priority(), Set.of("season-derived"), false));
+        if (ctx.matches.named(MatchName.YEAR).findAny().isPresent()) {
             return;
         }
+
+        ctx.matches.named(MatchName.SEASON)
+                .filter(SeasonYearLink::isValidYearSeason)
+                .findFirst()
+                .ifPresent(s -> promoteToYear(ctx, s));
+    }
+
+    private static boolean isValidYearSeason(Match s) {
+        if (!(s.value() instanceof Integer i)) {
+            return false;
+        }
+        return i >= MIN_YEAR && i <= MAX_YEAR;
+    }
+
+    private static void promoteToYear(ParseContext ctx, Match s) {
+        ctx.matches.add(new Match(
+                MatchName.YEAR,
+                s.value(),
+                s.start(),
+                s.end(),
+                s.raw(),
+                s.priority(),
+                Set.of(TAG_SEASON_DERIVED),
+                false
+        ));
     }
 }

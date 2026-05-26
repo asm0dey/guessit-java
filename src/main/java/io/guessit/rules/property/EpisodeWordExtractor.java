@@ -1,63 +1,171 @@
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import com.mirkoddd.sift.core.NamedCapture;
+import com.mirkoddd.sift.core.Sift;
+import com.mirkoddd.sift.core.SiftGlobalFlag;
+import com.mirkoddd.sift.core.dsl.Fragment;
+import com.mirkoddd.sift.core.dsl.SiftPattern;
+import io.guessit.engine.numerals.Numerals;
 
-import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.mirkoddd.sift.core.Sift.oneOrMore;
+import static com.mirkoddd.sift.core.Sift.zeroOrMore;
+import static com.mirkoddd.sift.core.SiftPatterns.anyOf;
+import static com.mirkoddd.sift.core.SiftPatterns.capture;
+import static com.mirkoddd.sift.core.SiftPatterns.literal;
+import static com.mirkoddd.sift.core.SiftPatterns.withFlags;
+
 /**
  * Extracts {@code season}, {@code episode}, and {@code episode_count} from
  * word forms: "Episode 5", "Season 2", "Ep 12 of 24", "Saison 3", "Capitulo 7".
- *
- * <p>Episode numerals can be parsed as Roman/word numerals only when the
- * caller hinted that the input is an {@code episode} type — in the general
- * case, accepting "Episode V" would conflict with movie titles like "Rocky V".
- * The {@code episode-word} tag distinguishes these matches from the more
- * structured {@code SxxExx} matches; the conflict solver and downstream
- * rules use that distinction.
- *
- * <p>{@link #or} sorts alternation entries longest-first to defeat regex
- * left-to-right alternation greediness — without it "ep" would match before
- * "episode" and the match span would be too short.
  */
 public final class EpisodeWordExtractor implements Extractor {
+
     public static final String EPISODE = "episode";
-    private static final int MAX_RANGE_GAP = 1;
-    private static final List<String> EPISODE_WORDS = List.of(EPISODE, "episodes", "ep", "eps", "episodio", "episodios", "capitulo", "capitulos", "part", "parts", "ch", "chapter", "chapters", "e");
-    /** Episode words that may be matched as a single character — these must be
-     *  followed by digits with NO separator between, otherwise titles with
-     *  trailing latinised vowels ("Fumetsu no Anata e - 03") get clipped. */
-    private static final java.util.Set<String> SHORT_EPISODE_WORDS = java.util.Set.of("e");
     public static final String SEASON = "season";
-    // Mirrors python's `season_words` config — note "serie"/"series" are
-    // intentionally excluded; they're too common in show titles ("Date Series",
-    // "FlexGet Series", "DS9 Series") and python relies on the year/SxxExx
-    // patterns to pick season instead.
+
+    private static final String TYPE_MOVIE = "movie";
+    private static final String TAG_SEASON_WORD = "season-word";
+    private static final String TAG_EPISODE_WORD = "episode-word";
+
+    private static final String GRP_COUNT = "count";
+    private static final String GRP_SEASON_WORD = "seasonWord";
+    private static final String GRP_SEASON_VAL = "seasonVal";
+    private static final String GRP_OP = "op";
+    private static final String GRP_VAL = "val";
+    private static final String GRP_EP_WORD = "epWord";
+    private static final String GRP_EP_VAL = "epVal";
+    private static final String GRP_VERSION = "version";
+
+    private static final int MAX_RANGE_GAP = 1;
+
+    private static final List<String> EPISODE_WORDS = List.of(EPISODE, "episodes", "ep", "eps", "episodio", "episodios", "capitulo", "capitulos", "part", "parts", "ch", "chapter", "chapters", "e");
+    private static final Set<String> SHORT_EPISODE_WORDS = Set.of("e");
     private static final List<String> SEASON_WORDS = List.of(SEASON, "seasons", "saison", "saisons", "seizoen", "temp", "temporada", "temporadas", "staffel", "staffeln", "stagione", "stagioni");
     private static final List<String> OF_WORDS = List.of("of", "sur", "de");
-    private static final String SEASON_WORD_TAG = "season-word";
-    private static final String OF_COUNT_TAIL = ")[ ._-]*(\\d+))?";
 
-    private static final Pattern SEASON_RE = Pattern.compile("(?i)\\b(" + or(SEASON_WORDS) + ")[ ._-]*(" + Numerals.NUMERAL + ")(?:[ ._-]*(?:" + or(OF_WORDS) + OF_COUNT_TAIL);
+    private static final Set<MatchName> BLOCKED_MATCH_TYPES = EnumSet.of(
+            MatchName.SCREEN_SIZE, MatchName.YEAR, MatchName.SOURCE,
+            MatchName.VIDEO_CODEC, MatchName.AUDIO_CODEC,
+            MatchName.VIDEO_PROFILE, MatchName.FRAME_RATE
+    );
+
+    private static final SiftPattern<Fragment> SEP_CHAR = anyOf(literal(" "), literal("."), literal("_"), literal("-"));
+    private static final SiftPattern<Fragment> SEP_OPT = zeroOrMore().of(SEP_CHAR);
+    private static final SiftPattern<Fragment> SEP_REQ = oneOrMore().of(SEP_CHAR);
+
+    private static final NamedCapture COUNT_GROUP = capture(GRP_COUNT, oneOrMore().digits());
+    private static final SiftPattern<Fragment> OF_CLAUSE = Sift.fromAnywhere()
+            .of(SEP_OPT)
+            .followedBy(List.of(buildOrPattern(OF_WORDS), SEP_OPT))
+            .then().namedCapture(COUNT_GROUP);
+
+    private static final NamedCapture SEASON_WORD_GROUP = capture(GRP_SEASON_WORD, buildOrPattern(SEASON_WORDS));
+    private static final NamedCapture SEASON_VAL_GROUP = capture(GRP_SEASON_VAL, Numerals.NUMERAL_PATTERN);
+
+    private static final Pattern SEASON_RE = Pattern.compile(
+            withFlags(Sift.fromWordBoundary()
+                    .then().namedCapture(SEASON_WORD_GROUP)
+                    .then().of(SEP_OPT)
+                    .then().namedCapture(SEASON_VAL_GROUP)
+                    .then().optional().of(OF_CLAUSE), SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
+
+    private static final SiftPattern<Fragment> TAIL_SEP_CHAR = anyOf(literal(" "), literal("."), literal("_"));
+    private static final SiftPattern<Fragment> TAIL_SEP_OPT = Sift.fromAnywhere().zeroOrMore().of(TAIL_SEP_CHAR);
+    private static final SiftPattern<Fragment> TAIL_OPS = anyOf(
+            literal("and"), literal("et"), literal("to"), literal("a"),
+            literal("-"), literal("~"), literal("&"), literal("+")
+    );
+    private static final SiftPattern<Fragment> TAIL_OP_BLOCK = Sift.fromAnywhere()
+            .of(TAIL_SEP_OPT).then().of(TAIL_OPS).then().of(TAIL_SEP_OPT);
+
+    private static final NamedCapture TAIL_OP_GROUP = capture(GRP_OP, anyOf(TAIL_OP_BLOCK, SEP_REQ));
+    private static final NamedCapture TAIL_VAL_GROUP = capture(GRP_VAL, Sift.fromAnywhere().oneOrMore().digits());
+
     private static final Pattern SEASON_TAIL_RE = Pattern.compile(
-        "(?i)([ ._]*(?:and|et|to|a|[-~&+])[ ._]*|[ ._-]+)(\\d+)");
-    private static final Pattern AFTER_OF_RE = Pattern.compile(
-        "(?i)^[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*\\d+");
-    private static final Pattern EP_RE_EPISODE_TYPE = Pattern.compile(
-        "(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
-        + "(" + Numerals.NUMERAL + ")(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + OF_COUNT_TAIL);
-    private static final Pattern EP_RE_DEFAULT = Pattern.compile(
-        "(?i)(?:^|(?<=[^a-zA-Z0-9]))(" + or(EPISODE_WORDS) + ")[ ._-]*"
-        + "(\\d+)(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + OF_COUNT_TAIL);
-    private static final Pattern DETACHED_EP_COUNT_RE = Pattern.compile(
-        "(?i)(\\d+)[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+)"
-        + "(?:[ ._-]*(?:" + or(EPISODE_WORDS) + "))?");
+            withFlags(Sift.fromAnywhere()
+                    .namedCapture(TAIL_OP_GROUP)
+                    .then().namedCapture(TAIL_VAL_GROUP), SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
 
-    @Override public String name() { return "episode_word"; }
+    private static final Pattern AFTER_OF_RE = Pattern.compile(
+            Sift.filteringWith(SiftGlobalFlag.CASE_INSENSITIVE).fromStart()
+                    .of(SEP_OPT).then().of(buildOrPattern(OF_WORDS)).then().of(SEP_OPT).then().oneOrMore().digits()
+                    .shake()
+    );
+
+    private static final NamedCapture EP_WORD_GROUP = capture(GRP_EP_WORD, buildOrPattern(EPISODE_WORDS));
+    private static final NamedCapture EP_VAL_GROUP = capture(GRP_EP_VAL, Numerals.NUMERAL_PATTERN);
+    private static final NamedCapture EP_VAL_DIGITS_GROUP = capture(GRP_EP_VAL, Sift.fromAnywhere().oneOrMore().digits());
+    private static final NamedCapture VERSION_GROUP = capture(GRP_VERSION, Sift.fromAnywhere().oneOrMore().digits());
+
+    private static final SiftPattern<Fragment> VERSION_CLAUSE = Sift.fromAnywhere()
+            .character('v').then().namedCapture(VERSION_GROUP);
+
+    private static final SiftPattern<Fragment> EP_BASE = Sift.fromAnywhere()
+            .namedCapture(EP_WORD_GROUP)
+            .notPrecededBy(Sift.fromAnywhere().exactly(1).alphanumeric())
+            .then().of(SEP_OPT);
+
+    private static final Pattern EP_RE_EPISODE_TYPE = Pattern.compile(
+            withFlags(Sift.fromAnywhere()
+                    .of(EP_BASE)
+                    .then().namedCapture(EP_VAL_GROUP)
+                    .then().optional().of(VERSION_CLAUSE)
+                    .then().optional().of(OF_CLAUSE), SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
+
+    private static final Pattern EP_RE_DEFAULT = Pattern.compile(
+            withFlags(Sift.fromAnywhere()
+                    .of(EP_BASE)
+                    .then().namedCapture(EP_VAL_DIGITS_GROUP)
+                    .then().optional().of(VERSION_CLAUSE)
+                    .then().optional().of(OF_CLAUSE), SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
+
+    private static final NamedCapture DETACHED_EP_GROUP = capture(GRP_EP_VAL, Sift.fromAnywhere().oneOrMore().digits());
+
+    private static final Pattern DETACHED_EP_COUNT_RE = Pattern.compile(
+            withFlags(Sift.fromAnywhere()
+                            .namedCapture(DETACHED_EP_GROUP)
+                            .then().of(SEP_OPT)
+                            .then().of(buildOrPattern(OF_WORDS))
+                            .then().of(SEP_OPT)
+                            .then().namedCapture(COUNT_GROUP)
+                            .then().optional().of(Sift.fromAnywhere().of(SEP_OPT).then().of(buildOrPattern(EPISODE_WORDS))),
+                    SiftGlobalFlag.CASE_INSENSITIVE).shake()
+    );
+
+    private static final Set<String> STRONG_OPS = Set.of("&", "+", "and", "et");
+    private static final Set<String> RANGE_OPS = Set.of("-", "~", "to", "a");
+
+    private static String trimOpJunk(String s) {
+        int start = 0;
+        int end = s.length() - 1;
+
+        while (start <= end && isOpJunk(s.charAt(start))) start++;
+        while (end >= start && isOpJunk(s.charAt(end))) end--;
+
+        return (start > 0 || end < s.length() - 1) ? s.substring(start, end + 1) : s;
+    }
+
+    private static boolean isOpJunk(char c) {
+        return c == '.' || c == ' ' || c == '_';
+    }
+
+    @Override
+    public String name() {
+        return "episode_word";
+    }
 
     @Override
     public String description() {
@@ -66,7 +174,7 @@ public final class EpisodeWordExtractor implements Extractor {
 
     @Override
     public void extract(ParseContext ctx) {
-        if ("movie".equals(ctx.options.type())) return;
+        if (TYPE_MOVIE.equals(ctx.options.type())) return;
 
         extractSeasonMatches(ctx);
         extractEpisodeMatches(ctx);
@@ -112,45 +220,46 @@ public final class EpisodeWordExtractor implements Extractor {
     }
 
     private int addSeasonValue(ParseContext ctx, Matcher seasonMatcher) {
-        int valStart = seasonMatcher.start(2);
-        int valEnd = seasonMatcher.end(2);
-        int n = parseSafe(seasonMatcher.group(2));
+        int valStart = seasonMatcher.start(GRP_SEASON_VAL);
+        int valEnd = seasonMatcher.end(GRP_SEASON_VAL);
+        int n = parseSafe(seasonMatcher.group(GRP_SEASON_VAL));
         if (n < 0) return -1;
 
         ctx.matches.add(new Match(MatchName.SEASON, n, valStart, valEnd,
-                ctx.input.substring(valStart, valEnd), 1000, Set.of(SEASON_WORD_TAG), false));
+                ctx.input.substring(valStart, valEnd), 1000, Set.of(TAG_SEASON_WORD), false));
         return n;
     }
 
     private void addSeasonCount(ParseContext ctx, Matcher seasonMatcher) {
-        if (seasonMatcher.group(3) == null) return;
+        if (seasonMatcher.group(GRP_COUNT) == null) return;
 
-        int countStart = seasonMatcher.start(3);
-        int countEnd = seasonMatcher.end(3);
-        int c = parseSafe(seasonMatcher.group(3));
+        int countStart = seasonMatcher.start(GRP_COUNT);
+        int countEnd = seasonMatcher.end(GRP_COUNT);
+        int c = parseSafe(seasonMatcher.group(GRP_COUNT));
         if (c >= 0) {
             ctx.matches.add(new Match(MatchName.SEASON_COUNT, c, countStart, countEnd,
-                    seasonMatcher.group(3), 1000, Set.of(), false));
+                    seasonMatcher.group(GRP_COUNT), 1000, Set.of(), false));
         }
     }
 
     private void processSeasonTail(ParseContext ctx, Matcher seasonMatcher, int firstSeasonValue) {
         var input = ctx.input;
         var blockSpans = getBlockedSpans(ctx);
-
-        int prevVal = firstSeasonValue;
-        int scanFrom = seasonMatcher.end();
         var tail = SEASON_TAIL_RE.matcher(input);
 
-        while (true) {
-            tail.region(scanFrom, input.length());
-            if (!tail.lookingAt()) break;
+        int prevVal = firstSeasonValue;
 
+        tail.region(seasonMatcher.end(), input.length());
+
+        while (tail.lookingAt()) {
             var tailResult = processSeasonTailMatch(ctx, tail, prevVal, blockSpans);
-            if (!tailResult.isValid) break;
 
-            prevVal = tailResult.value;
-            scanFrom = tail.end();
+            if (!tailResult.isValid()) {
+                return;
+            }
+
+            prevVal = tailResult.value();
+            tail.region(tail.end(), input.length());
         }
     }
 
@@ -162,10 +271,7 @@ public final class EpisodeWordExtractor implements Extractor {
     }
 
     private boolean isBlockedMatchType(MatchName name) {
-        return name == MatchName.SCREEN_SIZE || name == MatchName.YEAR
-                || name == MatchName.SOURCE || name == MatchName.VIDEO_CODEC
-                || name == MatchName.AUDIO_CODEC || name == MatchName.VIDEO_PROFILE
-                || name == MatchName.FRAME_RATE;
+        return BLOCKED_MATCH_TYPES.contains(name);
     }
 
     private record TailResult(boolean isValid, int value) {
@@ -173,16 +279,20 @@ public final class EpisodeWordExtractor implements Extractor {
 
     private TailResult processSeasonTailMatch(ParseContext ctx, Matcher tail,
                                               int prevVal, List<int[]> blockSpans) {
-        String sepToken = tail.group(1).strip().toLowerCase(java.util.Locale.ROOT);
-        String op = sepToken.replaceAll("^[. _]+|[. _]+$", "");
-        boolean strong = op.equals("&") || op.equals("+") || op.equals("and") || op.equals("et");
-        boolean range = op.equals("-") || op.equals("~") || op.equals("to") || op.equals("a");
-        int v = parseSafe(tail.group(2));
+
+        String sepToken = tail.group(GRP_OP).strip().toLowerCase(java.util.Locale.ROOT);
+
+        String op = trimOpJunk(sepToken);
+
+        boolean strong = STRONG_OPS.contains(op);
+        boolean range = RANGE_OPS.contains(op);
+
+        int v = parseSafe(tail.group(GRP_VAL));
 
         if (v < 0 || v <= prevVal) return new TailResult(false, prevVal);
 
-        int tStart = tail.start(2);
-        int tEnd = tail.end(2);
+        int tStart = tail.start(GRP_VAL);
+        int tEnd = tail.end(GRP_VAL);
 
         if (blockSpans.stream().anyMatch(sp -> sp[0] < tEnd && tStart < sp[1])) return new TailResult(false, prevVal);
         if (!strong && !range && v - prevVal > MAX_RANGE_GAP + 1) return new TailResult(false, prevVal);
@@ -193,7 +303,7 @@ public final class EpisodeWordExtractor implements Extractor {
         }
 
         ctx.matches.add(new Match(MatchName.SEASON, v, tStart, tEnd,
-                ctx.input.substring(tStart, tEnd), 1000, Set.of(SEASON_WORD_TAG), false));
+                ctx.input.substring(tStart, tEnd), 1000, Set.of(TAG_SEASON_WORD), false));
 
         return new TailResult(true, v);
     }
@@ -205,14 +315,16 @@ public final class EpisodeWordExtractor implements Extractor {
     private void addRangeSeasons(ParseContext ctx, int prevVal, int v, int tStart) {
         for (int x = prevVal + 1; x < v; x++) {
             ctx.matches.add(new Match(MatchName.SEASON, x, tStart, tStart, "",
-                    1000, Set.of(SEASON_WORD_TAG), false));
+                    1000, Set.of(TAG_SEASON_WORD), false));
         }
     }
 
     private void extractEpisodeMatches(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
-        boolean episodeType = MatchName.EPISODE.toString().toLowerCase().equals(ctx.options.type());
+
+        boolean episodeType = MatchName.EPISODE.name().equalsIgnoreCase(ctx.options.type());
+
         var epMatcher = (episodeType ? EP_RE_EPISODE_TYPE : EP_RE_DEFAULT).matcher(input);
 
         while (epMatcher.find()) {
@@ -239,9 +351,9 @@ public final class EpisodeWordExtractor implements Extractor {
     }
 
     private void handleInvalidEpisodeHead(ParseContext ctx, Matcher epMatcher) {
-        int markerStart = epMatcher.start(1);
-        int markerEnd = epMatcher.end(1);
-        String mw = epMatcher.group(1);
+        int markerStart = epMatcher.start(GRP_EP_WORD);
+        int markerEnd = epMatcher.end(GRP_EP_WORD);
+        String mw = epMatcher.group(GRP_EP_WORD);
 
         if (mw != null && !SHORT_EPISODE_WORDS.contains(mw.toLowerCase())
                 && markerEnd < ctx.input.length()
@@ -252,19 +364,19 @@ public final class EpisodeWordExtractor implements Extractor {
     }
 
     private boolean validateShortEpisodeMarker(Matcher epMatcher) {
-        String marker = epMatcher.group(1);
+        String marker = epMatcher.group(GRP_EP_WORD);
         if (marker != null && SHORT_EPISODE_WORDS.contains(marker.toLowerCase())) {
-            int afterMarker = epMatcher.start(1) + marker.length();
-            return afterMarker == epMatcher.start(2);
+            int afterMarker = epMatcher.start(GRP_EP_WORD) + marker.length();
+            return afterMarker == epMatcher.start(GRP_EP_VAL);
         }
         return true;
     }
 
     private Integer parseEpisodeNumber(Matcher epMatcher,
                                        Predicate<Match> seps, boolean episodeType) {
-        int epStart = epMatcher.start(2);
-        int epEnd = epMatcher.end(2);
-        String epToken = epMatcher.group(2);
+        int epStart = epMatcher.start(GRP_EP_VAL);
+        int epEnd = epMatcher.end(GRP_EP_VAL);
+        String epToken = epMatcher.group(GRP_EP_VAL);
 
         if (episodeType) {
             int ep = parseSafe(epToken);
@@ -283,28 +395,28 @@ public final class EpisodeWordExtractor implements Extractor {
     private void addEpisodeMatches(ParseContext ctx, Matcher epMatcher, Match headMatch, int ep) {
         ctx.matches.add(headMatch);
 
-        int epStart = epMatcher.start(2);
-        int epEnd = epMatcher.end(2);
+        int epStart = epMatcher.start(GRP_EP_VAL);
+        int epEnd = epMatcher.end(GRP_EP_VAL);
         ctx.matches.add(new Match(MatchName.EPISODE, ep, epStart, epEnd,
-                ctx.input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
+                ctx.input.substring(epStart, epEnd), 1000, Set.of(TAG_EPISODE_WORD), false));
 
         addEpisodeVersion(ctx, epMatcher);
         addEpisodeCountFromMatch(ctx, epMatcher);
     }
 
     private void addEpisodeVersion(ParseContext ctx, Matcher epMatcher) {
-        if (epMatcher.group(3) != null) {
-            int v = Integer.parseInt(epMatcher.group(3));
-            ctx.matches.add(new Match(MatchName.VERSION, v, epMatcher.start(3), epMatcher.end(3),
-                    epMatcher.group(3), 1000, Set.of(), false));
+        if (epMatcher.group(GRP_VERSION) != null) {
+            int v = Integer.parseInt(epMatcher.group(GRP_VERSION));
+            ctx.matches.add(new Match(MatchName.VERSION, v, epMatcher.start(GRP_VERSION), epMatcher.end(GRP_VERSION),
+                    epMatcher.group(GRP_VERSION), 1000, Set.of(), false));
         }
     }
 
     private void addEpisodeCountFromMatch(ParseContext ctx, Matcher epMatcher) {
-        if (epMatcher.group(4) != null) {
-            int c = Integer.parseInt(epMatcher.group(4));
-            ctx.matches.add(new Match(MatchName.EPISODE_COUNT, c, epMatcher.start(4), epMatcher.end(4),
-                    epMatcher.group(4), 1000, Set.of(), false));
+        if (epMatcher.group(GRP_COUNT) != null) {
+            int c = Integer.parseInt(epMatcher.group(GRP_COUNT));
+            ctx.matches.add(new Match(MatchName.EPISODE_COUNT, c, epMatcher.start(GRP_COUNT), epMatcher.end(GRP_COUNT),
+                    epMatcher.group(GRP_COUNT), 1000, Set.of(), false));
         }
     }
 
@@ -324,56 +436,53 @@ public final class EpisodeWordExtractor implements Extractor {
         var headMatch = new Match(MatchName.EPISODE, null, dm.start(), dm.end(), raw, 1000, Set.of(), false);
         if (!seps.test(headMatch)) return;
 
-        int dStart = dm.start(1);
-        int dEnd = dm.end(1);
+        int dStart = dm.start(GRP_EP_VAL);
+        int dEnd = dm.end(GRP_EP_VAL);
         boolean overlapsSeason = ctx.matches.range(dStart, dEnd,
-            m -> m.name() == MatchName.SEASON && m.value() != null).findAny().isPresent();
+                m -> m.name() == MatchName.SEASON && m.value() != null).findAny().isPresent();
         if (overlapsSeason) return;
 
-        int e = Integer.parseInt(dm.group(1));
-        int c = Integer.parseInt(dm.group(2));
+        int e = Integer.parseInt(dm.group(GRP_EP_VAL));
+        int c = Integer.parseInt(dm.group(GRP_COUNT));
 
-        ctx.matches.add(new Match(MatchName.EPISODE, e, dm.start(1), dm.end(1),
-            dm.group(1), 1000, Set.of("episode-word"), false));
-        ctx.matches.add(new Match(MatchName.EPISODE_COUNT, c, dm.start(2), dm.end(2),
-            dm.group(2), 1000, Set.of(), false));
+        ctx.matches.add(new Match(MatchName.EPISODE, e, dm.start(GRP_EP_VAL), dm.end(GRP_EP_VAL),
+                dm.group(GRP_EP_VAL), 1000, Set.of(TAG_EPISODE_WORD), false));
+        ctx.matches.add(new Match(MatchName.EPISODE_COUNT, c, dm.start(GRP_COUNT), dm.end(GRP_COUNT),
+                dm.group(GRP_COUNT), 1000, Set.of(), false));
         ctx.matches.add(new Match(MatchName.EP_COUNT_SPAN, null, dm.start(), dm.end(),
-            raw, 1000, Set.of(), true));
+                raw, 1000, Set.of(), true));
     }
 
     @Override
     public void postProcess(ParseContext ctx) {
-        // Conflict resolution can drop the season-VALUE match (e.g. "Series.10"
-        // overlapping a date) while leaving the private head match behind.
-        // Title hole compute treats every match — private or not — as a block,
-        // so an orphan head consumes its span (e.g. "Series" in
-        // "Date.Series.10-11-2008.XViD") and steals title text. Mirror python's
-        // parent/children cascade by dropping heads with no surviving value.
         var heads = ctx.matches.all()
-            .filter(m -> (m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE)
-                && m.value() == null && m.isPrivate())
-            .toList();
+                .filter(m -> (m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE)
+                        && m.value() == null && m.isPrivate())
+                .toList();
         for (var head : heads) {
             boolean hasValue = ctx.matches.range(head.start(), head.end(),
-                m -> m.name() == head.name() && m.value() != null).findAny().isPresent();
+                    m -> m.name() == head.name() && m.value() != null).findAny().isPresent();
             if (!hasValue) ctx.matches.remove(head);
         }
     }
 
     private static int parseSafe(String token) {
-        try { return Numerals.parse(token); }
-        catch (RuntimeException _) { return -1; }
+        try {
+            return Numerals.parse(token);
+        } catch (IllegalArgumentException _) {
+            return -1;
+        }
     }
 
     private static boolean isPureDigits(String s) {
         if (s == null || s.isEmpty()) return false;
-        for (int i = 0; i < s.length(); i++) if (!Character.isDigit(s.charAt(i))) return false;
-        return true;
+        return s.chars().allMatch(Character::isDigit);
     }
 
-    private static String or(List<String> items) {
-        var sorted = new ArrayList<>(items);
-        sorted.sort((a, b) -> Integer.compare(b.length(), a.length()));
-        return String.join("|", sorted);
+    private static SiftPattern<Fragment> buildOrPattern(List<String> words) {
+        return anyOf(words.stream()
+                .sorted(Comparator.comparingInt(String::length).reversed())
+                .map(com.mirkoddd.sift.core.SiftPatterns::literal)
+                .toList());
     }
 }

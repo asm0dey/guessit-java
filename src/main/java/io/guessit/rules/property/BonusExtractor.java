@@ -1,9 +1,14 @@
 package io.guessit.rules.property;
 
+import com.mirkoddd.sift.core.SiftGlobalFlag;
 import io.guessit.engine.*;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static com.mirkoddd.sift.core.Sift.*;
+import static com.mirkoddd.sift.core.SiftPatterns.*;
 
 /**
  * Detects bonus feature numbers from {@code x\d+} patterns, e.g. {@code x05}.
@@ -16,10 +21,25 @@ import java.util.regex.Pattern;
  * same filepart marker after the bonus match.
  */
 public final class BonusExtractor implements Extractor {
-    // Matches "x" followed by digits; case-insensitive so "X05" also works.
-    private static final Pattern P = Pattern.compile("(?i)x(?<n>\\d+)");
 
-    @Override public String name() { return "bonus"; }
+    public static final String WEAK_EPISODE = "weak-episode";
+    private static final String GRP_NAME = "name";
+    private static final String MARKER_PATH = "path";
+    private static final Pattern P = buildPattern();
+
+    private static Pattern buildPattern() {
+        var sift = filteringWith(SiftGlobalFlag.CASE_INSENSITIVE)
+                .fromAnywhere()
+                .exactly(1).character('x')
+                .then().namedCapture(capture(GRP_NAME, oneOrMore().digits()));
+
+        return Pattern.compile(sift.shake());
+    }
+
+    @Override
+    public String name() {
+        return "bonus";
+    }
 
     @Override
     public String description() {
@@ -31,64 +51,69 @@ public final class BonusExtractor implements Extractor {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
         var m = P.matcher(input);
+
+        var potentialConflicts = ctx.matches.snapshot().stream()
+                .filter(x -> x.name() == MatchName.VIDEO_CODEC ||
+                        (x.name() == MatchName.EPISODE && !x.tags().contains(WEAK_EPISODE)))
+                .toList();
+
         while (m.find()) {
-            // Use the full match span for separator-surround check.
             var head = new Match(MatchName.BONUS, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
-            if (!seps.test(head)) continue;
 
-            // Skip if any video_codec or strong episode overlaps this span.
-            boolean conflict = ctx.matches.snapshot().stream().anyMatch(x ->
-                (x.name() == MatchName.VIDEO_CODEC ||
-                 (x.name() == MatchName.EPISODE && !x.tags().contains("weak-episode")))
-                && x.start() < m.end() && x.end() > m.start());
-            if (conflict) continue;
+            boolean hasConflict = potentialConflicts.stream()
+                    .anyMatch(x -> x.start() < m.end() && x.end() > m.start());
 
-            // Span covers the full "xNN" so the leading 'x' doesn't leak into
-            // the surrounding title hole.
-            ctx.matches.add(new Match(MatchName.BONUS, Integer.parseInt(m.group("n")),
-                m.start(), m.end(), m.group(), priority(), Set.of(), false));
+            if (seps.test(head) && !hasConflict) {
+                ctx.matches.add(new Match(MatchName.BONUS, Integer.parseInt(m.group(GRP_NAME)),
+                        m.start(), m.end(), m.group(), priority(), Set.of(), false));
+            }
         }
     }
 
     @Override
     public void postProcess(ParseContext ctx) {
         var bonusMatches = ctx.matches.named(MatchName.BONUS).toList();
-        if (bonusMatches.isEmpty()) return;
-        if (ctx.matches.named(MatchName.BONUS_TITLE).findAny().isPresent()) return;
 
-        for (var bonus : bonusMatches) {
-            // Find the filepart (path marker) that contains this bonus match.
-            var fpOpt = ctx.markers.stream()
-                .filter(mk -> mk.name().equals("path") && mk.covers(bonus.start(), bonus.end()))
-                .findFirst();
-            if (fpOpt.isEmpty()) continue;
-            var fp = fpOpt.get();
-
-            // Look for trailing hole after the bonus match within the filepart.
-            // Ignore private matches and weak-episode candidates: weak episodes
-            // (e.g. "60" right after "x02") would otherwise carve the leading
-            // numeric out of the bonus_title; WeakEpisodeExtractor.postProcess
-            // hasn't dropped them yet at this point and they won't survive.
-            var holes = Holes.compute(
-                ctx.input,
-                bonus.end(),
-                fp.end(),
-                ctx.matches.snapshot(),
-                m -> m.isPrivate() || m.tags().contains("weak-episode"),
-                null,               // no sep splitting — keep continuous text
-                Formatters::cleanup
-            );
-
-            if (holes.isEmpty()) continue;
-
-            // Use the first (and usually only) trailing hole as bonus_title.
-            var hole = holes.getFirst();
-            var title = hole.value();
-            if (title == null || title.isBlank()) continue;
-
-            ctx.matches.add(new Match(MatchName.BONUS_TITLE, title,
-                hole.start, hole.end, hole.raw(), priority(), Set.of(), false));
-            break; // one bonus_title per parse
+        if (bonusMatches.isEmpty() || ctx.matches.named(MatchName.BONUS_TITLE).findAny().isPresent()) {
+            return;
         }
+
+        bonusMatches.stream()
+                .map(bonus -> extractBonusTitle(ctx, bonus))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst()
+                .ifPresent(ctx.matches::add);
+    }
+
+    private Optional<Match> extractBonusTitle(ParseContext ctx, Match bonus) {
+        return ctx.markers.stream()
+                .filter(mk -> mk.name().equals(MARKER_PATH) && mk.covers(bonus.start(), bonus.end()))
+                .findFirst()
+                .flatMap(fp -> {
+                    var holes = Holes.compute(
+                            ctx.input,
+                            bonus.end(),
+                            fp.end(),
+                            ctx.matches.snapshot(),
+                            m -> m.isPrivate() || m.tags().contains(WEAK_EPISODE),
+                            null,
+                            Formatters::cleanup
+                    );
+
+                    if (holes.isEmpty()) {
+                        return Optional.empty();
+                    }
+
+                    var hole = holes.getFirst();
+                    var title = hole.value();
+
+                    if (title == null || title.isBlank()) {
+                        return Optional.empty();
+                    }
+
+                    return Optional.of(new Match(MatchName.BONUS_TITLE, title,
+                            hole.start, hole.end, hole.raw(), priority(), Set.of(), false));
+                });
     }
 }

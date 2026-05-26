@@ -1,14 +1,15 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.Extractor;
-import io.guessit.engine.Match;
-import io.guessit.engine.MatchName;
-import io.guessit.engine.ParseContext;
-import io.guessit.engine.Validators;
+import com.mirkoddd.sift.core.SiftGlobalFlag;
+import io.guessit.engine.*;
 
-import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static com.mirkoddd.sift.core.Sift.*;
+import static com.mirkoddd.sift.core.SiftPatterns.*;
 
 /**
  * Extracts {@code disc} (multi-disc release indices: "Disc 1", "DVD 2",
@@ -21,9 +22,41 @@ import java.util.regex.Pattern;
  * place rather than scattered across the season/episode extractor.
  */
 public final class DiscRule implements Extractor {
-    private static final Pattern PATTERN = Pattern.compile("(?i)\\b(?:disc|dvd|vcd|bd|brd|bluray)[ ._-]*(\\d+)\\b");
 
-    @Override public String name() { return "disc"; }
+    public static final String EXTRACTOR_NAME = "disc";
+    public static final String TAG_DISC_MARKER = "disc-marker";
+
+    private static final int PRIORITY = 1000;
+    private static final String GRP_VAL = "val";
+
+    private static final Pattern PATTERN = buildDiscPattern();
+
+    private static Pattern buildDiscPattern() {
+        var prefixes = anyOf(
+                literal("disc"),
+                literal("dvd"),
+                literal("vcd"),
+                literal("bd"),
+                literal("brd"),
+                literal("bluray")
+        );
+
+        var separatorChars = anyOf(literal(" "), literal("."), literal("_"), literal("-"));
+        var separators = zeroOrMore().of(separatorChars);
+
+        var sift = filteringWith(SiftGlobalFlag.CASE_INSENSITIVE)
+                .fromWordBoundary()
+                .followedBy(List.of(prefixes, separators))
+                .then().namedCapture(capture(GRP_VAL, oneOrMore().digits()))
+                .wordBoundary();
+
+        return Pattern.compile(sift.shake());
+    }
+
+    @Override
+    public String name() {
+        return EXTRACTOR_NAME;
+    }
 
     @Override
     public String description() {
@@ -35,12 +68,15 @@ public final class DiscRule implements Extractor {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
         var m = PATTERN.matcher(input);
+
         while (m.find()) {
-            var head = new Match(MatchName.DISC, null, m.start(), m.end(), m.group(), 1000, Set.of(), false);
-            if (!seps.test(head)) continue;
-            int v = Integer.parseInt(m.group(1));
-            ctx.matches.add(new Match(MatchName.DISC, v, m.start(1), m.end(1),
-                m.group(1), 1000, Set.of(), false));
+            var head = new Match(MatchName.DISC, null, m.start(), m.end(), m.group(), PRIORITY, Set.of(), false);
+
+            if (seps.test(head)) {
+                int v = Integer.parseInt(m.group(GRP_VAL));
+                ctx.matches.add(new Match(MatchName.DISC, v, m.start(GRP_VAL), m.end(GRP_VAL),
+                        m.group(GRP_VAL), PRIORITY, Set.of(), false));
+            }
         }
     }
 
@@ -48,16 +84,20 @@ public final class DiscRule implements Extractor {
     @Override
     public void postProcess(ParseContext ctx) {
         var marked = ctx.matches.named(MatchName.EPISODE)
-            .filter(m -> m.tags().contains("disc-marker"))
-            .toList();
+                .filter(m -> m.tags().contains(TAG_DISC_MARKER))
+                .toList();
+
         if (marked.isEmpty()) return;
-        var renamed = new ArrayList<Match>();
-        for (var m : marked) {
-            var newTags = new java.util.HashSet<>(m.tags());
-            newTags.remove("disc-marker");
-            renamed.add(new Match(MatchName.DISC, m.value(), m.start(), m.end(), m.raw(), m.priority(), newTags, m.isPrivate()));
-        }
-        for (var m : marked) ctx.matches.remove(m);
-        for (var m : renamed) ctx.matches.add(m);
+
+        var renamed = marked.stream()
+                .map(m -> {
+                    var newTags = new HashSet<>(m.tags());
+                    newTags.remove(TAG_DISC_MARKER);
+                    return new Match(MatchName.DISC, m.value(), m.start(), m.end(), m.raw(), m.priority(), newTags, m.isPrivate());
+                })
+                .toList();
+
+        marked.forEach(ctx.matches::remove);
+        renamed.forEach(ctx.matches::add);
     }
 }

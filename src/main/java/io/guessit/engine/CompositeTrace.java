@@ -21,7 +21,7 @@ public final class CompositeTrace implements Trace {
 
     private void forEach(Consumer<Trace> action) {
         for (var s : sinks) {
-            try { action.accept(s); } catch (RuntimeException ignored) { /* best-effort */ }
+            try { action.accept(s); } catch (RuntimeException _) { /* best-effort */ }
         }
     }
 

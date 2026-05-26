@@ -10,6 +10,9 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static com.mirkoddd.sift.core.Sift.*;
+import static com.mirkoddd.sift.core.SiftPatterns.*;
+
 /**
  * Expands bare episode ranges like {@code 16-20} into the full sequence
  * {@code [16, 17, 18, 19, 20]}.
@@ -43,8 +46,43 @@ public final class EpisodeNumberSeparatorRange implements PostProcessor {
      * separator characters (_ . space), followed by an integer.
      * Group 1 = the integer digits.
      */
-    private static final Pattern RANGE_THEN_NUM = Pattern.compile(
-        "(?i)[\\s._]*[-~][\\s._]*(\\d+)|[\\s._]+to[\\s._]+(\\d+)");
+
+    private static final Pattern RANGE_THEN_NUM = buildRangePattern();
+    private static final String NUM_GROUP = "num";
+
+    private static Pattern buildRangePattern() {
+        var fillingSeparator = anyOf(
+                exactly(1).whitespace(),
+                exactly(1).character('.'),
+                exactly(1).character('_')
+        );
+
+        var intervalSeparator = anyOf(
+                exactly(1).character('-'),
+                exactly(1).character('~')
+        );
+
+        var dashBranch = fromAnywhere()
+                .zeroOrMore().of(fillingSeparator)
+                .followedBy(intervalSeparator)
+                .then().zeroOrMore().of(fillingSeparator);
+
+        var toBranch = fromAnywhere()
+                .oneOrMore().of(fillingSeparator)
+                .followedBy(literal("to"))
+                .then().oneOrMore().of(fillingSeparator);
+
+        var separatorAlt = anyOf(dashBranch, toBranch);
+
+        var numCapture = capture(NUM_GROUP, oneOrMore().digits());
+
+        var pattern = fromAnywhere()
+                .of(separatorAlt)
+                .then().namedCapture(numCapture);
+
+        return Pattern.compile(pattern.shake(), Pattern.CASE_INSENSITIVE);
+    }
+
     public static final MatchName EPISODE = MatchName.EPISODE;
     private static final String RANGE_FILL = "range-fill";
 

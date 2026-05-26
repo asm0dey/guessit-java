@@ -4,7 +4,6 @@ import io.guessit.engine.*;
 
 import static io.guessit.rules.property.ConfigPatternHelpers.*;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -75,16 +74,17 @@ public final class EditionExtractor implements Extractor {
     private static void handleMultiValueSpec(ParseContext ctx, String input, Map<?, ?> m, List<?> multiValues) {
         var tags = parseTags(m.get("tags"));
         Object regexList = m.get("regex");
-        for (var val : multiValues) {
-            var v = val.toString();
-            emitRegexPatterns(ctx, input, v, regexList, tags);
-        }
+
+        multiValues.stream()
+                .map(Object::toString)
+                .forEach(v -> emitRegexPatterns(ctx, input, v, regexList, tags));
     }
 
     private static String determineEditionValue(String key, Object valueOverride) {
-        String editionValue = key.startsWith("_") ? null : key;
-        if (valueOverride instanceof String s) editionValue = s;
-        return editionValue;
+        if (valueOverride instanceof String s) {
+            return s;
+        }
+        return key.startsWith("_") ? null : key;
     }
 
     private static void emitPatterns(ParseContext ctx, String input, String editionValue,
@@ -100,18 +100,16 @@ public final class EditionExtractor implements Extractor {
     }
 
     private static void emitRegex(ParseContext ctx, String input, String value, String src,
-                                   Object validatorSrc, Set<String> tags) {
+                                  Object validatorSrc, Set<String> tags) {
         var p = compileDashedCi(src);
         if (p == null) return;
+
         var validator = resolveValidator(input, validatorSrc);
-        var matcher = p.matcher(input);
-        while (matcher.find()) {
-            int s = matcher.start();
-            int e = matcher.end();
-            var m = createMatch(MatchName.EDITION, input, value, tags, s, e);
-            if (!validator.test(m)) continue;
-            ctx.matches.add(m);
-        }
+
+        p.matcher(input).results()
+                .map(res -> createMatch(MatchName.EDITION, input, value, tags, res.start(), res.end()))
+                .filter(validator)
+                .forEach(ctx.matches::add);
     }
 
     @Override
@@ -126,35 +124,27 @@ public final class EditionExtractor implements Extractor {
     private static void dropOverlappingStreamingService(ParseContext ctx) {
         var services = ctx.matches.named(MatchName.STREAMING_SERVICE).toList();
         if (services.isEmpty()) return;
-        var input = ctx.input;
-        var toRemove = new ArrayList<Match>();
-        for (var ed : ctx.matches.named(MatchName.EDITION).toList()) {
-            for (var svc : services) {
-                if (svc.start() != ed.start() || svc.end() != ed.end()) continue;
-                if (!streamingServiceWillSurvive(ctx, input, svc)) continue;
-                toRemove.add(ed);
-                break;
-            }
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
+
+        var toRemove = ctx.matches.named(MatchName.EDITION)
+                .filter(ed -> services.stream()
+                        .anyMatch(svc -> isExactOverlap(svc, ed) && streamingServiceWillSurvive(ctx, ctx.input, svc)))
+                .toList();
+
+        toRemove.forEach(ctx.matches::remove);
     }
 
-    /**
-     * Mirror of {@link StreamingServiceExtractor}'s post-pass: a streaming-service
-     * match survives only when an adjacent source (suffix) or other (prefix)
-     * neighbour with the right tag is separated by sep chars. We replicate the
-     * check here because the edition pass runs before the streaming-service
-     * pass — without it we would drop a CC-edition match in standalone "CC"
-     * input where the streaming-service ends up dropped too.
-     */
+    private static boolean isExactOverlap(Match m1, Match m2) {
+        return m1.start() == m2.start() && m1.end() == m2.end();
+    }
+
     private static boolean streamingServiceWillSurvive(ParseContext ctx, String input, Match s) {
         return ctx.matches.all()
-            .filter(m -> !m.isPrivate())
-            .filter(m -> m.tags().contains("streaming_service.suffix"))
-            .filter(m -> m.start() >= s.end())
-            .min(Comparator.comparingInt(Match::start))
-            .map(n -> Seps.betweenIsSeps(input, s.end(), n.start())
-                    && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1))))
-            .orElse(false);
+                .filter(m -> !m.isPrivate())
+                .filter(m -> m.tags().contains("streaming_service.suffix"))
+                .filter(m -> m.start() >= s.end())
+                .min(Comparator.comparingInt(Match::start))
+                .map(n -> Seps.betweenIsSeps(input, s.end(), n.start())
+                        && (s.start() == 0 || Seps.isSep(input.charAt(s.start() - 1))))
+                .orElse(false);
     }
 }

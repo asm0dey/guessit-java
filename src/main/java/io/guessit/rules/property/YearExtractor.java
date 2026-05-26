@@ -2,8 +2,12 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static com.mirkoddd.sift.core.Sift.exactly;
 
 /**
  * Extracts release {@code year} as a 4-digit integer in [1920, 2030).
@@ -15,7 +19,8 @@ import java.util.regex.Pattern;
  * depends on which other markers (groups) survived.
  */
 public final class YearExtractor implements Extractor {
-    private static final Pattern PATTERN = Pattern.compile("\\d{4}");
+
+    private static final Pattern PATTERN = Pattern.compile(exactly(4).digits().shake());
 
     @Override
     public String name() {
@@ -37,83 +42,59 @@ public final class YearExtractor implements Extractor {
                     int v = (Integer) m.value();
                     return 1920 <= v && v < 2030;
                 });
-        for (var match : PatternMatcher.regex(input, PATTERN, MatchName.YEAR, opts, ctx.trace)) {
-            ctx.matches.add(match);
-        }
+
+        PatternMatcher.regex(input, PATTERN, MatchName.YEAR, opts, ctx.trace)
+                .forEach(ctx.matches::add);
     }
 
-    /**
-     * Replicates Python rules/properties/date.py:KeepMarkedYearInFilepart.
-     *
-     * <p>Per filepart, partition surviving year matches by whether they sit
-     * inside a bracketed group:
-     * <ul>
-     *   <li>If both grouped and ungrouped years exist → drop all ungrouped
-     *       (the releaser's explicit grouping wins) and keep only the first
-     *       grouped year.</li>
-     *   <li>If only ungrouped years exist and there are more than two → keep
-     *       the first two and drop the rest. Two is the empirical guessit
-     *       cap; more than that is almost always noise.</li>
-     * </ul>
-     */
     @Override
     public void postProcess(ParseContext ctx) {
         var years = ctx.matches.named(MatchName.YEAR).toList();
         if (years.size() <= 1) return;
-        var toRemove = collectYearsToRemove(ctx, years);
-        for (var m : toRemove) ctx.matches.remove(m);
-        dropWeakDupsInsideRemoved(ctx, toRemove);
+
+        var fileParts = Markers.named(ctx.markers, WeakExtractorCommon.MARKER_PATH).toList();
+
+        var toRemove = fileParts.stream()
+                .flatMap(fp -> {
+                    var inPart = years.stream().filter(y -> fp.covers(y.start(), y.end())).toList();
+                    return inPart.size() <= 1 ? Stream.empty() : determineRemovals(ctx, inPart).stream();
+                })
+                .toList();
+
+        WeakExtractorCommon.removeMatches(ctx, toRemove.stream());
+        dropWeakDuplicatesInsideRemoved(ctx, toRemove);
     }
 
-    private static java.util.List<Match> collectYearsToRemove(ParseContext ctx, java.util.List<Match> years) {
-        var toRemove = new ArrayList<Match>();
-        for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
-            var inPart = years.stream()
-                    .filter(y -> filepart.covers(y.start(), y.end()))
-                    .toList();
-            if (inPart.size() <= 1) continue;
-            partitionAndCollect(ctx, inPart, toRemove);
-        }
-        return toRemove;
-    }
+    private static List<Match> determineRemovals(ParseContext ctx, List<Match> inPart) {
+        var partitions = inPart.stream().collect(Collectors.partitioningBy(y ->
+                ctx.markers.stream().anyMatch(mk ->
+                        WeakExtractorCommon.MARKER_GROUP.equals(mk.name()) && mk.covers(y.start(), y.end()))
+        ));
 
-    private static void partitionAndCollect(ParseContext ctx, java.util.List<Match> inPart, java.util.List<Match> toRemove) {
-        var grouped = new ArrayList<Match>();
-        var ungrouped = new ArrayList<Match>();
-        for (var y : inPart) {
-            boolean inGroup = ctx.markers.stream()
-                    .anyMatch(mk -> "group".equals(mk.name()) && mk.covers(y.start(), y.end()));
-            (inGroup ? grouped : ungrouped).add(y);
-        }
+        var grouped = partitions.get(true);
+        var ungrouped = partitions.get(false);
+
         if (!grouped.isEmpty() && !ungrouped.isEmpty()) {
-            toRemove.addAll(ungrouped);
-            if (grouped.size() > 1) toRemove.addAll(grouped.subList(1, grouped.size()));
-        } else if (grouped.isEmpty()) {
-            // Drop the FIRST ungrouped year so it can fall into the title hole;
-            // the second year is the actual release year. Mirrors python
-            // KeepMarkedYearInFilepart: "Keep first year for title".
-            toRemove.add(ungrouped.getFirst());
-            if (ungrouped.size() > 2) toRemove.addAll(ungrouped.subList(2, ungrouped.size()));
+            return Stream.concat(
+                    ungrouped.stream(),
+                    grouped.stream().skip(1)
+            ).toList();
+        } else if (grouped.isEmpty() && !ungrouped.isEmpty()) {
+            return Stream.concat(
+                    Stream.of(ungrouped.getFirst()),
+                    ungrouped.stream().skip(2)
+            ).toList();
         }
+
+        return List.of();
     }
 
-    /**
-     * After dropping a leading year, also kill any weak-duplicate
-     * season/episode matches that landed inside that year's 4-digit span.
-     * WeakDuplicateExtractor's post-pass runs after us and uses the
-     * current year set as a guard; once year[0] is gone its NN/NN split
-     * is no longer protected, and "2012.2009..." would parse as
-     * season=20/episode=12.
-     */
-    private static void dropWeakDupsInsideRemoved(ParseContext ctx, java.util.List<Match> toRemove) {
-        for (var dropped : toRemove) {
-            var weakDups = ctx.matches.all()
-                    .filter(m -> m.tags().contains("weak-duplicate"))
-                    .filter(m -> m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE)
-                    .filter(dropped::overlaps)
-                    .toList();
-            for (var m : weakDups) ctx.matches.remove(m);
-        }
+    private static void dropWeakDuplicatesInsideRemoved(ParseContext ctx, List<Match> toRemove) {
+        var weakDuplicates = ctx.matches.all()
+                .filter(m -> m.tags().contains(WeakExtractorCommon.WEAK_DUPLICATE))
+                .filter(m -> m.name() == MatchName.SEASON || m.name() == MatchName.EPISODE)
+                .filter(m -> toRemove.stream().anyMatch(dropped -> dropped.overlaps(m)));
+
+        WeakExtractorCommon.removeMatches(ctx, weakDuplicates);
     }
 }

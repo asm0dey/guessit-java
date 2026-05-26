@@ -1,9 +1,14 @@
 package io.guessit.rules.property;
 
+import com.mirkoddd.sift.core.SiftGlobalFlag;
 import io.guessit.engine.*;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import static com.mirkoddd.sift.core.Sift.*;
+import static com.mirkoddd.sift.core.SiftPatterns.*;
 
 /**
  * Detects film numbers from {@code f\d{1,2}} patterns, e.g. {@code f01}.
@@ -15,9 +20,25 @@ import java.util.regex.Pattern;
  * filepart marker before the film match.
  */
 public final class FilmExtractor implements Extractor {
-    private static final Pattern P = Pattern.compile("(?i)f(?<n>\\d{1,2})");
 
-    @Override public String name() { return MatchName.FILM.toString().toLowerCase(); }
+    public static final String EXTRACTOR_NAME = "film";
+    private static final String GRP_N = "n";
+    private static final String MARKER_PATH = "path";
+
+    private static final Pattern PATTERN = buildPattern();
+
+    private static Pattern buildPattern() {
+        var sift = filteringWith(SiftGlobalFlag.CASE_INSENSITIVE)
+                .fromAnywhere().character('f')
+                .then().namedCapture(capture(GRP_N, between(1, 2).digits()));
+
+        return Pattern.compile(sift.shake());
+    }
+
+    @Override
+    public String name() {
+        return EXTRACTOR_NAME;
+    }
 
     @Override
     public String description() {
@@ -28,55 +49,60 @@ public final class FilmExtractor implements Extractor {
     public void extract(ParseContext ctx) {
         var input = ctx.input;
         var seps = Validators.sepsSurround(input);
-        var m = P.matcher(input);
-        while (m.find()) {
-            // Use the full match span for separator-surround check.
-            var head = new Match(MatchName.FILM, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
-            if (!seps.test(head)) continue;
+        var m = PATTERN.matcher(input);
 
-            // Span covers the full "fNN" so the leading 'f' doesn't leak into
-            // the surrounding title hole.
-            ctx.matches.add(new Match(MatchName.FILM, Integer.parseInt(m.group("n")),
-                m.start(), m.end(), m.group(), priority(), Set.of(), false));
+        while (m.find()) {
+            var head = new Match(MatchName.FILM, null, m.start(), m.end(), m.group(), priority(), Set.of(), false);
+
+            if (seps.test(head)) {
+                int v = Integer.parseInt(m.group(GRP_N));
+                ctx.matches.add(new Match(MatchName.FILM, v,
+                        m.start(), m.end(), m.group(), priority(), Set.of(), false));
+            }
         }
     }
 
     @Override
     public void postProcess(ParseContext ctx) {
-        var film = ctx.matches.named(MatchName.FILM)
-            .filter(x -> !x.isPrivate())
-            .findFirst().orElse(null);
-        if (film == null) return;
-        if (ctx.matches.named(MatchName.FILM_TITLE).findAny().isPresent()) return;
+        if (ctx.matches.named(MatchName.FILM_TITLE).findAny().isPresent()) {
+            return;
+        }
 
-        // Find the filepart (path marker) that contains this film match.
-        var fpOpt = ctx.markers.stream()
-            .filter(mk -> mk.name().equals("path") && mk.covers(film.start(), film.end()))
-            .findFirst();
-        if (fpOpt.isEmpty()) return;
-        var fp = fpOpt.get();
+        ctx.matches.named(MatchName.FILM)
+                .filter(x -> !x.isPrivate())
+                .findFirst()
+                .flatMap(film -> extractFilmTitle(ctx, film))
+                .ifPresent(ctx.matches::add);
+    }
 
-        // Leading hole: text before the film match within the filepart. The
-        // match span now includes the 'f' prefix, so use film.start() directly.
-        int filmTokenStart = film.start();
+    private Optional<Match> extractFilmTitle(ParseContext ctx, Match film) {
+        return ctx.markers.stream()
+                .filter(mk -> mk.name().equals(MARKER_PATH) && mk.covers(film.start(), film.end()))
+                .findFirst()
+                .flatMap(fp -> {
+                    var holes = Holes.compute(
+                            ctx.input,
+                            fp.start(),
+                            film.start(),
+                            ctx.matches.snapshot(),
+                            Match::isPrivate,
+                            null,
+                            Formatters::cleanup
+                    );
 
-        var holes = Holes.compute(
-            ctx.input,
-            fp.start(),
-            filmTokenStart,
-            ctx.matches.snapshot(),
-            Match::isPrivate,   // ignore private matches
-            null,               // no sep splitting — keep continuous text together
-            Formatters::cleanup
-        );
+                    if (holes.isEmpty()) {
+                        return Optional.empty();
+                    }
 
-        if (holes.isEmpty()) return;
+                    var hole = holes.getFirst();
+                    var title = hole.value();
 
-        var hole = holes.getFirst();
-        var title = hole.value();
-        if (title == null || title.isBlank()) return;
+                    if (title == null || title.isBlank()) {
+                        return Optional.empty();
+                    }
 
-        ctx.matches.add(new Match(MatchName.FILM_TITLE, title,
-            hole.start, hole.end, hole.raw(), priority(), Set.of(), false));
+                    return Optional.of(new Match(MatchName.FILM_TITLE, title,
+                            hole.start, hole.end, hole.raw(), priority(), Set.of(), false));
+                });
     }
 }

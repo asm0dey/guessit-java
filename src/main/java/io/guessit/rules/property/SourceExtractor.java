@@ -2,35 +2,21 @@ package io.guessit.rules.property;
 
 import io.guessit.engine.*;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
-/**
- * Extracts {@code source} (BluRay, WEB-DL, HDTV, DVD, …).
- *
- * <p>Each row in {@link #buildRules} is a {@link Rule}: a list of base
- * patterns, optional rip-prefix/suffix that may carry an {@code other=Rip}
- * companion match, the canonical source value, and the optional secondary
- * value emitted from the {@code (?<another>...)} capture (e.g. "Remux"
- * piggy-backed onto a BluRay match).
- *
- * <p>The rule table is the source of truth for parity with Python
- * {@code guessit.rules.properties.source}; per-rule emission is centralised
- * in {@link #apply} so the table stays declarative.
- */
+import static com.mirkoddd.sift.core.Sift.fromAnywhere;
+import static com.mirkoddd.sift.core.Sift.optional;
+import static com.mirkoddd.sift.core.SiftPatterns.capture;
+import static com.mirkoddd.sift.core.SiftPatterns.literal;
+
 public final class SourceExtractor implements Extractor {
 
-    public static final String SOURCE = "source";
-    public static final String OTHER = "other";
-    private static final String BLU_RAY = "Blu-ray";
+    private static final String SOURCE = "source";
+    private static final String OTHER = "other";
+    public static final String BLU_RAY = "Blu-ray";
 
     @Override
     public String name() {
@@ -42,139 +28,54 @@ public final class SourceExtractor implements Extractor {
         return "source / medium (BluRay, WEB-DL, HDTV, DVD, …)";
     }
 
-    /**
-     * One row of the source rule table.
-     *
-     * @param patterns     base alternation entries (will be wrapped with prefix/suffix)
-     * @param prefix       optional regex prefix (e.g. rip prefix capturing {@code Rip})
-     * @param suffix       optional regex suffix (analogous)
-     * @param source       canonical {@code source} value emitted on the main span
-     * @param otherValue   when set, value to emit as a sibling {@code other} match
-     *                     pulled from the {@code (?<other>...)} capture
-     * @param anotherValue when set, value to emit as a sibling {@code other} match
-     *                     pulled from the {@code (?<another>...)} capture
-     * @param tags         tags applied to every emitted match for this rule
-     * @param weak         marks the rule as a weak candidate (yields to overlap losers)
-     */
-    private record Rule(List<String> patterns, String prefix, String suffix, String source,
-                        String otherValue, String anotherValue, Set<String> tags, boolean weak) {
-    }
-
     @Override
     public void extract(ParseContext ctx) {
         var section = ctx.config.section(SOURCE);
-        var ripPrefix = String.valueOf(section.getOrDefault("rip_prefix", "(?<other>Rip)-?"));
-        var ripSuffix = String.valueOf(section.getOrDefault("rip_suffix", "-?(?<other>Rip)"));
+
+        var otherCapture = capture(OTHER, literal("Rip"));
+        var optionalDash = optional().character('-');
+        var s1 = fromAnywhere().namedCapture(otherCapture).followedBy(optionalDash);
+        var s2 = fromAnywhere().of(optionalDash).then().namedCapture(otherCapture);
+
+        var ripPrefix = String.valueOf(section.getOrDefault("rip_prefix", s1.shake()));
+        var ripSuffix = String.valueOf(section.getOrDefault("rip_suffix", s2.shake()));
         var optRipSuffix = "(?:" + ripSuffix + ")?";
 
-        var rules = buildRules(ripPrefix, ripSuffix, optRipSuffix);
+        var rules = SourceRuleRegistry.buildRules(ripPrefix, ripSuffix, optRipSuffix);
 
         for (var rule : rules) {
-            var pattern = compileRule(rule);
-            if (pattern == null) continue;
-            apply(ctx, pattern, rule);
+            apply(ctx, rule);
         }
     }
 
-    private static List<Rule> buildRules(String ripPrefix, String ripSuffix,
-                                         String optRipSuffix) {
-        // Tag every source match as a video-codec-prefix so a video_codec
-        // immediately following it (e.g. "PDTVx264") survives validateVideoCodec.
-        var common = Set.of("video-codec-prefix", "streaming_service.suffix");
-        var rules = new ArrayList<Rule>();
-        rules.add(new Rule(List.of("VHS"), "", optRipSuffix, "VHS", "Rip", null, common, false));
-        rules.add(new Rule(List.of("CAM"), "", optRipSuffix, "Camera", "Rip", null, common, false));
-        rules.add(new Rule(List.of("HD-?CAM"), "", optRipSuffix, "HD Camera", "Rip", null, common, false));
-        rules.add(new Rule(List.of("TELESYNC", "TS"), "", optRipSuffix, "Telesync", "Rip", null, common, false));
-        rules.add(new Rule(List.of("HD-?TELESYNC", "HD-?TS"), "", optRipSuffix, "HD Telesync", "Rip", null, common, false));
-        rules.add(new Rule(List.of("WORKPRINT", "WP"), "", "", "Workprint", null, null, common, false));
-        rules.add(new Rule(List.of("TELECINE", "TC"), "", optRipSuffix, "Telecine", "Rip", null, common, false));
-        rules.add(new Rule(List.of("HD-?TELECINE", "HD-?TC"), "", optRipSuffix, "HD Telecine", "Rip", null, common, false));
-        rules.add(new Rule(List.of("PPV"), "", optRipSuffix, "Pay-per-view", "Rip", null, common, false));
-        rules.add(new Rule(List.of("SD-?TV"), "", optRipSuffix, "TV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("TV"), "", ripSuffix, "TV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("TV", "SD-?TV"), ripPrefix, "", "TV", "Rip", null, common, false));
-        // "TV-Dub" form: emit source=TV only over the "TV" prefix and let
-        // the trailing "-Dub" stay free for LanguageExtractor to recognise as
-        // a language affix (→ language=Undetermined). Lookahead anchors the
-        // match without consuming the suffix.
-        rules.add(new Rule(List.of("TV(?=-?Dub\\b)"), "", "", "TV", null, null, common, false));
-        rules.add(new Rule(List.of("DVB", "PD-?TV"), "", optRipSuffix, "Digital TV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("DVD"), "", optRipSuffix, "DVD", "Rip", null, common, false));
-        rules.add(new Rule(List.of("DM"), "", optRipSuffix, "Digital Master", "Rip", null, common, false));
-        rules.add(new Rule(List.of("VIDEO-?TS", "DVD-?R(?:$|(?!E))", "DVD-?9", "DVD-?5"),
-                "", "", "DVD", null, null, common, false));
-        rules.add(new Rule(List.of("HD-?TV"), "", optRipSuffix, "HDTV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("TV-?HD"), "", ripSuffix, "HDTV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("TV"), "", "-?(?<other>Rip-?HD)", "HDTV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("VOD"), "", optRipSuffix, "Video on Demand", "Rip", null, common, false));
-        rules.add(new Rule(List.of("WEB", "WEB-?DL"), "", ripSuffix, "Web", "Rip", null, common, false));
-        // WEBCap → Web source + 'another' (Cap text) becomes other=Rip too.
-        rules.add(new Rule(List.of("WEB-?(?<another>Cap)"), "", optRipSuffix, "Web", "Rip", "Rip", common, false));
-        rules.add(new Rule(List.of("WEB-?DL", "WEB-?U?HD", "DL-?WEB", "DL(?=-?Mux)"),
-                "", "", "Web", null, null, common, false));
-        rules.add(new Rule(List.of("WEB"), "", "", "Web", null, null, Set.of("weak.source"), true));
-        rules.add(new Rule(List.of("HD-?DVD"), "", optRipSuffix, "HD-DVD", "Rip", null, common, false));
-        // Order: longer/more-specific BD variants before bare "BD" so the
-        // alternation picks "BD25" over "BD" on input "BD25".
-        rules.add(new Rule(List.of("Blu-?ray", "BD25", "BD50", "BD[59]", "BD"),
-                "", optRipSuffix, BLU_RAY, "Rip", null, common, false));
-        // Consume "Scr"/"Screener"/"Mux" so the match end is separator-bound;
-        // a lookahead-only form would fail validatePrefixSuffix when 'S'/'M'
-        // isn't a separator. Lookahead lets the Screener/Mux Other match keep
-        // its own span; the single named group avoids Java's duplicate-name
-        // compile error.
-        rules.add(new Rule(List.of("(?<another>BR)-?(?=Scr(?:eener)?|Mux)"),
-                "", "", BLU_RAY, null, "Reencoded", common, false));
-        rules.add(new Rule(List.of("(?<another>BR)"), "", ripSuffix, BLU_RAY, "Rip", "Reencoded", common, false));
-        rules.add(new Rule(List.of("Ultra-?Blu-?ray", "Blu-?ray-?Ultra"), "", "", "Ultra HD Blu-ray", null, null, common, false));
-        rules.add(new Rule(List.of("AHDTV"), "", "", "Analog HDTV", null, null, common, false));
-        rules.add(new Rule(List.of("UHD-?TV"), "", optRipSuffix, "Ultra HDTV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("UHD"), "", ripSuffix, "Ultra HDTV", "Rip", null, common, false));
-        rules.add(new Rule(List.of("DSR", "DTH"), "", optRipSuffix, "Satellite", "Rip", null, common, false));
-        rules.add(new Rule(List.of("DSR?", "SAT"), "", ripSuffix, "Satellite", "Rip", null, common, false));
-        return rules;
-    }
-
-    private static final ConcurrentMap<String, Pattern> RULE_CACHE = new ConcurrentHashMap<>();
-
-    private static Pattern compileRule(Rule rule) {
-        var alt = String.join("|", rule.patterns());
-        var src = rule.prefix() + "(" + alt + ")" + rule.suffix();
-        return RULE_CACHE.computeIfAbsent(src, s -> {
-            try { return Pattern.compile(Abbreviations.dash(s), Pattern.CASE_INSENSITIVE); }
-            catch (PatternSyntaxException _) { return null; }
-        });
-    }
-
-    private static void apply(ParseContext ctx, Pattern p, Rule rule) {
+    private static void apply(ParseContext ctx, SourceRuleRegistry.Rule rule) {
         var input = ctx.input;
         var validator = Validators.sepsBefore(input).or(Validators.sepsAfter(input));
-        var matcher = p.matcher(input);
+        var matcher = rule.compiledPattern().matcher(input);
+
         while (matcher.find()) {
             applyOneMatch(ctx, input, rule, validator, matcher);
         }
     }
 
-    private static void applyOneMatch(ParseContext ctx, String input, Rule rule,
+    private static void applyOneMatch(ParseContext ctx, String input, SourceRuleRegistry.Rule rule,
                                       Predicate<Match> validator, Matcher matcher) {
         int s = matcher.start();
         int e = matcher.end();
         var sourceMatch = new Match(MatchName.SOURCE, rule.source(), s, e,
                 input.substring(s, e), 1000, rule.tags(), false);
-        if (!validator.test(sourceMatch)) return;
-        if (overlapsExtension(ctx, s, e)) return;
-        // When the source span sits inside an existing streaming_service
-        // literal (e.g. VOD inside MBCVOD), mark the source PRIVATE so it
-        // doesn't conflict with the longer streaming_service via default
-        // longest-wins.
+
+        if (!validator.test(sourceMatch) || overlapsExtension(ctx, s, e)) return;
+
         boolean insideStream = ctx.matches.named(MatchName.STREAMING_SERVICE)
-            .anyMatch(ss -> ss.start() <= s && e <= ss.end() && (ss.start() < s || e < ss.end()));
-        var emit = insideStream
-            ? new Match(MatchName.SOURCE, rule.source(), s, e,
-                input.substring(s, e), 1000, rule.tags(), true)
-            : sourceMatch;
-        ctx.matches.add(emit);
+                .anyMatch(ss -> ss.start() <= s && e <= ss.end() && (ss.start() < s || e < ss.end()));
+
+        if (insideStream) {
+            sourceMatch = new Match(MatchName.SOURCE, rule.source(), s, e,
+                    input.substring(s, e), 1000, rule.tags(), true);
+        }
+
+        ctx.matches.add(sourceMatch);
         addDerivedOther(ctx, input, matcher, OTHER, rule.otherValue());
         addDerivedOther(ctx, input, matcher, "another", rule.anotherValue());
     }
@@ -192,24 +93,17 @@ public final class SourceExtractor implements Extractor {
 
     private static boolean overlapsExtension(ParseContext ctx, int s, int e) {
         return ctx.matches.named(MatchName.CONTAINER)
-                .anyMatch(m -> m.tags().contains("extension")
-                        && m.start() < e && s < m.end());
+                .anyMatch(m -> m.tags().contains("extension") && m.start() < e && s < m.end());
     }
 
     private static int groupStart(Matcher m, String name) {
-        try {
-            return m.start(name);
-        } catch (IllegalArgumentException | IllegalStateException _) {
-            return -1;
-        }
+        try { return m.start(name); }
+        catch (IllegalArgumentException | IllegalStateException _) { return -1; }
     }
 
     private static int groupEnd(Matcher m, String name) {
-        try {
-            return m.end(name);
-        } catch (IllegalArgumentException | IllegalStateException _) {
-            return -1;
-        }
+        try { return m.end(name); }
+        catch (IllegalArgumentException | IllegalStateException _) { return -1; }
     }
 
     @Override
@@ -220,160 +114,123 @@ public final class SourceExtractor implements Extractor {
     }
 
     private void validatePrefixSuffix(ParseContext ctx) {
-        var input = ctx.input;
-        var sources = ctx.matches.named(MatchName.SOURCE).toList();
-        var toRemove = new ArrayList<Match>();
-        var sepsBefore = Validators.sepsBefore(input);
-        var sepsAfter = Validators.sepsAfter(input);
-        for (var s : sources) {
-            if (!sepsBefore.test(s) && noNeighborTag(ctx, s.start() - 1, "source-prefix")) {
-                toRemove.add(s);
-                continue;
-            }
-            if (!sepsAfter.test(s) && noNeighborTag(ctx, s.end(), "source-suffix")) toRemove.add(s);
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
+        var sepsBefore = Validators.sepsBefore(ctx.input);
+        var sepsAfter = Validators.sepsAfter(ctx.input);
+
+        ctx.matches.named(MatchName.SOURCE)
+                .filter(s -> (!sepsBefore.test(s) && noNeighborTag(ctx, s.start() - 1, "source-prefix")) ||
+                        (!sepsAfter.test(s) && noNeighborTag(ctx, s.end(), "source-suffix")))
+                .toList()
+                .forEach(ctx.matches::remove);
     }
 
     private void validateWeakSource(ParseContext ctx) {
-        var weaks = ctx.matches.named(MatchName.SOURCE)
-                .filter(m -> m.tags().contains("weak.source"))
+        var pathMarkers = ctx.markers.stream()
+                .filter(m -> "path".equals(m.name()))
                 .toList();
-        if (weaks.isEmpty()) return;
-        var toRemove = new ArrayList<Match>();
-        for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
-            for (var weak : weaks) {
-                if (shouldRemoveWeakSource(ctx, filepart, weak)) toRemove.add(weak);
-            }
-        }
-        for (var m : toRemove) ctx.matches.remove(m);
+
+        ctx.matches.named(MatchName.SOURCE)
+                .filter(m -> m.tags().contains("weak.source"))
+                .filter(weak -> pathMarkers.stream().anyMatch(fp -> shouldRemoveWeakSource(ctx, fp, weak)))
+                .toList()
+                .forEach(ctx.matches::remove);
     }
 
-    private static boolean shouldRemoveWeakSource(ParseContext ctx, Marker filepart, Match weak) {
-        if (!filepart.covers(weak.start(), weak.end())) return false;
+    private static boolean shouldRemoveWeakSource(ParseContext ctx, Marker filePart, Match weak) {
+        if (!filePart.covers(weak.start(), weak.end())) return false;
+
         boolean later = ctx.matches.named(MatchName.SOURCE)
-                .anyMatch(m -> m != weak && m.start() >= weak.end() && m.end() <= filepart.end());
+                .anyMatch(m -> m != weak && m.start() >= weak.end() && m.end() <= filePart.end());
+
         if (!later) return false;
-        var pre = ctx.input.substring(filepart.start(), weak.start());
-        return !pre.isBlank();
+        return !ctx.input.substring(filePart.start(), weak.start()).isBlank();
     }
 
     private void upgradeUltraHdBluray(ParseContext ctx) {
-        var bds = ctx.matches.named(MatchName.SOURCE)
-                .filter(m -> BLU_RAY.equals(m.value()))
+        var pathMarkers = ctx.markers.stream()
+                .filter(m -> "path".equals(m.name()))
                 .toList();
-        if (bds.isEmpty()) return;
-        for (var filepart : ctx.markers) {
-            if (!"path".equals(filepart.name())) continue;
-            for (var bd : bds) {
-                if (filepart.covers(bd.start(), bd.end())) {
-                    tryUpgradeBluray(ctx, filepart, bd);
-                }
-            }
-        }
+
+        ctx.matches.named(MatchName.SOURCE)
+                .filter(m -> BLU_RAY.equals(m.value()))
+                .toList()
+                .forEach(bd -> pathMarkers.stream()
+                        .filter(fp -> fp.covers(bd.start(), bd.end()))
+                        .findFirst()
+                        .ifPresent(fp -> tryUpgradeBluray(ctx, fp, bd)));
     }
 
-    private void tryUpgradeBluray(ParseContext ctx, Marker filepart, Match bd) {
-        // Find an Ultra HD other before the Blu-ray with no blocking matches in between.
-        var uhdOther = findUltraHd(ctx, filepart.start(), bd.start(), true);
+    private void tryUpgradeBluray(ParseContext ctx, Marker filePart, Match bd) {
+        var uhdOther = findUltraHd(ctx, filePart.start(), bd.start(), true);
         boolean ok = uhdOther != null && validRange(ctx, uhdOther.end(), bd.start());
+
         if (!ok) {
-            uhdOther = findUltraHd(ctx, bd.end(), filepart.end(), false);
+            uhdOther = findUltraHd(ctx, bd.end(), filePart.end(), false);
             ok = uhdOther != null && validRange(ctx, bd.end(), uhdOther.start());
         }
+
         if (!ok) {
-            if (!has2160p(ctx, filepart)) return;
+            if (!has2160p(ctx, filePart)) return;
             uhdOther = null;
         }
+
         if (uhdOther != null) ctx.matches.remove(uhdOther);
+
         ctx.matches.replace(bd, new Match(MatchName.SOURCE, "Ultra HD Blu-ray",
                 bd.start(), bd.end(), bd.raw(), bd.priority(), bd.tags(), bd.isPrivate()));
     }
 
-    private static boolean has2160p(ParseContext ctx, Marker filepart) {
+    private static boolean has2160p(ParseContext ctx, Marker filePart) {
         return ctx.matches.named(MatchName.SCREEN_SIZE)
-                .anyMatch(m -> "2160p".equals(m.value()) && filepart.covers(m.start(), m.end()));
+                .anyMatch(m -> "2160p".equals(m.value()) && filePart.covers(m.start(), m.end()));
     }
 
     private static Match findUltraHd(ParseContext ctx, int start, int end, boolean preferLast) {
-        Match best = null;
-        for (var m : ctx.matches.named(MatchName.OTHER).toList()) {
-            if (!isUltraHdCandidateInRange(m, start, end)) continue;
-            if (best == null || isBetterUltraHd(m, best, preferLast)) best = m;
-        }
-        return best;
+        var candidates = ctx.matches.named(MatchName.OTHER)
+                .filter(m -> isUltraHdCandidateInRange(m, start, end));
+
+        return preferLast
+                ? candidates.max(Comparator.comparingInt(Match::end)).orElse(null)
+                : candidates.min(Comparator.comparingInt(Match::start)).orElse(null);
     }
 
     private static boolean isUltraHdCandidateInRange(Match m, int start, int end) {
-        if (m.isPrivate()) return false;
-        if (!"Ultra HD".equals(m.value())) return false;
-        return m.start() >= start && m.end() <= end;
-    }
-
-    private static boolean isBetterUltraHd(Match m, Match best, boolean preferLast) {
-        return preferLast ? m.end() > best.end() : m.start() < best.start();
+        return !m.isPrivate() && "Ultra HD".equals(m.value()) && m.start() >= start && m.end() <= end;
     }
 
     private static boolean validRange(ParseContext ctx, int s, int e) {
-        if (s >= e) return true;
-
-        if (!allMatchesAreAllowed(ctx, s, e)) {
-            return false;
-        }
-
-        return !hasNonSeparatorHoles(ctx, s, e);
+        return s >= e || (allMatchesAreAllowed(ctx, s, e) && !hasNonSeparatorHoles(ctx, s, e));
     }
 
     private static boolean allMatchesAreAllowed(ParseContext ctx, int s, int e) {
-        for (var m : ctx.matches.all().toList()) {
-            if (m.isPrivate()) continue;
-            if (m.start() < s || m.end() > e) continue;
-            if (!isAllowedMatch(m)) {
-                return false;
-            }
-        }
-        return true;
+        return ctx.matches.all()
+                .filter(m -> !m.isPrivate() && m.start() >= s && m.end() <= e)
+                .allMatch(SourceExtractor::isAllowedMatch);
     }
 
     private static boolean isAllowedMatch(Match m) {
-        if (m.name() == MatchName.SCREEN_SIZE) return true;
-        if (m.name() == MatchName.COLOR_DEPTH) return true;
-        return m.name() == MatchName.OTHER && m.tags().contains("uhdbluray-neighbor");
+        return m.name() == MatchName.SCREEN_SIZE
+                || m.name() == MatchName.COLOR_DEPTH
+                || (m.name() == MatchName.OTHER && m.tags().contains("uhdbluray-neighbor"));
     }
 
     private static boolean hasNonSeparatorHoles(ParseContext ctx, int s, int e) {
-        var input = ctx.input;
-        var matchesInRange = collectMatchesInRange(ctx, s, e);
-        matchesInRange.sort(Comparator.comparingInt(Match::start));
+        if (s >= e) return false;
 
-        int pos = s;
-        for (var m : matchesInRange) {
-            if (isNotOnlySeparators(input, pos, m.start())) {
-                return true;
-            }
-            pos = Math.max(pos, m.end());
+        boolean[] covered = new boolean[e - s];
+
+        ctx.matches.all()
+                .filter(m -> !m.isPrivate() && m.start() < e && m.end() > s)
+                .forEach(m -> {
+                    int from = Math.max(m.start(), s) - s;
+                    int to = Math.min(m.end(), e) - s;
+                    for (int i = from; i < to; i++) covered[i] = true;
+                });
+
+        for (int i = 0; i < covered.length; i++) {
+            if (!covered[i] && !Seps.isSep(ctx.input.charAt(s + i))) return true;
         }
 
-        return isNotOnlySeparators(input, pos, e);
-    }
-
-    private static List<Match> collectMatchesInRange(ParseContext ctx, int s, int e) {
-        var matchesInRange = new ArrayList<Match>();
-        for (var m : ctx.matches.all().toList()) {
-            if (m.start() >= s && m.end() <= e) {
-                matchesInRange.add(m);
-            }
-        }
-        return matchesInRange;
-    }
-
-    private static boolean isNotOnlySeparators(String input, int start, int end) {
-        for (int pos = start; pos < end; pos++) {
-            if (!Seps.isSep(input.charAt(pos))) {
-                return true;
-            }
-        }
         return false;
     }
 

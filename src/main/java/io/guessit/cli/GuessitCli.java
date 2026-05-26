@@ -23,17 +23,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+@SuppressWarnings("java:S106") // Suppressed this warning here, it is a CLI after all
 @Command(
-    name = "guessit-java",
-    mixinStandardHelpOptions = true,
-    versionProvider = GuessitCli.VersionProvider.class,
-    description = "Parse video filenames into structured metadata."
+        name = "guessit-java",
+        mixinStandardHelpOptions = true,
+        versionProvider = GuessitCli.VersionProvider.class,
+        description = "Parse video filenames into structured metadata."
 )
 public final class GuessitCli implements Callable<Integer> {
 
     @Parameters(arity = "0..*", description = "Filenames to parse.")
-    final
-    List<String> filenames = new ArrayList<>();
+    final List<String> filenames = new ArrayList<>();
 
     @Option(names = {"-t", "--type"}, description = "movie or episode hint.")
     String type;
@@ -45,35 +45,28 @@ public final class GuessitCli implements Callable<Integer> {
     @Option(names = {"-D", "--date-day-first"})  boolean dateDayFirst;
 
     @Option(names = {"-L", "--allowed-language"}, arity = "1..*")
-    final
-    List<String> allowedLanguages = new ArrayList<>();
+    final List<String> allowedLanguages = new ArrayList<>();
 
     @Option(names = {"-C", "--allowed-country"}, arity = "1..*")
-    final
-    List<String> allowedCountries = new ArrayList<>();
+    final List<String> allowedCountries = new ArrayList<>();
 
     @Option(names = {"-E", "--episode-prefer-number"})
     boolean episodePreferNumber;
 
     @Option(names = {"-T", "--expected-title"}, arity = "1..*")
-    final
-    List<String> expectedTitles = new ArrayList<>();
+    final List<String> expectedTitles = new ArrayList<>();
 
     @Option(names = {"-G", "--expected-group"}, arity = "1..*")
-    final
-    List<String> expectedGroups = new ArrayList<>();
+    final List<String> expectedGroups = new ArrayList<>();
 
     @Option(names = "--excludes", arity = "1..*")
-    final
-    List<String> excludes = new ArrayList<>();
+    final List<String> excludes = new ArrayList<>();
 
     @Option(names = "--includes", arity = "1..*")
-    final
-    List<String> includes = new ArrayList<>();
+    final List<String> includes = new ArrayList<>();
 
     @Option(names = {"-c", "--config"}, arity = "1..*")
-    final
-    List<Path> configs = new ArrayList<>();
+    final List<Path> configs = new ArrayList<>();
 
     @Option(names = "--no-user-config")    boolean noUserConfig;
     @Option(names = "--no-default-config") boolean noDefaultConfig;
@@ -100,92 +93,113 @@ public final class GuessitCli implements Callable<Integer> {
     @Override
     public Integer call() {
         if (filenames.isEmpty()) {
-            System.err.println("No input filename provided. See --help.");
+            printError("No input filename provided. See --help.");
             return 2;
         }
         if (debugMarkers && !debug) {
-            System.err.println("error: --debug-markers requires --debug");
+            printError("error: --debug-markers requires --debug");
             return 2;
         }
         if (verbose && debug) {
-            System.err.println("error: -v/--verbose and --debug are mutually exclusive");
+            printError("error: -v/--verbose and --debug are mutually exclusive");
             return 2;
         }
+
         var guessit = Guessit.withOptions(buildOptions());
         return runWithTraces(guessit);
     }
 
     private Integer runWithTraces(Guessit guessit) {
-        Writer debugSink = null;
-        boolean closeDebugSink = false;
-        try {
-            DebugTrace debugTrace = null;
-            if (debug) {
-                if (debugOut != null) {
-                    debugSink = Files.newBufferedWriter(debugOut, StandardCharsets.UTF_8);
-                    closeDebugSink = true;
-                } else {
-                    debugSink = new OutputStreamWriter(System.err, StandardCharsets.UTF_8);
-                }
-                debugTrace = new DebugTrace(debugSink, debugMarkers);
-            }
-            PrintTrace verboseTrace = verbose ? new PrintTrace(System.out) : null;
+        warnIfVerboseOverridesFormatters();
 
-            if (verbose && (json || yaml || showProperty != null)) {
-                System.err.println("warning: --json/--yaml/--show-property ignored when --verbose is set");
-            }
-
-            Trace trace;
-            if (verboseTrace != null && debugTrace != null) {
-                trace = new CompositeTrace(verboseTrace, debugTrace);
-            } else if (verboseTrace != null) {
-                trace = verboseTrace;
-            } else if (debugTrace != null) {
-                trace = debugTrace;
-            } else {
-                trace = Trace.NOOP;
-            }
-
-            for (int i = 0; i < filenames.size(); i++) {
-                if (i > 0) {
-                    if (verbose) System.out.println();
-                    if (debug && debugSink != null) debugSink.append("\n");
-                }
-                var fn = filenames.get(i);
-                var result = guessit.guess(fn, trace);
-                if (!verbose) {
-                    System.out.println(formatResult(result));
-                }
-            }
-            if (debugSink != null) debugSink.flush();
-            return 0;
+        try (Writer debugSink = createDebugSink()) {
+            Trace trace = buildTrace(debugSink);
+            return processFiles(guessit, trace, debugSink);
         } catch (IOException e) {
-            System.err.println("error: " + e.getMessage());
+            printError("error: " + e.getMessage());
             return 1;
-        } finally {
-            if (closeDebugSink && debugSink != null) {
-                try { debugSink.close(); } catch (IOException ignored) {}
+        }
+    }
+
+    private void warnIfVerboseOverridesFormatters() {
+        if (verbose && (json || yaml || showProperty != null)) {
+            printError("warning: --json/--yaml/--show-property ignored when --verbose is set");
+        }
+    }
+
+    private Writer createDebugSink() throws IOException {
+        if (!debug) {
+            return null;
+        }
+        if (debugOut != null) {
+            return Files.newBufferedWriter(debugOut, StandardCharsets.UTF_8);
+        }
+
+        return new OutputStreamWriter(System.err, StandardCharsets.UTF_8) {
+            @Override
+            public void close() throws IOException {
+                flush();
             }
+        };
+    }
+
+    private Trace buildTrace(Writer debugSink) {
+        Trace trace = Trace.NOOP;
+
+        if (verbose) {
+            trace = new PrintTrace(System.out);
+        }
+
+        if (debugSink != null) {
+            Trace debugTrace = new DebugTrace(debugSink, debugMarkers);
+            trace = (trace == Trace.NOOP) ? debugTrace : new CompositeTrace(trace, debugTrace);
+        }
+
+        return trace;
+    }
+
+    private Integer processFiles(Guessit guessit, Trace trace, Writer debugSink) throws IOException {
+        for (int i = 0; i < filenames.size(); i++) {
+            printSeparators(i, debugSink);
+
+            var fn = filenames.get(i);
+            var result = guessit.guess(fn, trace);
+
+            if (debugSink != null) {
+                debugSink.flush();
+            }
+
+            if (!verbose) {
+                printLog(formatResult(result));
+            }
+        }
+        return 0;
+    }
+
+    private void printSeparators(int index, Writer debugSink) throws IOException {
+        if (index > 0) {
+            if (verbose) printEmptyLine();
+            if (debug && debugSink != null) debugSink.append('\n');
         }
     }
 
     private Options buildOptions() {
         return OptionsBuilder.options()
-            .type(type)
-            .name(name)
-            .expectedTitle(expectedTitles)
-            .expectedGroup(expectedGroups)
-            .excludes(excludes)
-            .includes(includes)
-            .allowedLanguages(allowedLanguages)
-            .allowedCountries(allowedCountries)
-            .dateYearFirst(dateYearFirst ? Boolean.TRUE : null)
-            .dateDayFirst(dateDayFirst ? Boolean.TRUE : null)
-            .episodePreferNumber(episodePreferNumber ? Boolean.TRUE : null)
-            .configPaths(configs)
-            .noUserConfig(noUserConfig)
-            .noDefaultConfig(noDefaultConfig)
-            .build();
+                .type(type)
+                .name(name)
+                .expectedTitle(expectedTitles)
+                .expectedGroup(expectedGroups)
+                .excludes(excludes)
+                .includes(includes)
+                .allowedLanguages(allowedLanguages)
+                .allowedCountries(allowedCountries)
+                .dateYearFirst(dateYearFirst ? Boolean.TRUE : null)
+                .dateDayFirst(dateDayFirst ? Boolean.TRUE : null)
+                .episodePreferNumber(episodePreferNumber ? Boolean.TRUE : null)
+                .configPaths(configs)
+                .noUserConfig(noUserConfig)
+                .noDefaultConfig(noDefaultConfig)
+                .build();
     }
 
     private String formatResult(GuessResult result) {
@@ -207,5 +221,17 @@ public final class GuessitCli implements Callable<Integer> {
         public String[] getVersion() {
             return new String[]{"guessit-java 0.1.0-SNAPSHOT"};
         }
+    }
+
+    private static void printError(String message) {
+        System.err.println(message);
+    }
+
+    private static void printLog(String message) {
+        System.out.println(message);
+    }
+
+    private static void printEmptyLine() {
+        System.out.println();
     }
 }

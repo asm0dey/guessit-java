@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
  * Renders an input string with per-underline-row underline + one label
@@ -25,7 +26,6 @@ import java.util.Locale;
  */
 public final class SpanRenderer {
 
-    // Box-drawing constants
     private static final char HORIZ = '─'; // U+2500
     private static final char TEE   = '┬'; // U+252C
     private static final char VERT  = '│'; // U+2502
@@ -33,104 +33,93 @@ public final class SpanRenderer {
     private SpanRenderer() {}
 
     public static String render(String input, List<Match> matches, List<Marker> markers) {
-        record Span(int start, int end, String label) {
-            int mid() { return start + (end - start) / 2; }
-            int len() { return end - start; }
-            /** Inclusive start of the centered label. */
-            int labelStart() {
-                int half = label.length() / 2;
-                return Math.max(0, mid() - half);
-            }
-            /** Exclusive end of the centered label. */
-            int labelEnd() { return labelStart() + label.length(); }
-        }
-
-        var spans = new ArrayList<Span>();
-        for (var m : matches) {
-            if (m.isPrivate()) continue;
-            spans.add(new Span(m.start(), m.end(), m.name().name().toLowerCase(Locale.ROOT)));
-        }
-        for (var mk : markers) {
-            spans.add(new Span(mk.start(), mk.end(), mk.name()));
-        }
-
+        var spans = buildSpans(matches, markers);
         if (spans.isEmpty()) {
             return input + "\n";
         }
 
-        spans.sort(Comparator.<Span>comparingInt(Span::start).thenComparingInt(Span::end));
-
-        // ── Step 1: assign each span to an underline row ─────────────────────
-        // Two spans can share a row only when both their bodies and their label
-        // extents are non-overlapping (strict gap ≥ 1 column in both cases).
-        var underlineRows = new ArrayList<List<Span>>();
-        for (var s : spans) {
-            int placed = -1;
-            for (int r = 0; r < underlineRows.size(); r++) {
-                boolean fits = true;
-                for (var ex : underlineRows.get(r)) {
-                    // body overlap check: touching or overlapping → no fit
-                    boolean bodyOverlap = !(ex.end() < s.start() || s.end() < ex.start());
-                    // label overlap check: label extents must also be strictly separated
-                    boolean labelOverlap = !(ex.labelEnd() < s.labelStart() || s.labelEnd() < ex.labelStart());
-                    if (bodyOverlap || labelOverlap) {
-                        fits = false;
-                        break;
-                    }
-                }
-                if (fits) { placed = r; break; }
-            }
-            if (placed < 0) {
-                underlineRows.add(new ArrayList<>());
-                placed = underlineRows.size() - 1;
-            }
-            underlineRows.get(placed).add(s);
-        }
-
-        var sb = new StringBuilder();
-        sb.append(input).append('\n');
+        var underlineRows = assignRows(spans);
+        var sb = new StringBuilder().append(input).append('\n');
 
         for (var row : underlineRows) {
-            // ── Step 2: determine render width ───────────────────────────────
-            int width = input.length();
-            for (Span s : row) {
-                if (s.labelEnd() > width) width = s.labelEnd();
-            }
-
-            // ── Step 3: render underline row ─────────────────────────────────
-            char[] uline = new char[width];
-            Arrays.fill(uline, ' ');
-            for (var s : row) {
-                if (s.len() == 1) {
-                    uline[s.start()] = VERT;
-                } else {
-                    // ─ body with ┬ at midpoint (both matches and markers)
-                    for (int c = s.start(); c < s.end() && c < width; c++) {
-                        uline[c] = HORIZ;
-                    }
-                    uline[s.mid()] = TEE;
-                }
-            }
-            sb.append(new String(uline).stripTrailing()).append('\n');
-
-            // ── Step 4: render single label line immediately below ────────────
-            char[] lline = new char[width];
-            Arrays.fill(lline, ' ');
-            for (var s : row) {
-                int lStart = s.labelStart();
-                // expand if needed
-                if (lStart + s.label().length() > lline.length) {
-                    int newLen = lStart + s.label().length();
-                    lline = Arrays.copyOf(lline, newLen);
-                    Arrays.fill(lline, lline.length - (newLen - lline.length), lline.length, ' ');
-                }
-                for (int k = 0; k < s.label().length(); k++) {
-                    lline[lStart + k] = s.label().charAt(k);
-                }
-            }
-            sb.append(new String(lline).stripTrailing()).append('\n');
+            renderRow(row, input.length(), sb);
         }
 
         return sb.toString();
+    }
+
+    private static List<Span> buildSpans(List<Match> matches, List<Marker> markers) {
+        var matchSpans = matches.stream()
+                .filter(m -> !m.isPrivate())
+                .map(m -> new Span(m.start(), m.end(), m.name().name().toLowerCase(Locale.ROOT)));
+
+        var markerSpans = markers.stream()
+                .map(mk -> new Span(mk.start(), mk.end(), mk.name()));
+
+        return Stream.concat(matchSpans, markerSpans)
+                .sorted(Comparator.comparingInt(Span::start).thenComparingInt(Span::end))
+                .toList();
+    }
+
+    private static List<List<Span>> assignRows(List<Span> spans) {
+        var rows = new ArrayList<List<Span>>();
+
+        for (var span : spans) {
+            rows.stream()
+                    .filter(row -> row.stream().noneMatch(existing -> existing.overlaps(span)))
+                    .findFirst()
+                    .ifPresentOrElse(
+                            row -> row.add(span),
+                            () -> {
+                                var newRow = new ArrayList<Span>();
+                                newRow.add(span);
+                                rows.add(newRow);
+                            }
+                    );
+        }
+        return rows;
+    }
+
+    private static void renderRow(List<Span> row, int inputLength, StringBuilder sb) {
+        int width = Math.max(inputLength, row.stream().mapToInt(Span::labelEnd).max().orElse(0));
+
+        char[] underlineChars = new char[width];
+        Arrays.fill(underlineChars, ' ');
+
+        for (var s : row) {
+            if (s.len() == 1) {
+                underlineChars[s.start()] = VERT;
+            } else {
+                for (int c = s.start(); c < s.end() && c < width; c++) {
+                    underlineChars[c] = HORIZ;
+                }
+                underlineChars[s.mid()] = TEE;
+            }
+        }
+        sb.append(new String(underlineChars).stripTrailing()).append('\n');
+
+        char[] labelChars = new char[width];
+        Arrays.fill(labelChars, ' ');
+
+        for (var s : row) {
+            int lStart = s.labelStart();
+            for (int k = 0; k < s.label().length(); k++) {
+                labelChars[lStart + k] = s.label().charAt(k);
+            }
+        }
+        sb.append(new String(labelChars).stripTrailing()).append('\n');
+    }
+
+    private record Span(int start, int end, String label) {
+        int mid() { return start + (end - start) / 2; }
+        int len() { return end - start; }
+        int labelStart() { return Math.max(0, mid() - (label.length() / 2)); }
+        int labelEnd() { return labelStart() + label.length(); }
+
+        boolean overlaps(Span other) {
+            boolean bodyOverlap = !(other.end() < this.start() || this.end() < other.start());
+            boolean labelOverlap = !(other.labelEnd() < this.labelStart() || this.labelEnd() < other.labelStart());
+            return bodyOverlap || labelOverlap;
+        }
     }
 }
