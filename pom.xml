@@ -50,7 +50,7 @@
         <snakeyaml.version>2.6</snakeyaml.version>
         <commons-csv.version>1.14.1</commons-csv.version>
         <junit.version>6.0.3</junit.version>
-        <jilt.version>1.9.1</jilt.version>
+        <jilt.version>1.9.2</jilt.version>
         <jacoco.version>0.8.14</jacoco.version>
     </properties>
 
