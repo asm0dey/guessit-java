@@ -9,42 +9,77 @@ import io.guessit.GuessResultBuilder;
 import io.guessit.util.Quantity;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Assembles {@link ParseContext#result} from the surviving matches.
- *
- * <p>Matches are first grouped by name and ordered by start position, so that
- * properties expressed as lists (multiple seasons, multiple episodes,
- * multiple languages) preserve their input order. Each group is routed to a
- * typed setter on {@code GuessResultBuilder}; unrecognised names land in
- * {@code extras}.
- *
- * <p>Type coercion (string → int, raw value → {@code Language} /
- * {@code Country} / {@code Quantity} / {@code LocalDate}) and field shape
- * (scalar vs list) live in this single class, deliberately decoupled from
- * the extractors that produced the values.
  */
 public final class OutputBuilder implements Consumer<ParseContext> {
 
-    /**
-     * Properties that always cascade: excluding the parent always excludes the child
-     * (regardless of span), mirroring Python's child-match behaviour.
-     */
     private static final Map<String, List<String>> CHILD_EXCLUSION = Map.of(
             "bonus", List.of("bonus_title"),
             "film", List.of("film_title"),
             "cd", List.of("cd_count")
     );
 
-    /** Computed filter state for one accept() call. */
+    private static final Map<MatchName, BiConsumer<GuessResultBuilder, List<Match>>> DISPATCHER = new EnumMap<>(MatchName.class);
+
+    static {
+        DISPATCHER.put(MatchName.TITLE, (b, ms) -> b.title(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.EPISODE_TITLE, (b, ms) -> b.episodeTitle(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.EPISODE_FORMAT, (b, ms) -> b.episodeFormat(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.TYPE, (b, ms) -> b.type(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.SCREEN_SIZE, (b, ms) -> b.screenSize(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.CONTAINER, (b, ms) -> b.container(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.MIMETYPE, (b, ms) -> b.mimetype(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.RELEASE_GROUP, (b, ms) -> b.releaseGroup(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.STREAMING_SERVICE, (b, ms) -> b.streamingService(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.WEBSITE, (b, ms) -> b.website(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.FILM_TITLE, (b, ms) -> b.filmTitle(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.BONUS_TITLE, (b, ms) -> b.bonusTitle(asString(ms.getFirst())));
+        DISPATCHER.put(MatchName.CRC32, (b, ms) -> b.crc32(asString(ms.getFirst())));
+
+        DISPATCHER.put(MatchName.YEAR, (b, ms) -> b.year(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.EPISODE_COUNT, (b, ms) -> b.episodeCount(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.SEASON_COUNT, (b, ms) -> b.seasonCount(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.CD, (b, ms) -> b.cd(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.CD_COUNT, (b, ms) -> b.cdCount(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.VERSION, (b, ms) -> b.version(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.FILM, (b, ms) -> b.film(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.BONUS, (b, ms) -> b.bonus(asInt(ms.getFirst())));
+        DISPATCHER.put(MatchName.PROPER_COUNT, (b, ms) -> b.properCount(asInt(ms.getFirst())));
+
+        DISPATCHER.put(MatchName.ALTERNATIVE_TITLE, (b, ms) -> b.alternativeTitleList(ms.stream().map(OutputBuilder::asString).toList()));
+        DISPATCHER.put(MatchName.OTHER, (b, ms) -> b.other(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.VIDEO_CODEC, (b, ms) -> b.videoCodec(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.AUDIO_CODEC, (b, ms) -> b.audioCodec(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.AUDIO_CHANNELS, (b, ms) -> b.audioChannels(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.AUDIO_PROFILE, (b, ms) -> b.audioProfile(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.VIDEO_PROFILE, (b, ms) -> b.videoProfile(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.VIDEO_API, (b, ms) -> b.videoApi(dedupedStringList(ms)));
+        DISPATCHER.put(MatchName.EDITION, (b, ms) -> b.edition(dedupedStringList(ms)));
+
+        DISPATCHER.put(MatchName.DATE, (b, ms) -> { if (ms.getFirst().value() instanceof LocalDate d) b.date(d); });
+        DISPATCHER.put(MatchName.LANGUAGE, (b, ms) -> b.language(asLangList(ms)));
+        DISPATCHER.put(MatchName.SUBTITLE_LANGUAGE, (b, ms) -> b.subtitleLanguage(asLangList(ms)));
+        DISPATCHER.put(MatchName.COUNTRY, (b, ms) -> b.country(asCountryList(ms)));
+        DISPATCHER.put(MatchName.ASPECT_RATIO, (b, ms) -> b.aspectRatio(asDouble(ms.getFirst())));
+        DISPATCHER.put(MatchName.FRAME_RATE, (b, ms) -> b.frameRate(asFrameRate(ms.getFirst())));
+
+        DISPATCHER.put(MatchName.BIT_RATE, (b, ms) -> b.bitRate((Quantity) ms.getFirst().value()));
+        DISPATCHER.put(MatchName.AUDIO_BIT_RATE, (b, ms) -> b.audioBitRate((Quantity) ms.getFirst().value()));
+        DISPATCHER.put(MatchName.VIDEO_BIT_RATE, (b, ms) -> b.videoBitRate((Quantity) ms.getFirst().value()));
+        DISPATCHER.put(MatchName.SIZE, (b, ms) -> b.size((Quantity) ms.getFirst().value()));
+
+        DISPATCHER.put(MatchName.SEASON, (b, ms) -> applyIntList(ms, b::season, b::seasonList));
+        DISPATCHER.put(MatchName.EPISODE, (b, ms) -> applyIntList(ms, b::episode, b::episodeList));
+        DISPATCHER.put(MatchName.PART, (b, ms) -> applyIntList(ms, b::part, b::partList));
+        DISPATCHER.put(MatchName.SOURCE, (b, ms) -> applyStringList(ms, b::source, b::sourceList));
+    }
+
     private record FilterState(
             Set<String> excludes,
             List<String> includes,
@@ -65,14 +100,10 @@ public final class OutputBuilder implements Consumer<ParseContext> {
 
     private record DroppedSet(Set<String> groups, Set<MatchName> names) {}
 
-    /** Build excludes (with child cascade), includes, dropped coexist groups,
-     *  and the language-promotion flag. */
     private static FilterState computeFilterState(ParseContext ctx) {
         var excludes = expandExcludesWithChildren(ctx.options.excludes());
         var includes = ctx.options.includes();
 
-        // Coupled exclusion via the SxxExx pair tag ("coexist"): excluding one half
-        // of a compact season/episode pattern must drop its sibling too.
         boolean dropCoexistEpisode = excludes.contains("season");
         boolean dropCoexistSeason = excludes.contains("episode");
 
@@ -92,26 +123,25 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         return out;
     }
 
-    /** Collect coexist-group ids and dropped names. */
     private static DroppedSet collectDropped(ParseContext ctx, Set<String> excludes, List<String> includes) {
         var groups = new HashSet<String>();
         var names = new HashSet<MatchName>();
+
         ctx.matches.all().forEach(m -> {
             var name = m.name();
             var nameStr = name.name().toLowerCase();
             boolean filtered = (!excludes.isEmpty() && excludes.contains(nameStr))
                     || (!includes.isEmpty() && !includes.contains(nameStr));
-            if (!filtered) return;
-            names.add(name);
-            for (var t : m.tags()) {
-                if (t.startsWith("cg:")) groups.add(t);
+
+            if (filtered) {
+                names.add(name);
+                m.tags().stream().filter(t -> t.startsWith("cg:")).forEach(groups::add);
             }
         });
+
         return new DroppedSet(groups, names);
     }
 
-    /** Promote subtitle_language → language when subtitle_language is filtered
-     *  out and language survives. */
     private static boolean computeSubFilteredKeepLang(Set<String> excludes, List<String> includes) {
         boolean langKept = (includes.isEmpty() || includes.contains(MatchName.LANGUAGE.name().toLowerCase()))
                 && !excludes.contains(MatchName.LANGUAGE.name().toLowerCase());
@@ -120,35 +150,35 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         return subFiltered && langKept;
     }
 
-    /** Sort by start, apply filters/promotions, and group surviving matches by name. */
     private static Map<MatchName, List<Match>> groupSurvivingMatches(ParseContext ctx, FilterState s) {
-        // LinkedHashMap preserves first-seen name order so `extras` is deterministic.
         var grouped = new LinkedHashMap<MatchName, List<Match>>();
+
         ctx.matches.all().sorted(Comparator.comparingInt(Match::start)).forEach(m0 -> {
             var m = maybePromoteSubtitleToLanguage(m0, s);
-            if (isFiltered(m, s)) return;
-            grouped.computeIfAbsent(m.name(), _ -> new ArrayList<>()).add(m);
+            if (!isFiltered(m, s)) {
+                grouped.computeIfAbsent(m.name(), _ -> new ArrayList<>()).add(m);
+            }
         });
+
         return grouped;
     }
 
-    /** Promote subtitle_language → language when latter is filtered out, except
-     *  for "attached-affix" matches (e.g. "SubFR") which stay dropped. */
     private static Match maybePromoteSubtitleToLanguage(Match m, FilterState s) {
-        if (!s.subFilteredKeepLang) return m;
-        if (m.name() != MatchName.SUBTITLE_LANGUAGE) return m;
-        if (m.tags().contains("attached-affix")) return m;
+        if (!s.subFilteredKeepLang || m.name() != MatchName.SUBTITLE_LANGUAGE || m.tags().contains("attached-affix")) {
+            return m;
+        }
         return m.withName(MatchName.LANGUAGE);
     }
 
-    /** Apply --excludes / --includes / coexist-pair / dropped-group / derivedFrom rules. */
     private static boolean isFiltered(Match m, FilterState s) {
         var name = m.name();
         var nameStr = name.name().toLowerCase();
+
         if (!s.excludes.isEmpty() && s.excludes.contains(nameStr)) return true;
         if (isFilteredByCoexist(m, name, s)) return true;
         if (!s.includes.isEmpty() && !s.includes.contains(nameStr)) return true;
         if (isInDroppedGroup(m, s)) return true;
+
         return isDerivedFromDropped(m, s);
     }
 
@@ -158,82 +188,38 @@ public final class OutputBuilder implements Consumer<ParseContext> {
     }
 
     private static boolean isInDroppedGroup(Match m, FilterState s) {
-        if (s.droppedGroups.isEmpty()) return false;
-        for (var t : m.tags()) {
-            if (s.droppedGroups.contains(t)) return true;
-        }
-        return false;
+        return !s.droppedGroups.isEmpty() && m.tags().stream().anyMatch(s.droppedGroups::contains);
     }
 
     private static boolean isDerivedFromDropped(Match m, FilterState s) {
         if (s.droppedNames.isEmpty()) return false;
-        for (var t : m.tags()) {
-            if (!t.startsWith("derivedFrom:")) continue;
-            try {
-                var derivedName = MatchName.valueOf(t.substring(12).toUpperCase());
-                if (s.droppedNames.contains(derivedName)) return true;
-            } catch (IllegalArgumentException _) {
-                // tag refers to a name no longer in the enum — treat as not derived
-            }
-        }
-        return false;
+
+        return m.tags().stream()
+                .filter(t -> t.startsWith("derivedFrom:"))
+                .anyMatch(t -> {
+                    try {
+                        var derivedName = MatchName.valueOf(t.substring(12).toUpperCase());
+                        return s.droppedNames.contains(derivedName);
+                    } catch (IllegalArgumentException _) {
+                        return false;
+                    }
+                });
     }
 
-    /** Route grouped matches to typed builder setters; unknown names go to extras. */
-    private static Map<String, Object> dispatchToBuilder(GuessResultBuilder b, Map<MatchName, List<Match>> grouped,
-                                                         io.guessit.engine.Trace trace) {
+    private static Map<String, Object> dispatchToBuilder(GuessResultBuilder b, Map<MatchName, List<Match>> grouped, io.guessit.engine.Trace trace) {
         var extras = new LinkedHashMap<String, Object>();
+
         for (var e : grouped.entrySet()) {
-            var ms = e.getValue();
-            traceAssignment(trace, e.getKey(), ms);
-            switch (e.getKey()) {
-                case TITLE -> b.title(asString(ms.getFirst()));
-                case ALTERNATIVE_TITLE -> b.alternativeTitleList(ms.stream().map(OutputBuilder::asString).toList());
-                case YEAR -> b.year(asInt(ms.getFirst()));
-                case DATE -> { if (ms.getFirst().value() instanceof LocalDate d) b.date(d); }
-                case SEASON -> applyIntList(ms, b::season, b::seasonList);
-                case EPISODE -> applyIntList(ms, b::episode, b::episodeList);
-                case EPISODE_COUNT -> b.episodeCount(asInt(ms.getFirst()));
-                case SEASON_COUNT -> b.seasonCount(asInt(ms.getFirst()));
-                case EPISODE_TITLE -> b.episodeTitle(asString(ms.getFirst()));
-                case EPISODE_FORMAT -> b.episodeFormat(asString(ms.getFirst()));
-                case TYPE -> b.type(asString(ms.getFirst()));
-                case LANGUAGE -> b.language(asLangList(ms));
-                case SUBTITLE_LANGUAGE -> b.subtitleLanguage(asLangList(ms));
-                case COUNTRY -> b.country(asCountryList(ms));
-                case SOURCE -> applyStringList(ms, b::source, b::sourceList);
-                case OTHER -> b.other(dedupedStringList(ms));
-                case VIDEO_CODEC -> b.videoCodec(dedupedStringList(ms));
-                case AUDIO_CODEC -> b.audioCodec(dedupedStringList(ms));
-                case AUDIO_CHANNELS -> b.audioChannels(dedupedStringList(ms));
-                case AUDIO_PROFILE -> b.audioProfile(dedupedStringList(ms));
-                case VIDEO_PROFILE -> b.videoProfile(dedupedStringList(ms));
-                case VIDEO_API -> b.videoApi(dedupedStringList(ms));
-                case SCREEN_SIZE -> b.screenSize(asString(ms.getFirst()));
-                case ASPECT_RATIO -> b.aspectRatio(asDouble(ms.getFirst()));
-                case FRAME_RATE -> b.frameRate(asFrameRate(ms.getFirst()));
-                case BIT_RATE -> b.bitRate((Quantity) ms.getFirst().value());
-                case AUDIO_BIT_RATE -> b.audioBitRate((Quantity) ms.getFirst().value());
-                case VIDEO_BIT_RATE -> b.videoBitRate((Quantity) ms.getFirst().value());
-                case SIZE -> b.size((Quantity) ms.getFirst().value());
-                case CONTAINER -> b.container(asString(ms.getFirst()));
-                case MIMETYPE -> b.mimetype(asString(ms.getFirst()));
-                case RELEASE_GROUP -> b.releaseGroup(asString(ms.getFirst()));
-                case STREAMING_SERVICE -> b.streamingService(asString(ms.getFirst()));
-                case WEBSITE -> b.website(asString(ms.getFirst()));
-                case EDITION -> b.edition(dedupedStringList(ms));
-                case CD -> b.cd(asInt(ms.getFirst()));
-                case CD_COUNT -> b.cdCount(asInt(ms.getFirst()));
-                case PART -> applyIntList(ms, b::part, b::partList);
-                case VERSION -> b.version(asInt(ms.getFirst()));
-                case FILM -> b.film(asInt(ms.getFirst()));
-                case FILM_TITLE -> b.filmTitle(asString(ms.getFirst()));
-                case BONUS -> b.bonus(asInt(ms.getFirst()));
-                case BONUS_TITLE -> b.bonusTitle(asString(ms.getFirst()));
-                case CRC32 -> b.crc32(asString(ms.getFirst()));
-                case PROPER_COUNT -> b.properCount(asInt(ms.getFirst()));
-                default -> extras.put(e.getKey().name().toLowerCase(), ms.size() == 1 ? ms.getFirst().value()
-                    : ms.stream().map(Match::value).toList());
+            var matchName = e.getKey();
+            var matches = e.getValue();
+
+            traceAssignment(trace, matchName, matches);
+
+            var action = DISPATCHER.get(matchName);
+            if (action != null) {
+                action.accept(b, matches);
+            } else {
+                extras.put(matchName.name().toLowerCase(), matches.size() == 1 ? matches.getFirst().value() : matches.stream().map(Match::value).toList());
             }
         }
         return extras;
@@ -243,72 +229,86 @@ public final class OutputBuilder implements Consumer<ParseContext> {
         var key = name.name().toLowerCase();
         if (ms.size() == 1) {
             var m = ms.getFirst();
-            var valueDisplay = renderValue(m.value());
-            trace.subStep("Set " + key + " ← " + valueDisplay + " from match at " + m.start() + "-" + m.end());
+            trace.subStep("Set " + key + " ← " + renderValue(m.value()) + " from match at " + m.start() + "-" + m.end());
         } else {
             var values = ms.stream().map(m -> renderValue(m.value())).toList();
             var first = ms.getFirst();
             var last = ms.getLast();
-            trace.subStep("Set " + key + " ← " + values + " from " + ms.size() + " matches at "
-                + first.start() + "-" + last.end());
+            trace.subStep("Set " + key + " ← " + values + " from " + ms.size() + " matches at " + first.start() + "-" + last.end());
         }
     }
 
     private static String renderValue(Object v) {
-        if (v == null) return "null";
-        return String.valueOf(v);
+        return v == null ? "null" : String.valueOf(v);
     }
 
     private static String asString(Match m) { return m.value() == null ? null : m.value().toString(); }
+
     private static Integer asInt(Match m) {
         var v = m.value();
         if (v instanceof Integer i) return i;
         if (v instanceof Number n) return n.intValue();
         if (v instanceof String s) {
-            try { return Integer.parseInt(s); }
-            catch (NumberFormatException _) { return null; }
+            try { return Integer.parseInt(s); } catch (NumberFormatException _) { return null; }
         }
         return null;
     }
 
-    private static List<String> dedupedStringList(List<Match> ms) { return ms.stream().map(OutputBuilder::asString).distinct().toList(); }
+    private static List<String> dedupedStringList(List<Match> ms) {
+        return ms.stream().map(OutputBuilder::asString).distinct().toList();
+    }
+
     private static String asFrameRate(Match m) {
         var v = m.value();
         if (v == null) return null;
         if (v instanceof String s && s.endsWith("fps")) return s;
         return v + "fps";
     }
+
     private static Double asDouble(Match m) {
         var v = m.value();
         if (v instanceof Double d) return d;
         if (v instanceof Number n) return n.doubleValue();
         if (v instanceof String s) {
-            try { return Double.parseDouble(s); }
-            catch (NumberFormatException _) { return null; }
+            try { return Double.parseDouble(s); } catch (NumberFormatException _) { return null; }
         }
         return null;
     }
-    private static List<Language> asLangList(List<Match> ms) { return ms.stream().map(m -> (Language) m.value()).distinct().toList(); }
-    private static List<Country> asCountryList(List<Match> ms) { return ms.stream().map(m -> (Country) m.value()).distinct().toList(); }
-    /**
-     * Routes a single integer match to the scalar setter and 2+ matches to the
-     * list setter. Mirrors guessit's behaviour where a single episode appears
-     * as {@code episode: 5} but multiple episodes appear as {@code episode: [5, 6]}.
-     */
-    private static void applyIntList(List<Match> ms, Consumer<Integer> single,
-                                     Consumer<List<Integer>> list) {
-        if (ms.size() == 1) {
-            single.accept(asInt(ms.getFirst()));
-            return;
-        }
-        var values = ms.stream().map(OutputBuilder::asInt).toList();
-        var distinct = values.stream().distinct().toList();
-        if (distinct.size() == 1) single.accept(distinct.getFirst());
-        else list.accept(values);
+
+    private static List<Language> asLangList(List<Match> ms) {
+        return ms.stream().map(m -> (Language) m.value()).distinct().toList();
     }
 
-    private static void applyStringList(List<Match> ms, Consumer<String> single,
-                                        Consumer<List<String>> list) {
+    private static List<Country> asCountryList(List<Match> ms) {
+        return ms.stream().map(m -> (Country) m.value()).distinct().toList();
+    }
+
+    private static void applyIntList(List<Match> ms, IntConsumer single, Consumer<List<Integer>> list) {
+        if (ms.size() == 1) {
+            Integer val = asInt(ms.getFirst());
+            if (val != null) {
+                single.accept(val);
+            }
+            return;
+        }
+
+        var values = ms.stream()
+                .map(OutputBuilder::asInt)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (values.isEmpty()) return;
+
+        var distinct = values.stream().distinct().toList();
+
+        if (distinct.size() == 1) {
+            single.accept(distinct.getFirst());
+        } else {
+            list.accept(values);
+        }
+    }
+
+    private static void applyStringList(List<Match> ms, Consumer<String> single, Consumer<List<String>> list) {
         if (ms.size() == 1) {
             single.accept(asString(ms.getFirst()));
             return;

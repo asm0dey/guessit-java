@@ -16,10 +16,15 @@ class ExtractorTraceWiringTest {
         var sw = new StringWriter();
         var trace = new DebugTrace(sw);
         Guessit.withOptions(Options.defaults()).guess("Movie.2020.mkv", trace);
-        var out = sw.toString();
-        assertThat(out).contains("Looking for year");
-        assertThat(out).contains("Trying regex \\d{4}");
-        assertThat(out).contains("Considered '2020'").contains("accepted");
+
+        assertThat(sw.toString()).contains(
+                "Looking for year",
+                "Considered '2020'",
+                "accepted"
+        ).containsAnyOf(
+                "Trying regex [0-9]{4}",
+                "Trying regex \\d{4}"
+        );
     }
 
     @Test
@@ -27,8 +32,9 @@ class ExtractorTraceWiringTest {
         var sw = new StringWriter();
         var trace = new DebugTrace(sw);
         Guessit.withOptions(Options.defaults()).guess("Movie.1080p.mkv", trace);
-        var out = sw.toString();
-        assertThat(out).contains("Looking for screen_size");
-        assertThat(out).containsAnyOf("Trying needles", "Trying regex");
+
+        assertThat(sw.toString())
+                .contains("Looking for screen_size")
+                .containsAnyOf("Trying needles", "Trying regex");
     }
 }

@@ -113,8 +113,8 @@ public final class TitleExtractor implements Extractor {
             // EpisodeTitleExtractor.episodeTitleFromPosition from finding
             // the post-episode hole as episode_title (e.g. "Psy Vs Psy" in
             // "Psych.S02E03.Psy.Vs.Psy.Français.srt").
-            EpisodeTitleExtractor.filepart3EpisodeTitleStatic(ctx);
-            EpisodeTitleExtractor.filepart2EpisodeTitleStatic(ctx);
+            EpisodeTitleExtractor.filePart3EpisodeTitleStatic(ctx);
+            EpisodeTitleExtractor.filePart2EpisodeTitleStatic(ctx);
             titleFromPosition(ctx);
         }
         preferTitleWithYear(ctx);

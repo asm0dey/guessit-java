@@ -116,39 +116,53 @@ ReleaseGroupExtractor
 ```java
 package io.guessit.engine;
 
+import io.guessit.engine.numerals.Numerals;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class NumeralsTest {
-    @Test void parsesDigital() {
+    @Test
+    void parsesDigital() {
         assertEquals(7, Numerals.parse("7"));
         assertEquals(123, Numerals.parse("123"));
     }
-    @Test void parsesRoman() {
+
+    @Test
+    void parsesRoman() {
         assertEquals(4, Numerals.parse("IV"));
         assertEquals(9, Numerals.parse("IX"));
         assertEquals(1994, Numerals.parse("MCMXCIV"));
     }
-    @Test void parsesEnglishWord() {
+
+    @Test
+    void parsesEnglishWord() {
         assertEquals(0, Numerals.parse("zero"));
         assertEquals(7, Numerals.parse("seven"));
         assertEquals(20, Numerals.parse("twenty"));
     }
-    @Test void parsesFrenchWord() {
+
+    @Test
+    void parsesFrenchWord() {
         assertEquals(8, Numerals.parse("huit"));
         assertEquals(17, Numerals.parse("dix-sept"));
         assertEquals(17, Numerals.parse("dixsept"));
     }
-    @Test void cleanWrappers() {
+
+    @Test
+    void cleanWrappers() {
         // Python clean=True strips leading/trailing non-digits.
         assertEquals(42, Numerals.parse("ep42"));
         assertEquals(3, Numerals.parse("(3)"));
     }
-    @Test void invalidThrows() {
+
+    @Test
+    void invalidThrows() {
         assertThrows(IllegalArgumentException.class, () -> Numerals.parse("foo"));
     }
-    @Test void numeralRegexSourceMatchesAllVariants() {
+
+    @Test
+    void numeralRegexSourceMatchesAllVariants() {
         var p = java.util.regex.Pattern.compile("^" + Numerals.NUMERAL + "$");
         assertTrue(p.matcher("12").matches());
         assertTrue(p.matcher("MCMXCIV").matches());
@@ -461,6 +475,7 @@ git commit -m "feat(engine): add Chain head+tail regex scanner"
 ```java
 package io.guessit.engine;
 
+import io.guessit.engine.date.DatePatterns;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -468,37 +483,50 @@ import java.time.LocalDate;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DatePatternsTest {
-    @Test void validYearRange() {
+    @Test
+    void validYearRange() {
         assertTrue(DatePatterns.validYear(1920));
         assertTrue(DatePatterns.validYear(2029));
         assertFalse(DatePatterns.validYear(1919));
         assertFalse(DatePatterns.validYear(2030));
     }
-    @Test void validWeekRange() {
+
+    @Test
+    void validWeekRange() {
         assertTrue(DatePatterns.validWeek(1));
         assertTrue(DatePatterns.validWeek(52));
         assertFalse(DatePatterns.validWeek(0));
         assertFalse(DatePatterns.validWeek(53));
     }
-    @Test void searchYmd() {
+
+    @Test
+    void searchYmd() {
         var r = DatePatterns.search(" Show 2002-04-22 1080p ", null, null).orElseThrow();
         assertEquals(LocalDate.of(2002, 4, 22), r.date());
     }
-    @Test void searchDmy() {
+
+    @Test
+    void searchDmy() {
         var r = DatePatterns.search("And this on 17-06-1998.", null, null).orElseThrow();
         assertEquals(LocalDate.of(1998, 6, 17), r.date());
     }
-    @Test void searchTwoDigitYearGuessesDayFirst() {
+
+    @Test
+    void searchTwoDigitYearGuessesDayFirst() {
         // 22-04-02 → 2002-04-22 (day_first guessed true because trailing 02 < 32).
         var r = DatePatterns.search(" e 22-04-02 e", null, null).orElseThrow();
         assertEquals(LocalDate.of(2002, 4, 22), r.date());
     }
-    @Test void searchYearFirstHonoured() {
+
+    @Test
+    void searchYearFirstHonoured() {
         // 02-04-22 → year_first=true → 2002-04-22.
         var r = DatePatterns.search(" e 02.04.22 e", true, null).orElseThrow();
         assertEquals(LocalDate.of(2002, 4, 22), r.date());
     }
-    @Test void noDate() {
+
+    @Test
+    void noDate() {
         assertTrue(DatePatterns.search(" no date ", null, null).isEmpty());
     }
 }
@@ -1256,22 +1284,29 @@ Expected: 5 failures.
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.numerals.Numerals;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 public final class EpisodeWordExtractor implements Extractor {
     private static final List<String> SEASON_WORDS = List.of(
-        "season","saison","seizoen","seasons","saisons","tem","temp","temporada","temporadas","stagione");
+            "season", "saison", "seizoen", "seasons", "saisons", "tem", "temp", "temporada", "temporadas", "stagione");
     private static final List<String> EPISODE_WORDS = List.of(
-        "episode","episodes","eps","ep","episodio","episodios","capitulo","capitulos");
+            "episode", "episodes", "eps", "ep", "episodio", "episodios", "capitulo", "capitulos");
     private static final List<String> OF_WORDS = List.of("of", "sur");
 
-    @Override public String name() { return "episode_word"; }
-    @Override public int priority() { return 1000; }
+    @Override
+    public String name() {
+        return "episode_word";
+    }
+
+    @Override
+    public int priority() {
+        return 1000;
+    }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -1289,7 +1324,7 @@ public final class EpisodeWordExtractor implements Extractor {
             int n = parseSafe(seasonMatcher.group(2), ctx);
             if (n < 0) continue;
             ctx.matches.add(new Match("season", n, valStart, valEnd,
-                input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
+                    input.substring(valStart, valEnd), 1000, Set.of("season-word"), false));
         }
 
         var epRe = Pattern.compile("(?i)\\b(" + or(EPISODE_WORDS) + ")[ ._-]*(\\d+)(?:v(\\d+))?(?:[ ._-]*(?:" + or(OF_WORDS) + ")[ ._-]*(\\d+))?");
@@ -1302,16 +1337,16 @@ public final class EpisodeWordExtractor implements Extractor {
             int epEnd = epMatcher.end(2);
             int ep = Integer.parseInt(epMatcher.group(2));
             ctx.matches.add(new Match("episode", ep, epStart, epEnd,
-                input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
+                    input.substring(epStart, epEnd), 1000, Set.of("episode-word"), false));
             if (epMatcher.group(3) != null) {
                 int v = Integer.parseInt(epMatcher.group(3));
                 ctx.matches.add(new Match("version", v, epMatcher.start(3), epMatcher.end(3),
-                    epMatcher.group(3), 1000, Set.of(), false));
+                        epMatcher.group(3), 1000, Set.of(), false));
             }
             if (epMatcher.group(4) != null) {
                 int c = Integer.parseInt(epMatcher.group(4));
                 ctx.matches.add(new Match("episode_count", c, epMatcher.start(4), epMatcher.end(4),
-                    epMatcher.group(4), 1000, Set.of(), false));
+                        epMatcher.group(4), 1000, Set.of(), false));
             }
         }
 
@@ -1325,15 +1360,18 @@ public final class EpisodeWordExtractor implements Extractor {
             int e = Integer.parseInt(dm.group(1));
             int c = Integer.parseInt(dm.group(2));
             ctx.matches.add(new Match("episode", e, dm.start(1), dm.end(1),
-                dm.group(1), 1000, Set.of("episode-word"), false));
+                    dm.group(1), 1000, Set.of("episode-word"), false));
             ctx.matches.add(new Match("episode_count", c, dm.start(2), dm.end(2),
-                dm.group(2), 1000, Set.of(), false));
+                    dm.group(2), 1000, Set.of(), false));
         }
     }
 
     private static int parseSafe(String token, ParseContext ctx) {
-        try { return Numerals.parse(token); }
-        catch (RuntimeException e) { return -1; }
+        try {
+            return Numerals.parse(token);
+        } catch (RuntimeException e) {
+            return -1;
+        }
     }
 
     private static String or(List<String> items) {
@@ -1887,13 +1925,21 @@ Expected: 3 failures.
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.date.DatePatterns;
 
 import java.util.ArrayList;
 import java.util.Set;
 
 public final class DateExtractor implements Extractor {
-    @Override public String name() { return "date"; }
-    @Override public int priority() { return 1100; }
+    @Override
+    public String name() {
+        return "date";
+    }
+
+    @Override
+    public int priority() {
+        return 1100;
+    }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -1904,7 +1950,7 @@ public final class DateExtractor implements Extractor {
         if (found.isEmpty()) return;
         var hit = found.get();
         ctx.matches.add(new Match("date", hit.date(), hit.start(), hit.end(),
-            input.substring(hit.start(), hit.end()), 1100, Set.of(), false));
+                input.substring(hit.start(), hit.end()), 1100, Set.of(), false));
     }
 
     /** Replicates Python date.py conflict_solver: drop year/episode/season/crc32 inside date span. */
@@ -1986,6 +2032,7 @@ Expected: 1 failure (`weekWordWithNumber`).
 package io.guessit.rules.property;
 
 import io.guessit.engine.*;
+import io.guessit.engine.date.DatePatterns;
 
 import java.util.List;
 import java.util.Set;
@@ -1995,8 +2042,15 @@ public final class WeekExtractor implements Extractor {
     private static final List<String> WEEK_WORDS = List.of("week");
     private static final Pattern PATTERN = buildPattern();
 
-    @Override public String name() { return "week"; }
-    @Override public int priority() { return 1000; }
+    @Override
+    public String name() {
+        return "week";
+    }
+
+    @Override
+    public int priority() {
+        return 1000;
+    }
 
     @Override
     public void extract(ParseContext ctx) {
@@ -2011,7 +2065,7 @@ public final class WeekExtractor implements Extractor {
             var match = new Match("week", v, m.start(), m.end(), m.group(), 1000, Set.of(), false);
             if (!seps.test(match)) continue;
             ctx.matches.add(new Match("week", v, valStart, valEnd,
-                input.substring(valStart, valEnd), 1000, Set.of(), false));
+                    input.substring(valStart, valEnd), 1000, Set.of(), false));
         }
     }
 

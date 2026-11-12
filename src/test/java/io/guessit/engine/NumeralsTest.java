@@ -1,5 +1,6 @@
 package io.guessit.engine;
 
+import io.guessit.engine.numerals.Numerals;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,9 +35,9 @@ class NumeralsTest {
         assertThatThrownBy(() -> Numerals.parse("foo")).isInstanceOf(IllegalArgumentException.class);
     }
     @Test void numeralRegexSourceMatchesAllVariants() {
-        var p = java.util.regex.Pattern.compile("^" + Numerals.NUMERAL + "$");
-        assertThat(p.matcher("12").matches()).isTrue();
-        assertThat(p.matcher("MCMXCIV").matches()).isTrue();
-        assertThat(p.matcher("seven").matches()).isTrue();
+        var p = Numerals.NUMERAL_PATTERN;
+        assertThat(p.matchesEntire("12")).isTrue();
+        assertThat(p.matchesEntire("MCMXCIV")).isTrue();
+        assertThat(p.matchesEntire("seven")).isTrue();
     }
 }

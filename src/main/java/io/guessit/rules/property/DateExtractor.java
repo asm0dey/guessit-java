@@ -1,12 +1,12 @@
 package io.guessit.rules.property;
 
-import io.guessit.engine.DatePatterns;
+import io.guessit.engine.date.DatePatterns;
 import io.guessit.engine.Extractor;
 import io.guessit.engine.Match;
 import io.guessit.engine.MatchName;
 import io.guessit.engine.ParseContext;
 
-import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * Extracts {@code date} via {@link DatePatterns#search}.
@@ -18,6 +18,7 @@ import java.util.ArrayList;
  * not standalone properties.
  */
 public final class DateExtractor implements Extractor {
+
     @Override
     public String name() {
         return "date";
@@ -35,22 +36,17 @@ public final class DateExtractor implements Extractor {
 
     @Override
     public void extract(ParseContext ctx) {
-        // Skip entirely when date is filtered: keeping the date match would
-        // win the overlap conflict against year/season/episode, then get
-        // stripped at output → those underlying matches are gone too.
-        // Python parity ("2015.01.31" --excludes date → year=2015) needs the
-        // year/season/episode candidates to survive.
-        var excludes = ctx.options.excludes();
-        var includes = ctx.options.includes();
-        boolean dateFiltered = (!excludes.isEmpty() && excludes.contains("date"))
-                || (!includes.isEmpty() && !includes.contains("date"));
-        if (dateFiltered) return;
+        if (isDateFiltered(ctx)) {
+            return;
+        }
+
         var input = ctx.input;
-        var result = DatePatterns.search(input, ctx.options.dateYearFirst(), ctx.options.dateDayFirst());
-        if (result.isEmpty()) return;
-        var r = result.get();
-        ctx.matches.add(new Match(MatchName.DATE, r.date(), r.start(), r.end(),
-                input.substring(r.start(), r.end()), 1100, null, false));
+
+        DatePatterns.search(input, ctx.options.dateYearFirst(), ctx.options.dateDayFirst())
+                .ifPresent(r -> ctx.matches.add(new Match(
+                        MatchName.DATE, r.date(), r.start(), r.end(),
+                        input.substring(r.start(), r.end()), priority(), Set.of(), false)
+                ));
     }
 
     /**
@@ -58,32 +54,41 @@ public final class DateExtractor implements Extractor {
      */
     @Override
     public void postProcess(ParseContext ctx) {
-        var dateMatch = ctx.matches.named(MatchName.DATE).findFirst();
-        if (dateMatch.isEmpty()) return;
-        var dm = dateMatch.get();
-        // Honor excludes/includes: when date is filtered out, keep the
-        // overlapping year/season/episode candidates so they survive into
-        // the output (e.g. "2015.01.31" with excludes=date emits year=2015).
+        if (isDateFiltered(ctx)) {
+            return;
+        }
+
+        ctx.matches.named(MatchName.DATE)
+                .findFirst()
+                .ifPresent(dateMatch -> removeRedundantInnerMatches(ctx, dateMatch));
+    }
+
+    private boolean isDateFiltered(ParseContext ctx) {
         var excludes = ctx.options.excludes();
         var includes = ctx.options.includes();
-        boolean dateFiltered = (!excludes.isEmpty() && excludes.contains("date"))
+        return (!excludes.isEmpty() && excludes.contains("date"))
                 || (!includes.isEmpty() && !includes.contains("date"));
-        if (dateFiltered) return;
-        var toRemove = new ArrayList<Match>();
-        for (var m : ctx.matches.all().toList()) {
-            if (m.equals(dm)) continue;
-            if (m.name() == MatchName.DATE) continue;
-            if (m.start() >= dm.start()
-                    && m.end() <= dm.end()
-                    &&
-                    (m.name() == MatchName.YEAR
-                            || m.name() == MatchName.SEASON
-                            || m.name() == MatchName.EPISODE
-                            || m.name() == MatchName.CRC32)) {
-                toRemove.add(m);
-            }
+    }
 
+    private void removeRedundantInnerMatches(ParseContext ctx, Match dateMatch) {
+        var toRemove = ctx.matches.all()
+                .filter(m -> isRedundantInnerMatch(m, dateMatch))
+                .toList();
+
+        toRemove.forEach(ctx.matches::remove);
+    }
+
+    private boolean isRedundantInnerMatch(Match m, Match dateMatch) {
+        if (m.equals(dateMatch) || m.name() == MatchName.DATE) {
+            return false;
         }
-        for (var m : toRemove) ctx.matches.remove(m);
+
+        boolean isInsideDateSpan = m.start() >= dateMatch.start() && m.end() <= dateMatch.end();
+        boolean isTargetType = m.name() == MatchName.YEAR
+                || m.name() == MatchName.SEASON
+                || m.name() == MatchName.EPISODE
+                || m.name() == MatchName.CRC32;
+
+        return isInsideDateSpan && isTargetType;
     }
 }
